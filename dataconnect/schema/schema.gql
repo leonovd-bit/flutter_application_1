@@ -1,0 +1,79 @@
+type User @table {
+  displayName: String!
+  email: String!
+  createdAt: Timestamp!
+  photoUrl: String
+  preferredDeliveryNotes: String
+  targetCalories: Int
+  targetProtein: Float
+  targetCarbs: Float
+  targetFat: Float
+}
+
+type DeliveryAddress @table {
+  user: User!
+  street: String!
+  city: String!
+  state: String!
+  zipCode: String!
+  createdAt: Timestamp!
+  aptSuite: String
+  isDefault: Boolean
+}
+
+type Meal @table {
+  name: String!
+  description: String!
+  calories: Int!
+  protein: Float!
+  carbs: Float!
+  fat: Float!
+  cuisineType: String!
+  imageURL: String!
+  createdAt: Timestamp!
+  ingredients: String
+  prepTimeMinutes: Int
+}
+
+type DietaryTag @table {
+  name: String!
+  createdAt: Timestamp!
+  description: String
+}
+
+type MealDietaryTag @table(key: ["meal", "dietaryTag"]) {
+  meal: Meal!
+  dietaryTag: DietaryTag!
+}
+
+type SubscriptionType @table {
+  name: String!
+  mealsPerDelivery: Int!
+  deliveryFrequency: String!
+  basePrice: Float!
+  createdAt: Timestamp!
+  description: String
+}
+
+type UserSubscription @table {
+  user: User!
+  subscriptionType: SubscriptionType!
+  startDate: Timestamp!
+  status: String!
+  createdAt: Timestamp!
+  endDate: Timestamp
+  lastDeliveryDate: Timestamp
+  nextDeliveryDate: Timestamp
+  preferredDeliveryDay: String
+  preferredDeliveryTimeSlot: String
+  shippingAddress: DeliveryAddress
+}
+
+type SubscriptionMeal @table {
+  userSubscription: UserSubscription!
+  meal: Meal!
+  quantity: Int!
+  deliveryDate: Date!
+  createdAt: Timestamp!
+  notes: String
+}

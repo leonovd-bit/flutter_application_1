@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "433852717304",
+    "project_id": "freshpunk-48db1",
+    "storage_bucket": "freshpunk-48db1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:433852717304:android:aa920e65bae76c5fc0c30d",
+        "android_client_info": {
+          "package_name": "com.example.flutter_application_1"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBimaxeeZSfAl5Rp1bqP3x9G6dcQWJ8thE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
