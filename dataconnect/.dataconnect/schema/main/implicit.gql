@@ -1,0 +1,76 @@
+extend type DeliveryAddress {
+  """
+  ✨ Implicit primary key field. It's a UUID column default to a generated new value. See `@table` for how to customize it.
+  """
+  id: UUID! @default(expr: "uuidV4()") @fdc_generated(from: "DeliveryAddress", purpose: IMPLICIT_KEY_FIELD)
+  """
+  ✨ Implicit foreign key field based on `DeliveryAddress`.`user`. It must match the value of `User`.`id`. See `@ref` for how to customize it.
+  """
+  userId: UUID! @fdc_generated(from: "DeliveryAddress.user", purpose: IMPLICIT_REF_FIELD)
+}
+extend type DietaryTag {
+  """
+  ✨ Implicit primary key field. It's a UUID column default to a generated new value. See `@table` for how to customize it.
+  """
+  id: UUID! @default(expr: "uuidV4()") @fdc_generated(from: "DietaryTag", purpose: IMPLICIT_KEY_FIELD)
+}
+extend type Meal {
+  """
+  ✨ Implicit primary key field. It's a UUID column default to a generated new value. See `@table` for how to customize it.
+  """
+  id: UUID! @default(expr: "uuidV4()") @fdc_generated(from: "Meal", purpose: IMPLICIT_KEY_FIELD)
+}
+extend type MealDietaryTag {
+  """
+  ✨ Implicit foreign key field based on `MealDietaryTag`.`meal`. It must match the value of `Meal`.`id`. See `@ref` for how to customize it.
+  """
+  mealId: UUID! @fdc_generated(from: "MealDietaryTag.meal", purpose: IMPLICIT_REF_FIELD)
+  """
+  ✨ Implicit foreign key field based on `MealDietaryTag`.`dietaryTag`. It must match the value of `DietaryTag`.`id`. See `@ref` for how to customize it.
+  """
+  dietaryTagId: UUID! @fdc_generated(from: "MealDietaryTag.dietaryTag", purpose: IMPLICIT_REF_FIELD)
+}
+extend type SubscriptionMeal {
+  """
+  ✨ Implicit primary key field. It's a UUID column default to a generated new value. See `@table` for how to customize it.
+  """
+  id: UUID! @default(expr: "uuidV4()") @fdc_generated(from: "SubscriptionMeal", purpose: IMPLICIT_KEY_FIELD)
+  """
+  ✨ Implicit foreign key field based on `SubscriptionMeal`.`meal`. It must match the value of `Meal`.`id`. See `@ref` for how to customize it.
+  """
+  mealId: UUID! @fdc_generated(from: "SubscriptionMeal.meal", purpose: IMPLICIT_REF_FIELD)
+  """
+  ✨ Implicit foreign key field based on `SubscriptionMeal`.`userSubscription`. It must match the value of `UserSubscription`.`id`. See `@ref` for how to customize it.
+  """
+  userSubscriptionId: UUID! @fdc_generated(from: "SubscriptionMeal.userSubscription", purpose: IMPLICIT_REF_FIELD)
+}
+extend type SubscriptionType {
+  """
+  ✨ Implicit primary key field. It's a UUID column default to a generated new value. See `@table` for how to customize it.
+  """
+  id: UUID! @default(expr: "uuidV4()") @fdc_generated(from: "SubscriptionType", purpose: IMPLICIT_KEY_FIELD)
+}
+extend type User {
+  """
+  ✨ Implicit primary key field. It's a UUID column default to a generated new value. See `@table` for how to customize it.
+  """
+  id: UUID! @default(expr: "uuidV4()") @fdc_generated(from: "User", purpose: IMPLICIT_KEY_FIELD)
+}
+extend type UserSubscription {
+  """
+  ✨ Implicit primary key field. It's a UUID column default to a generated new value. See `@table` for how to customize it.
+  """
+  id: UUID! @default(expr: "uuidV4()") @fdc_generated(from: "UserSubscription", purpose: IMPLICIT_KEY_FIELD)
+  """
+  ✨ Implicit foreign key field based on `UserSubscription`.`shippingAddress`. It must match the value of `DeliveryAddress`.`id`. See `@ref` for how to customize it.
+  """
+  shippingAddressId: UUID @fdc_generated(from: "UserSubscription.shippingAddress", purpose: IMPLICIT_REF_FIELD)
+  """
+  ✨ Implicit foreign key field based on `UserSubscription`.`subscriptionType`. It must match the value of `SubscriptionType`.`id`. See `@ref` for how to customize it.
+  """
+  subscriptionTypeId: UUID! @fdc_generated(from: "UserSubscription.subscriptionType", purpose: IMPLICIT_REF_FIELD)
+  """
+  ✨ Implicit foreign key field based on `UserSubscription`.`user`. It must match the value of `User`.`id`. See `@ref` for how to customize it.
+  """
+  userId: UUID! @fdc_generated(from: "UserSubscription.user", purpose: IMPLICIT_REF_FIELD)
+}

@@ -1,0 +1,2612 @@
+"""
+✨ `DeliveryAddress_KeyOutput` returns the primary key fields of table type `DeliveryAddress`.
+
+It has the same format as `DeliveryAddress_Key`, but is only used as mutation return value.
+"""
+scalar DeliveryAddress_KeyOutput
+"""
+✨ `DietaryTag_KeyOutput` returns the primary key fields of table type `DietaryTag`.
+
+It has the same format as `DietaryTag_Key`, but is only used as mutation return value.
+"""
+scalar DietaryTag_KeyOutput
+"""
+✨ `Meal_KeyOutput` returns the primary key fields of table type `Meal`.
+
+It has the same format as `Meal_Key`, but is only used as mutation return value.
+"""
+scalar Meal_KeyOutput
+"""
+✨ `MealDietaryTag_KeyOutput` returns the primary key fields of table type `MealDietaryTag`.
+
+It has the same format as `MealDietaryTag_Key`, but is only used as mutation return value.
+"""
+scalar MealDietaryTag_KeyOutput
+"""
+✨ `SubscriptionMeal_KeyOutput` returns the primary key fields of table type `SubscriptionMeal`.
+
+It has the same format as `SubscriptionMeal_Key`, but is only used as mutation return value.
+"""
+scalar SubscriptionMeal_KeyOutput
+"""
+✨ `SubscriptionType_KeyOutput` returns the primary key fields of table type `SubscriptionType`.
+
+It has the same format as `SubscriptionType_Key`, but is only used as mutation return value.
+"""
+scalar SubscriptionType_KeyOutput
+"""
+✨ `User_KeyOutput` returns the primary key fields of table type `User`.
+
+It has the same format as `User_Key`, but is only used as mutation return value.
+"""
+scalar User_KeyOutput
+"""
+✨ `UserSubscription_KeyOutput` returns the primary key fields of table type `UserSubscription`.
+
+It has the same format as `UserSubscription_Key`, but is only used as mutation return value.
+"""
+scalar UserSubscription_KeyOutput
+"""
+✨ Generated data input type for table 'DeliveryAddress'. It includes all necessary fields for creating or upserting rows into table.
+"""
+input DeliveryAddress_Data {
+  """
+  ✨ Generated from Field `DeliveryAddress`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `DeliveryAddress`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr
+  """
+  ✨ Generated from Field `DeliveryAddress`.`userId` of type `UUID!`
+  """
+  userId: UUID
+  """
+  ✨ `_expr` server value variant of `userId` (✨ Generated from Field `DeliveryAddress`.`userId` of type `UUID!`)
+  """
+  userId_expr: UUID_Expr
+  """
+  ✨ Generated from Field `DeliveryAddress`.`user` of type `User!`
+  """
+  user: User_Key
+  """
+  ✨ Generated from Field `DeliveryAddress`.`aptSuite` of type `String`
+  """
+  aptSuite: String
+  """
+  ✨ `_expr` server value variant of `aptSuite` (✨ Generated from Field `DeliveryAddress`.`aptSuite` of type `String`)
+  """
+  aptSuite_expr: String_Expr
+  """
+  ✨ Generated from Field `DeliveryAddress`.`city` of type `String!`
+  """
+  city: String
+  """
+  ✨ `_expr` server value variant of `city` (✨ Generated from Field `DeliveryAddress`.`city` of type `String!`)
+  """
+  city_expr: String_Expr
+  """
+  ✨ Generated from Field `DeliveryAddress`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: Timestamp
+  """
+  ✨ `_expr` server value variant of `createdAt` (✨ Generated from Field `DeliveryAddress`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_expr: Timestamp_Expr
+  """
+  ✨ `_time` server value variant of `createdAt` (✨ Generated from Field `DeliveryAddress`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_time: Timestamp_Relative
+  """
+  ✨ `_update` server value variant of `createdAt` (✨ Generated from Field `DeliveryAddress`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_update: [Timestamp_Update!]
+  """
+  ✨ Generated from Field `DeliveryAddress`.`isDefault` of type `Boolean`
+  """
+  isDefault: Boolean
+  """
+  ✨ `_expr` server value variant of `isDefault` (✨ Generated from Field `DeliveryAddress`.`isDefault` of type `Boolean`)
+  """
+  isDefault_expr: Boolean_Expr
+  """
+  ✨ Generated from Field `DeliveryAddress`.`state` of type `String!`
+  """
+  state: String
+  """
+  ✨ `_expr` server value variant of `state` (✨ Generated from Field `DeliveryAddress`.`state` of type `String!`)
+  """
+  state_expr: String_Expr
+  """
+  ✨ Generated from Field `DeliveryAddress`.`street` of type `String!`
+  """
+  street: String
+  """
+  ✨ `_expr` server value variant of `street` (✨ Generated from Field `DeliveryAddress`.`street` of type `String!`)
+  """
+  street_expr: String_Expr
+  """
+  ✨ Generated from Field `DeliveryAddress`.`zipCode` of type `String!`
+  """
+  zipCode: String
+  """
+  ✨ `_expr` server value variant of `zipCode` (✨ Generated from Field `DeliveryAddress`.`zipCode` of type `String!`)
+  """
+  zipCode_expr: String_Expr
+}
+"""
+✨ Generated filter input type for table 'DeliveryAddress'. This input allows filtering objects using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input DeliveryAddress_Filter {
+  """
+  Apply multiple filter conditions using `AND` logic.
+  """
+  _and: [DeliveryAddress_Filter!]
+  """
+  Negate the result of the provided filter condition.
+  """
+  _not: DeliveryAddress_Filter
+  """
+  Apply multiple filter conditions using `OR` logic.
+  """
+  _or: [DeliveryAddress_Filter!]
+  """
+  ✨ Generated from Field `DeliveryAddress`.`id` of type `UUID!`
+  """
+  id: UUID_Filter
+  """
+  ✨ Generated from Field `DeliveryAddress`.`userId` of type `UUID!`
+  """
+  userId: UUID_Filter
+  """
+  ✨ Generated from Field `DeliveryAddress`.`user` of type `User!`
+  """
+  user: User_Filter
+  """
+  ✨ Generated from Field `DeliveryAddress`.`aptSuite` of type `String`
+  """
+  aptSuite: String_Filter
+  """
+  ✨ Generated from Field `DeliveryAddress`.`city` of type `String!`
+  """
+  city: String_Filter
+  """
+  ✨ Generated from Field `DeliveryAddress`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: Timestamp_Filter
+  """
+  ✨ Generated from Field `DeliveryAddress`.`isDefault` of type `Boolean`
+  """
+  isDefault: Boolean_Filter
+  """
+  ✨ Generated from Field `DeliveryAddress`.`state` of type `String!`
+  """
+  state: String_Filter
+  """
+  ✨ Generated from Field `DeliveryAddress`.`street` of type `String!`
+  """
+  street: String_Filter
+  """
+  ✨ Generated from Field `DeliveryAddress`.`zipCode` of type `String!`
+  """
+  zipCode: String_Filter
+  """
+  ✨ Generated from Field `DeliveryAddress`.`userSubscriptions_on_shippingAddress` of type `[UserSubscription!]!`
+  """
+  userSubscriptions_on_shippingAddress: UserSubscription_ListFilter
+}
+"""
+✨ Generated first-row input type for table 'DeliveryAddress'. This input selects the first row matching the filter criteria, ordered according to the specified conditions.
+"""
+input DeliveryAddress_FirstRow {
+  """
+  Order the result by the specified fields.
+  """
+  orderBy: [DeliveryAddress_Order!]
+  """
+  Filters rows based on the specified conditions.
+  """
+  where: DeliveryAddress_Filter
+}
+"""
+✨ Generated having input type for table 'DeliveryAddress'. This input allows you to filter groups during aggregate queries using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input DeliveryAddress_Having {
+  """
+  Apply multiple Having conditions using `AND` logic.
+  """
+  _and: [DeliveryAddress_Having!]
+  """
+  Whether to apply DISTINCT to the aggregate function.
+  """
+  _distinct: Boolean
+  """
+  Negate the result of the provided Having condition.
+  """
+  _not: DeliveryAddress_Having
+  """
+  Apply multiple Having conditions using `OR` logic.
+  """
+  _or: [DeliveryAddress_Having!]
+  """
+  ✨ Generated from Field `DeliveryAddress`.`_count` of type `Int!`
+  """
+  _count: Int_Filter
+  """
+  ✨ Generated from Field `DeliveryAddress`.`aptSuite_count` of type `Int!`
+  """
+  aptSuite_count: Int_Filter
+  """
+  ✨ Generated from Field `DeliveryAddress`.`city_count` of type `Int!`
+  """
+  city_count: Int_Filter
+  """
+  ✨ Generated from Field `DeliveryAddress`.`createdAt_count` of type `Int!`
+  """
+  createdAt_count: Int_Filter
+  """
+  ✨ Generated from Field `DeliveryAddress`.`id_count` of type `Int!`
+  """
+  id_count: Int_Filter
+  """
+  ✨ Generated from Field `DeliveryAddress`.`isDefault_count` of type `Int!`
+  """
+  isDefault_count: Int_Filter
+  """
+  ✨ Generated from Field `DeliveryAddress`.`state_count` of type `Int!`
+  """
+  state_count: Int_Filter
+  """
+  ✨ Generated from Field `DeliveryAddress`.`street_count` of type `Int!`
+  """
+  street_count: Int_Filter
+  """
+  ✨ Generated from Field `DeliveryAddress`.`userId_count` of type `Int!`
+  """
+  userId_count: Int_Filter
+  """
+  ✨ Generated from Field `DeliveryAddress`.`zipCode_count` of type `Int!`
+  """
+  zipCode_count: Int_Filter
+  """
+  ✨ Generated from Field `DeliveryAddress`.`createdAt_min` of type `Timestamp`
+  """
+  createdAt_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `DeliveryAddress`.`createdAt_max` of type `Timestamp`
+  """
+  createdAt_max: Timestamp_Filter
+}
+"""
+✨ Generated key input type for table 'DeliveryAddress'. It represents the primary key fields used to uniquely identify a row in the table.
+"""
+input DeliveryAddress_Key {
+  """
+  ✨ Generated from Field `DeliveryAddress`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `DeliveryAddress`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr
+}
+"""
+✨ Generated list filter input type for table 'DeliveryAddress'. This input applies filtering logic based on the count or existence of related objects that matches certain criteria.
+"""
+input DeliveryAddress_ListFilter {
+  """
+  The desired number of objects that match the condition (defaults to at least one).
+  """
+  count: Int_Filter = {gt:0}
+  """
+  Condition of the related objects to filter for.
+  """
+  exist: DeliveryAddress_Filter
+}
+"""
+✨ Generated order input type for table 'DeliveryAddress'. This input defines the sorting order of rows in query results based on one or more fields.
+"""
+input DeliveryAddress_Order {
+  """
+  ✨ Generated from Field `DeliveryAddress`.`id` of type `UUID!`
+  """
+  id: OrderDirection
+  """
+  ✨ Generated from Field `DeliveryAddress`.`userId` of type `UUID!`
+  """
+  userId: OrderDirection
+  """
+  ✨ Generated from Field `DeliveryAddress`.`user` of type `User!`
+  """
+  user: User_Order
+  """
+  ✨ Generated from Field `DeliveryAddress`.`aptSuite` of type `String`
+  """
+  aptSuite: OrderDirection
+  """
+  ✨ Generated from Field `DeliveryAddress`.`city` of type `String!`
+  """
+  city: OrderDirection
+  """
+  ✨ Generated from Field `DeliveryAddress`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: OrderDirection
+  """
+  ✨ Generated from Field `DeliveryAddress`.`isDefault` of type `Boolean`
+  """
+  isDefault: OrderDirection
+  """
+  ✨ Generated from Field `DeliveryAddress`.`state` of type `String!`
+  """
+  state: OrderDirection
+  """
+  ✨ Generated from Field `DeliveryAddress`.`street` of type `String!`
+  """
+  street: OrderDirection
+  """
+  ✨ Generated from Field `DeliveryAddress`.`zipCode` of type `String!`
+  """
+  zipCode: OrderDirection
+}
+"""
+✨ Generated data input type for table 'DietaryTag'. It includes all necessary fields for creating or upserting rows into table.
+"""
+input DietaryTag_Data {
+  """
+  ✨ Generated from Field `DietaryTag`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `DietaryTag`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr
+  """
+  ✨ Generated from Field `DietaryTag`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: Timestamp
+  """
+  ✨ `_expr` server value variant of `createdAt` (✨ Generated from Field `DietaryTag`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_expr: Timestamp_Expr
+  """
+  ✨ `_time` server value variant of `createdAt` (✨ Generated from Field `DietaryTag`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_time: Timestamp_Relative
+  """
+  ✨ `_update` server value variant of `createdAt` (✨ Generated from Field `DietaryTag`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_update: [Timestamp_Update!]
+  """
+  ✨ Generated from Field `DietaryTag`.`description` of type `String`
+  """
+  description: String
+  """
+  ✨ `_expr` server value variant of `description` (✨ Generated from Field `DietaryTag`.`description` of type `String`)
+  """
+  description_expr: String_Expr
+  """
+  ✨ Generated from Field `DietaryTag`.`name` of type `String!`
+  """
+  name: String
+  """
+  ✨ `_expr` server value variant of `name` (✨ Generated from Field `DietaryTag`.`name` of type `String!`)
+  """
+  name_expr: String_Expr
+}
+"""
+✨ Generated filter input type for table 'DietaryTag'. This input allows filtering objects using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input DietaryTag_Filter {
+  """
+  Apply multiple filter conditions using `AND` logic.
+  """
+  _and: [DietaryTag_Filter!]
+  """
+  Negate the result of the provided filter condition.
+  """
+  _not: DietaryTag_Filter
+  """
+  Apply multiple filter conditions using `OR` logic.
+  """
+  _or: [DietaryTag_Filter!]
+  """
+  ✨ Generated from Field `DietaryTag`.`id` of type `UUID!`
+  """
+  id: UUID_Filter
+  """
+  ✨ Generated from Field `DietaryTag`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: Timestamp_Filter
+  """
+  ✨ Generated from Field `DietaryTag`.`description` of type `String`
+  """
+  description: String_Filter
+  """
+  ✨ Generated from Field `DietaryTag`.`name` of type `String!`
+  """
+  name: String_Filter
+  """
+  ✨ Generated from Field `DietaryTag`.`mealDietaryTags_on_dietaryTag` of type `[MealDietaryTag!]!`
+  """
+  mealDietaryTags_on_dietaryTag: MealDietaryTag_ListFilter
+  """
+  ✨ Generated from Field `DietaryTag`.`meals_via_MealDietaryTag` of type `[Meal!]!`
+  """
+  meals_via_MealDietaryTag: Meal_ListFilter
+}
+"""
+✨ Generated first-row input type for table 'DietaryTag'. This input selects the first row matching the filter criteria, ordered according to the specified conditions.
+"""
+input DietaryTag_FirstRow {
+  """
+  Order the result by the specified fields.
+  """
+  orderBy: [DietaryTag_Order!]
+  """
+  Filters rows based on the specified conditions.
+  """
+  where: DietaryTag_Filter
+}
+"""
+✨ Generated having input type for table 'DietaryTag'. This input allows you to filter groups during aggregate queries using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input DietaryTag_Having {
+  """
+  Apply multiple Having conditions using `AND` logic.
+  """
+  _and: [DietaryTag_Having!]
+  """
+  Whether to apply DISTINCT to the aggregate function.
+  """
+  _distinct: Boolean
+  """
+  Negate the result of the provided Having condition.
+  """
+  _not: DietaryTag_Having
+  """
+  Apply multiple Having conditions using `OR` logic.
+  """
+  _or: [DietaryTag_Having!]
+  """
+  ✨ Generated from Field `DietaryTag`.`_count` of type `Int!`
+  """
+  _count: Int_Filter
+  """
+  ✨ Generated from Field `DietaryTag`.`createdAt_count` of type `Int!`
+  """
+  createdAt_count: Int_Filter
+  """
+  ✨ Generated from Field `DietaryTag`.`description_count` of type `Int!`
+  """
+  description_count: Int_Filter
+  """
+  ✨ Generated from Field `DietaryTag`.`id_count` of type `Int!`
+  """
+  id_count: Int_Filter
+  """
+  ✨ Generated from Field `DietaryTag`.`name_count` of type `Int!`
+  """
+  name_count: Int_Filter
+  """
+  ✨ Generated from Field `DietaryTag`.`createdAt_min` of type `Timestamp`
+  """
+  createdAt_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `DietaryTag`.`createdAt_max` of type `Timestamp`
+  """
+  createdAt_max: Timestamp_Filter
+}
+"""
+✨ Generated key input type for table 'DietaryTag'. It represents the primary key fields used to uniquely identify a row in the table.
+"""
+input DietaryTag_Key {
+  """
+  ✨ Generated from Field `DietaryTag`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `DietaryTag`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr
+}
+"""
+✨ Generated list filter input type for table 'DietaryTag'. This input applies filtering logic based on the count or existence of related objects that matches certain criteria.
+"""
+input DietaryTag_ListFilter {
+  """
+  The desired number of objects that match the condition (defaults to at least one).
+  """
+  count: Int_Filter = {gt:0}
+  """
+  Condition of the related objects to filter for.
+  """
+  exist: DietaryTag_Filter
+}
+"""
+✨ Generated order input type for table 'DietaryTag'. This input defines the sorting order of rows in query results based on one or more fields.
+"""
+input DietaryTag_Order {
+  """
+  ✨ Generated from Field `DietaryTag`.`id` of type `UUID!`
+  """
+  id: OrderDirection
+  """
+  ✨ Generated from Field `DietaryTag`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: OrderDirection
+  """
+  ✨ Generated from Field `DietaryTag`.`description` of type `String`
+  """
+  description: OrderDirection
+  """
+  ✨ Generated from Field `DietaryTag`.`name` of type `String!`
+  """
+  name: OrderDirection
+}
+"""
+✨ Generated data input type for table 'Meal'. It includes all necessary fields for creating or upserting rows into table.
+"""
+input Meal_Data {
+  """
+  ✨ Generated from Field `Meal`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `Meal`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr
+  """
+  ✨ Generated from Field `Meal`.`calories` of type `Int!`
+  """
+  calories: Int
+  """
+  ✨ `_expr` server value variant of `calories` (✨ Generated from Field `Meal`.`calories` of type `Int!`)
+  """
+  calories_expr: Int_Expr
+  """
+  ✨ `_update` server value variant of `calories` (✨ Generated from Field `Meal`.`calories` of type `Int!`)
+  """
+  calories_update: [Int_Update!]
+  """
+  ✨ Generated from Field `Meal`.`carbs` of type `Float!`
+  """
+  carbs: Float
+  """
+  ✨ `_expr` server value variant of `carbs` (✨ Generated from Field `Meal`.`carbs` of type `Float!`)
+  """
+  carbs_expr: Float_Expr
+  """
+  ✨ `_update` server value variant of `carbs` (✨ Generated from Field `Meal`.`carbs` of type `Float!`)
+  """
+  carbs_update: [Float_Update!]
+  """
+  ✨ Generated from Field `Meal`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: Timestamp
+  """
+  ✨ `_expr` server value variant of `createdAt` (✨ Generated from Field `Meal`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_expr: Timestamp_Expr
+  """
+  ✨ `_time` server value variant of `createdAt` (✨ Generated from Field `Meal`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_time: Timestamp_Relative
+  """
+  ✨ `_update` server value variant of `createdAt` (✨ Generated from Field `Meal`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_update: [Timestamp_Update!]
+  """
+  ✨ Generated from Field `Meal`.`cuisineType` of type `String!`
+  """
+  cuisineType: String
+  """
+  ✨ `_expr` server value variant of `cuisineType` (✨ Generated from Field `Meal`.`cuisineType` of type `String!`)
+  """
+  cuisineType_expr: String_Expr
+  """
+  ✨ Generated from Field `Meal`.`description` of type `String!`
+  """
+  description: String
+  """
+  ✨ `_expr` server value variant of `description` (✨ Generated from Field `Meal`.`description` of type `String!`)
+  """
+  description_expr: String_Expr
+  """
+  ✨ Generated from Field `Meal`.`fat` of type `Float!`
+  """
+  fat: Float
+  """
+  ✨ `_expr` server value variant of `fat` (✨ Generated from Field `Meal`.`fat` of type `Float!`)
+  """
+  fat_expr: Float_Expr
+  """
+  ✨ `_update` server value variant of `fat` (✨ Generated from Field `Meal`.`fat` of type `Float!`)
+  """
+  fat_update: [Float_Update!]
+  """
+  ✨ Generated from Field `Meal`.`imageURL` of type `String!`
+  """
+  imageURL: String
+  """
+  ✨ `_expr` server value variant of `imageURL` (✨ Generated from Field `Meal`.`imageURL` of type `String!`)
+  """
+  imageURL_expr: String_Expr
+  """
+  ✨ Generated from Field `Meal`.`ingredients` of type `String`
+  """
+  ingredients: String
+  """
+  ✨ `_expr` server value variant of `ingredients` (✨ Generated from Field `Meal`.`ingredients` of type `String`)
+  """
+  ingredients_expr: String_Expr
+  """
+  ✨ Generated from Field `Meal`.`name` of type `String!`
+  """
+  name: String
+  """
+  ✨ `_expr` server value variant of `name` (✨ Generated from Field `Meal`.`name` of type `String!`)
+  """
+  name_expr: String_Expr
+  """
+  ✨ Generated from Field `Meal`.`prepTimeMinutes` of type `Int`
+  """
+  prepTimeMinutes: Int
+  """
+  ✨ `_expr` server value variant of `prepTimeMinutes` (✨ Generated from Field `Meal`.`prepTimeMinutes` of type `Int`)
+  """
+  prepTimeMinutes_expr: Int_Expr
+  """
+  ✨ `_update` server value variant of `prepTimeMinutes` (✨ Generated from Field `Meal`.`prepTimeMinutes` of type `Int`)
+  """
+  prepTimeMinutes_update: [Int_Update!]
+  """
+  ✨ Generated from Field `Meal`.`protein` of type `Float!`
+  """
+  protein: Float
+  """
+  ✨ `_expr` server value variant of `protein` (✨ Generated from Field `Meal`.`protein` of type `Float!`)
+  """
+  protein_expr: Float_Expr
+  """
+  ✨ `_update` server value variant of `protein` (✨ Generated from Field `Meal`.`protein` of type `Float!`)
+  """
+  protein_update: [Float_Update!]
+}
+"""
+✨ Generated filter input type for table 'Meal'. This input allows filtering objects using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input Meal_Filter {
+  """
+  Apply multiple filter conditions using `AND` logic.
+  """
+  _and: [Meal_Filter!]
+  """
+  Negate the result of the provided filter condition.
+  """
+  _not: Meal_Filter
+  """
+  Apply multiple filter conditions using `OR` logic.
+  """
+  _or: [Meal_Filter!]
+  """
+  ✨ Generated from Field `Meal`.`id` of type `UUID!`
+  """
+  id: UUID_Filter
+  """
+  ✨ Generated from Field `Meal`.`calories` of type `Int!`
+  """
+  calories: Int_Filter
+  """
+  ✨ Generated from Field `Meal`.`carbs` of type `Float!`
+  """
+  carbs: Float_Filter
+  """
+  ✨ Generated from Field `Meal`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: Timestamp_Filter
+  """
+  ✨ Generated from Field `Meal`.`cuisineType` of type `String!`
+  """
+  cuisineType: String_Filter
+  """
+  ✨ Generated from Field `Meal`.`description` of type `String!`
+  """
+  description: String_Filter
+  """
+  ✨ Generated from Field `Meal`.`fat` of type `Float!`
+  """
+  fat: Float_Filter
+  """
+  ✨ Generated from Field `Meal`.`imageURL` of type `String!`
+  """
+  imageURL: String_Filter
+  """
+  ✨ Generated from Field `Meal`.`ingredients` of type `String`
+  """
+  ingredients: String_Filter
+  """
+  ✨ Generated from Field `Meal`.`name` of type `String!`
+  """
+  name: String_Filter
+  """
+  ✨ Generated from Field `Meal`.`prepTimeMinutes` of type `Int`
+  """
+  prepTimeMinutes: Int_Filter
+  """
+  ✨ Generated from Field `Meal`.`protein` of type `Float!`
+  """
+  protein: Float_Filter
+  """
+  ✨ Generated from Field `Meal`.`mealDietaryTags_on_meal` of type `[MealDietaryTag!]!`
+  """
+  mealDietaryTags_on_meal: MealDietaryTag_ListFilter
+  """
+  ✨ Generated from Field `Meal`.`subscriptionMeals_on_meal` of type `[SubscriptionMeal!]!`
+  """
+  subscriptionMeals_on_meal: SubscriptionMeal_ListFilter
+  """
+  ✨ Generated from Field `Meal`.`dietaryTags_via_MealDietaryTag` of type `[DietaryTag!]!`
+  """
+  dietaryTags_via_MealDietaryTag: DietaryTag_ListFilter
+}
+"""
+✨ Generated first-row input type for table 'Meal'. This input selects the first row matching the filter criteria, ordered according to the specified conditions.
+"""
+input Meal_FirstRow {
+  """
+  Order the result by the specified fields.
+  """
+  orderBy: [Meal_Order!]
+  """
+  Filters rows based on the specified conditions.
+  """
+  where: Meal_Filter
+}
+"""
+✨ Generated having input type for table 'Meal'. This input allows you to filter groups during aggregate queries using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input Meal_Having {
+  """
+  Apply multiple Having conditions using `AND` logic.
+  """
+  _and: [Meal_Having!]
+  """
+  Whether to apply DISTINCT to the aggregate function.
+  """
+  _distinct: Boolean
+  """
+  Negate the result of the provided Having condition.
+  """
+  _not: Meal_Having
+  """
+  Apply multiple Having conditions using `OR` logic.
+  """
+  _or: [Meal_Having!]
+  """
+  ✨ Generated from Field `Meal`.`_count` of type `Int!`
+  """
+  _count: Int_Filter
+  """
+  ✨ Generated from Field `Meal`.`calories_count` of type `Int!`
+  """
+  calories_count: Int_Filter
+  """
+  ✨ Generated from Field `Meal`.`carbs_count` of type `Int!`
+  """
+  carbs_count: Int_Filter
+  """
+  ✨ Generated from Field `Meal`.`createdAt_count` of type `Int!`
+  """
+  createdAt_count: Int_Filter
+  """
+  ✨ Generated from Field `Meal`.`cuisineType_count` of type `Int!`
+  """
+  cuisineType_count: Int_Filter
+  """
+  ✨ Generated from Field `Meal`.`description_count` of type `Int!`
+  """
+  description_count: Int_Filter
+  """
+  ✨ Generated from Field `Meal`.`fat_count` of type `Int!`
+  """
+  fat_count: Int_Filter
+  """
+  ✨ Generated from Field `Meal`.`id_count` of type `Int!`
+  """
+  id_count: Int_Filter
+  """
+  ✨ Generated from Field `Meal`.`imageURL_count` of type `Int!`
+  """
+  imageURL_count: Int_Filter
+  """
+  ✨ Generated from Field `Meal`.`ingredients_count` of type `Int!`
+  """
+  ingredients_count: Int_Filter
+  """
+  ✨ Generated from Field `Meal`.`name_count` of type `Int!`
+  """
+  name_count: Int_Filter
+  """
+  ✨ Generated from Field `Meal`.`prepTimeMinutes_count` of type `Int!`
+  """
+  prepTimeMinutes_count: Int_Filter
+  """
+  ✨ Generated from Field `Meal`.`protein_count` of type `Int!`
+  """
+  protein_count: Int_Filter
+  """
+  ✨ Generated from Field `Meal`.`calories_sum` of type `Int`
+  """
+  calories_sum: Int_Filter
+  """
+  ✨ Generated from Field `Meal`.`carbs_sum` of type `Float`
+  """
+  carbs_sum: Float_Filter
+  """
+  ✨ Generated from Field `Meal`.`fat_sum` of type `Float`
+  """
+  fat_sum: Float_Filter
+  """
+  ✨ Generated from Field `Meal`.`prepTimeMinutes_sum` of type `Int`
+  """
+  prepTimeMinutes_sum: Int_Filter
+  """
+  ✨ Generated from Field `Meal`.`protein_sum` of type `Float`
+  """
+  protein_sum: Float_Filter
+  """
+  ✨ Generated from Field `Meal`.`calories_avg` of type `Float`
+  """
+  calories_avg: Float_Filter
+  """
+  ✨ Generated from Field `Meal`.`carbs_avg` of type `Float`
+  """
+  carbs_avg: Float_Filter
+  """
+  ✨ Generated from Field `Meal`.`fat_avg` of type `Float`
+  """
+  fat_avg: Float_Filter
+  """
+  ✨ Generated from Field `Meal`.`prepTimeMinutes_avg` of type `Float`
+  """
+  prepTimeMinutes_avg: Float_Filter
+  """
+  ✨ Generated from Field `Meal`.`protein_avg` of type `Float`
+  """
+  protein_avg: Float_Filter
+  """
+  ✨ Generated from Field `Meal`.`calories_min` of type `Int`
+  """
+  calories_min: Int_Filter
+  """
+  ✨ Generated from Field `Meal`.`carbs_min` of type `Float`
+  """
+  carbs_min: Float_Filter
+  """
+  ✨ Generated from Field `Meal`.`createdAt_min` of type `Timestamp`
+  """
+  createdAt_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `Meal`.`fat_min` of type `Float`
+  """
+  fat_min: Float_Filter
+  """
+  ✨ Generated from Field `Meal`.`prepTimeMinutes_min` of type `Int`
+  """
+  prepTimeMinutes_min: Int_Filter
+  """
+  ✨ Generated from Field `Meal`.`protein_min` of type `Float`
+  """
+  protein_min: Float_Filter
+  """
+  ✨ Generated from Field `Meal`.`calories_max` of type `Int`
+  """
+  calories_max: Int_Filter
+  """
+  ✨ Generated from Field `Meal`.`carbs_max` of type `Float`
+  """
+  carbs_max: Float_Filter
+  """
+  ✨ Generated from Field `Meal`.`createdAt_max` of type `Timestamp`
+  """
+  createdAt_max: Timestamp_Filter
+  """
+  ✨ Generated from Field `Meal`.`fat_max` of type `Float`
+  """
+  fat_max: Float_Filter
+  """
+  ✨ Generated from Field `Meal`.`prepTimeMinutes_max` of type `Int`
+  """
+  prepTimeMinutes_max: Int_Filter
+  """
+  ✨ Generated from Field `Meal`.`protein_max` of type `Float`
+  """
+  protein_max: Float_Filter
+}
+"""
+✨ Generated key input type for table 'Meal'. It represents the primary key fields used to uniquely identify a row in the table.
+"""
+input Meal_Key {
+  """
+  ✨ Generated from Field `Meal`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `Meal`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr
+}
+"""
+✨ Generated list filter input type for table 'Meal'. This input applies filtering logic based on the count or existence of related objects that matches certain criteria.
+"""
+input Meal_ListFilter {
+  """
+  The desired number of objects that match the condition (defaults to at least one).
+  """
+  count: Int_Filter = {gt:0}
+  """
+  Condition of the related objects to filter for.
+  """
+  exist: Meal_Filter
+}
+"""
+✨ Generated order input type for table 'Meal'. This input defines the sorting order of rows in query results based on one or more fields.
+"""
+input Meal_Order {
+  """
+  ✨ Generated from Field `Meal`.`id` of type `UUID!`
+  """
+  id: OrderDirection
+  """
+  ✨ Generated from Field `Meal`.`calories` of type `Int!`
+  """
+  calories: OrderDirection
+  """
+  ✨ Generated from Field `Meal`.`carbs` of type `Float!`
+  """
+  carbs: OrderDirection
+  """
+  ✨ Generated from Field `Meal`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: OrderDirection
+  """
+  ✨ Generated from Field `Meal`.`cuisineType` of type `String!`
+  """
+  cuisineType: OrderDirection
+  """
+  ✨ Generated from Field `Meal`.`description` of type `String!`
+  """
+  description: OrderDirection
+  """
+  ✨ Generated from Field `Meal`.`fat` of type `Float!`
+  """
+  fat: OrderDirection
+  """
+  ✨ Generated from Field `Meal`.`imageURL` of type `String!`
+  """
+  imageURL: OrderDirection
+  """
+  ✨ Generated from Field `Meal`.`ingredients` of type `String`
+  """
+  ingredients: OrderDirection
+  """
+  ✨ Generated from Field `Meal`.`name` of type `String!`
+  """
+  name: OrderDirection
+  """
+  ✨ Generated from Field `Meal`.`prepTimeMinutes` of type `Int`
+  """
+  prepTimeMinutes: OrderDirection
+  """
+  ✨ Generated from Field `Meal`.`protein` of type `Float!`
+  """
+  protein: OrderDirection
+}
+"""
+✨ Generated data input type for table 'MealDietaryTag'. It includes all necessary fields for creating or upserting rows into table.
+"""
+input MealDietaryTag_Data {
+  """
+  ✨ Generated from Field `MealDietaryTag`.`mealId` of type `UUID!`
+  """
+  mealId: UUID
+  """
+  ✨ `_expr` server value variant of `mealId` (✨ Generated from Field `MealDietaryTag`.`mealId` of type `UUID!`)
+  """
+  mealId_expr: UUID_Expr
+  """
+  ✨ Generated from Field `MealDietaryTag`.`dietaryTagId` of type `UUID!`
+  """
+  dietaryTagId: UUID
+  """
+  ✨ `_expr` server value variant of `dietaryTagId` (✨ Generated from Field `MealDietaryTag`.`dietaryTagId` of type `UUID!`)
+  """
+  dietaryTagId_expr: UUID_Expr
+  """
+  ✨ Generated from Field `MealDietaryTag`.`dietaryTag` of type `DietaryTag!`
+  """
+  dietaryTag: DietaryTag_Key
+  """
+  ✨ Generated from Field `MealDietaryTag`.`meal` of type `Meal!`
+  """
+  meal: Meal_Key
+}
+"""
+✨ Generated filter input type for table 'MealDietaryTag'. This input allows filtering objects using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input MealDietaryTag_Filter {
+  """
+  Apply multiple filter conditions using `AND` logic.
+  """
+  _and: [MealDietaryTag_Filter!]
+  """
+  Negate the result of the provided filter condition.
+  """
+  _not: MealDietaryTag_Filter
+  """
+  Apply multiple filter conditions using `OR` logic.
+  """
+  _or: [MealDietaryTag_Filter!]
+  """
+  ✨ Generated from Field `MealDietaryTag`.`mealId` of type `UUID!`
+  """
+  mealId: UUID_Filter
+  """
+  ✨ Generated from Field `MealDietaryTag`.`dietaryTagId` of type `UUID!`
+  """
+  dietaryTagId: UUID_Filter
+  """
+  ✨ Generated from Field `MealDietaryTag`.`dietaryTag` of type `DietaryTag!`
+  """
+  dietaryTag: DietaryTag_Filter
+  """
+  ✨ Generated from Field `MealDietaryTag`.`meal` of type `Meal!`
+  """
+  meal: Meal_Filter
+}
+"""
+✨ Generated first-row input type for table 'MealDietaryTag'. This input selects the first row matching the filter criteria, ordered according to the specified conditions.
+"""
+input MealDietaryTag_FirstRow {
+  """
+  Order the result by the specified fields.
+  """
+  orderBy: [MealDietaryTag_Order!]
+  """
+  Filters rows based on the specified conditions.
+  """
+  where: MealDietaryTag_Filter
+}
+"""
+✨ Generated having input type for table 'MealDietaryTag'. This input allows you to filter groups during aggregate queries using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input MealDietaryTag_Having {
+  """
+  Apply multiple Having conditions using `AND` logic.
+  """
+  _and: [MealDietaryTag_Having!]
+  """
+  Whether to apply DISTINCT to the aggregate function.
+  """
+  _distinct: Boolean
+  """
+  Negate the result of the provided Having condition.
+  """
+  _not: MealDietaryTag_Having
+  """
+  Apply multiple Having conditions using `OR` logic.
+  """
+  _or: [MealDietaryTag_Having!]
+  """
+  ✨ Generated from Field `MealDietaryTag`.`_count` of type `Int!`
+  """
+  _count: Int_Filter
+  """
+  ✨ Generated from Field `MealDietaryTag`.`dietaryTagId_count` of type `Int!`
+  """
+  dietaryTagId_count: Int_Filter
+  """
+  ✨ Generated from Field `MealDietaryTag`.`mealId_count` of type `Int!`
+  """
+  mealId_count: Int_Filter
+}
+"""
+✨ Generated key input type for table 'MealDietaryTag'. It represents the primary key fields used to uniquely identify a row in the table.
+"""
+input MealDietaryTag_Key {
+  """
+  ✨ Generated from Field `MealDietaryTag`.`mealId` of type `UUID!`
+  """
+  mealId: UUID
+  """
+  ✨ `_expr` server value variant of `mealId` (✨ Generated from Field `MealDietaryTag`.`mealId` of type `UUID!`)
+  """
+  mealId_expr: UUID_Expr
+  """
+  ✨ Generated from Field `MealDietaryTag`.`dietaryTagId` of type `UUID!`
+  """
+  dietaryTagId: UUID
+  """
+  ✨ `_expr` server value variant of `dietaryTagId` (✨ Generated from Field `MealDietaryTag`.`dietaryTagId` of type `UUID!`)
+  """
+  dietaryTagId_expr: UUID_Expr
+}
+"""
+✨ Generated list filter input type for table 'MealDietaryTag'. This input applies filtering logic based on the count or existence of related objects that matches certain criteria.
+"""
+input MealDietaryTag_ListFilter {
+  """
+  The desired number of objects that match the condition (defaults to at least one).
+  """
+  count: Int_Filter = {gt:0}
+  """
+  Condition of the related objects to filter for.
+  """
+  exist: MealDietaryTag_Filter
+}
+"""
+✨ Generated order input type for table 'MealDietaryTag'. This input defines the sorting order of rows in query results based on one or more fields.
+"""
+input MealDietaryTag_Order {
+  """
+  ✨ Generated from Field `MealDietaryTag`.`mealId` of type `UUID!`
+  """
+  mealId: OrderDirection
+  """
+  ✨ Generated from Field `MealDietaryTag`.`dietaryTagId` of type `UUID!`
+  """
+  dietaryTagId: OrderDirection
+  """
+  ✨ Generated from Field `MealDietaryTag`.`dietaryTag` of type `DietaryTag!`
+  """
+  dietaryTag: DietaryTag_Order
+  """
+  ✨ Generated from Field `MealDietaryTag`.`meal` of type `Meal!`
+  """
+  meal: Meal_Order
+}
+"""
+✨ Generated data input type for table 'SubscriptionMeal'. It includes all necessary fields for creating or upserting rows into table.
+"""
+input SubscriptionMeal_Data {
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `SubscriptionMeal`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`mealId` of type `UUID!`
+  """
+  mealId: UUID
+  """
+  ✨ `_expr` server value variant of `mealId` (✨ Generated from Field `SubscriptionMeal`.`mealId` of type `UUID!`)
+  """
+  mealId_expr: UUID_Expr
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`userSubscriptionId` of type `UUID!`
+  """
+  userSubscriptionId: UUID
+  """
+  ✨ `_expr` server value variant of `userSubscriptionId` (✨ Generated from Field `SubscriptionMeal`.`userSubscriptionId` of type `UUID!`)
+  """
+  userSubscriptionId_expr: UUID_Expr
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`meal` of type `Meal!`
+  """
+  meal: Meal_Key
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`userSubscription` of type `UserSubscription!`
+  """
+  userSubscription: UserSubscription_Key
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: Timestamp
+  """
+  ✨ `_expr` server value variant of `createdAt` (✨ Generated from Field `SubscriptionMeal`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_expr: Timestamp_Expr
+  """
+  ✨ `_time` server value variant of `createdAt` (✨ Generated from Field `SubscriptionMeal`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_time: Timestamp_Relative
+  """
+  ✨ `_update` server value variant of `createdAt` (✨ Generated from Field `SubscriptionMeal`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_update: [Timestamp_Update!]
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`deliveryDate` of type `Date!`
+  """
+  deliveryDate: Date
+  """
+  ✨ `_date` server value variant of `deliveryDate` (✨ Generated from Field `SubscriptionMeal`.`deliveryDate` of type `Date!`)
+  """
+  deliveryDate_date: Date_Relative
+  """
+  ✨ `_expr` server value variant of `deliveryDate` (✨ Generated from Field `SubscriptionMeal`.`deliveryDate` of type `Date!`)
+  """
+  deliveryDate_expr: Date_Expr
+  """
+  ✨ `_update` server value variant of `deliveryDate` (✨ Generated from Field `SubscriptionMeal`.`deliveryDate` of type `Date!`)
+  """
+  deliveryDate_update: [Date_Update!]
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`notes` of type `String`
+  """
+  notes: String
+  """
+  ✨ `_expr` server value variant of `notes` (✨ Generated from Field `SubscriptionMeal`.`notes` of type `String`)
+  """
+  notes_expr: String_Expr
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`quantity` of type `Int!`
+  """
+  quantity: Int
+  """
+  ✨ `_expr` server value variant of `quantity` (✨ Generated from Field `SubscriptionMeal`.`quantity` of type `Int!`)
+  """
+  quantity_expr: Int_Expr
+  """
+  ✨ `_update` server value variant of `quantity` (✨ Generated from Field `SubscriptionMeal`.`quantity` of type `Int!`)
+  """
+  quantity_update: [Int_Update!]
+}
+"""
+✨ Generated filter input type for table 'SubscriptionMeal'. This input allows filtering objects using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input SubscriptionMeal_Filter {
+  """
+  Apply multiple filter conditions using `AND` logic.
+  """
+  _and: [SubscriptionMeal_Filter!]
+  """
+  Negate the result of the provided filter condition.
+  """
+  _not: SubscriptionMeal_Filter
+  """
+  Apply multiple filter conditions using `OR` logic.
+  """
+  _or: [SubscriptionMeal_Filter!]
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`id` of type `UUID!`
+  """
+  id: UUID_Filter
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`mealId` of type `UUID!`
+  """
+  mealId: UUID_Filter
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`userSubscriptionId` of type `UUID!`
+  """
+  userSubscriptionId: UUID_Filter
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`meal` of type `Meal!`
+  """
+  meal: Meal_Filter
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`userSubscription` of type `UserSubscription!`
+  """
+  userSubscription: UserSubscription_Filter
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: Timestamp_Filter
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`deliveryDate` of type `Date!`
+  """
+  deliveryDate: Date_Filter
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`notes` of type `String`
+  """
+  notes: String_Filter
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`quantity` of type `Int!`
+  """
+  quantity: Int_Filter
+}
+"""
+✨ Generated first-row input type for table 'SubscriptionMeal'. This input selects the first row matching the filter criteria, ordered according to the specified conditions.
+"""
+input SubscriptionMeal_FirstRow {
+  """
+  Order the result by the specified fields.
+  """
+  orderBy: [SubscriptionMeal_Order!]
+  """
+  Filters rows based on the specified conditions.
+  """
+  where: SubscriptionMeal_Filter
+}
+"""
+✨ Generated having input type for table 'SubscriptionMeal'. This input allows you to filter groups during aggregate queries using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input SubscriptionMeal_Having {
+  """
+  Apply multiple Having conditions using `AND` logic.
+  """
+  _and: [SubscriptionMeal_Having!]
+  """
+  Whether to apply DISTINCT to the aggregate function.
+  """
+  _distinct: Boolean
+  """
+  Negate the result of the provided Having condition.
+  """
+  _not: SubscriptionMeal_Having
+  """
+  Apply multiple Having conditions using `OR` logic.
+  """
+  _or: [SubscriptionMeal_Having!]
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`_count` of type `Int!`
+  """
+  _count: Int_Filter
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`createdAt_count` of type `Int!`
+  """
+  createdAt_count: Int_Filter
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`deliveryDate_count` of type `Int!`
+  """
+  deliveryDate_count: Int_Filter
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`id_count` of type `Int!`
+  """
+  id_count: Int_Filter
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`mealId_count` of type `Int!`
+  """
+  mealId_count: Int_Filter
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`notes_count` of type `Int!`
+  """
+  notes_count: Int_Filter
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`quantity_count` of type `Int!`
+  """
+  quantity_count: Int_Filter
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`userSubscriptionId_count` of type `Int!`
+  """
+  userSubscriptionId_count: Int_Filter
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`quantity_sum` of type `Int`
+  """
+  quantity_sum: Int_Filter
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`quantity_avg` of type `Float`
+  """
+  quantity_avg: Float_Filter
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`createdAt_min` of type `Timestamp`
+  """
+  createdAt_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`deliveryDate_min` of type `Date`
+  """
+  deliveryDate_min: Date_Filter
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`quantity_min` of type `Int`
+  """
+  quantity_min: Int_Filter
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`createdAt_max` of type `Timestamp`
+  """
+  createdAt_max: Timestamp_Filter
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`deliveryDate_max` of type `Date`
+  """
+  deliveryDate_max: Date_Filter
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`quantity_max` of type `Int`
+  """
+  quantity_max: Int_Filter
+}
+"""
+✨ Generated key input type for table 'SubscriptionMeal'. It represents the primary key fields used to uniquely identify a row in the table.
+"""
+input SubscriptionMeal_Key {
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `SubscriptionMeal`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr
+}
+"""
+✨ Generated list filter input type for table 'SubscriptionMeal'. This input applies filtering logic based on the count or existence of related objects that matches certain criteria.
+"""
+input SubscriptionMeal_ListFilter {
+  """
+  The desired number of objects that match the condition (defaults to at least one).
+  """
+  count: Int_Filter = {gt:0}
+  """
+  Condition of the related objects to filter for.
+  """
+  exist: SubscriptionMeal_Filter
+}
+"""
+✨ Generated order input type for table 'SubscriptionMeal'. This input defines the sorting order of rows in query results based on one or more fields.
+"""
+input SubscriptionMeal_Order {
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`id` of type `UUID!`
+  """
+  id: OrderDirection
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`mealId` of type `UUID!`
+  """
+  mealId: OrderDirection
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`userSubscriptionId` of type `UUID!`
+  """
+  userSubscriptionId: OrderDirection
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`meal` of type `Meal!`
+  """
+  meal: Meal_Order
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`userSubscription` of type `UserSubscription!`
+  """
+  userSubscription: UserSubscription_Order
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: OrderDirection
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`deliveryDate` of type `Date!`
+  """
+  deliveryDate: OrderDirection
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`notes` of type `String`
+  """
+  notes: OrderDirection
+  """
+  ✨ Generated from Field `SubscriptionMeal`.`quantity` of type `Int!`
+  """
+  quantity: OrderDirection
+}
+"""
+✨ Generated data input type for table 'SubscriptionType'. It includes all necessary fields for creating or upserting rows into table.
+"""
+input SubscriptionType_Data {
+  """
+  ✨ Generated from Field `SubscriptionType`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `SubscriptionType`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr
+  """
+  ✨ Generated from Field `SubscriptionType`.`basePrice` of type `Float!`
+  """
+  basePrice: Float
+  """
+  ✨ `_expr` server value variant of `basePrice` (✨ Generated from Field `SubscriptionType`.`basePrice` of type `Float!`)
+  """
+  basePrice_expr: Float_Expr
+  """
+  ✨ `_update` server value variant of `basePrice` (✨ Generated from Field `SubscriptionType`.`basePrice` of type `Float!`)
+  """
+  basePrice_update: [Float_Update!]
+  """
+  ✨ Generated from Field `SubscriptionType`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: Timestamp
+  """
+  ✨ `_expr` server value variant of `createdAt` (✨ Generated from Field `SubscriptionType`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_expr: Timestamp_Expr
+  """
+  ✨ `_time` server value variant of `createdAt` (✨ Generated from Field `SubscriptionType`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_time: Timestamp_Relative
+  """
+  ✨ `_update` server value variant of `createdAt` (✨ Generated from Field `SubscriptionType`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_update: [Timestamp_Update!]
+  """
+  ✨ Generated from Field `SubscriptionType`.`deliveryFrequency` of type `String!`
+  """
+  deliveryFrequency: String
+  """
+  ✨ `_expr` server value variant of `deliveryFrequency` (✨ Generated from Field `SubscriptionType`.`deliveryFrequency` of type `String!`)
+  """
+  deliveryFrequency_expr: String_Expr
+  """
+  ✨ Generated from Field `SubscriptionType`.`description` of type `String`
+  """
+  description: String
+  """
+  ✨ `_expr` server value variant of `description` (✨ Generated from Field `SubscriptionType`.`description` of type `String`)
+  """
+  description_expr: String_Expr
+  """
+  ✨ Generated from Field `SubscriptionType`.`mealsPerDelivery` of type `Int!`
+  """
+  mealsPerDelivery: Int
+  """
+  ✨ `_expr` server value variant of `mealsPerDelivery` (✨ Generated from Field `SubscriptionType`.`mealsPerDelivery` of type `Int!`)
+  """
+  mealsPerDelivery_expr: Int_Expr
+  """
+  ✨ `_update` server value variant of `mealsPerDelivery` (✨ Generated from Field `SubscriptionType`.`mealsPerDelivery` of type `Int!`)
+  """
+  mealsPerDelivery_update: [Int_Update!]
+  """
+  ✨ Generated from Field `SubscriptionType`.`name` of type `String!`
+  """
+  name: String
+  """
+  ✨ `_expr` server value variant of `name` (✨ Generated from Field `SubscriptionType`.`name` of type `String!`)
+  """
+  name_expr: String_Expr
+}
+"""
+✨ Generated filter input type for table 'SubscriptionType'. This input allows filtering objects using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input SubscriptionType_Filter {
+  """
+  Apply multiple filter conditions using `AND` logic.
+  """
+  _and: [SubscriptionType_Filter!]
+  """
+  Negate the result of the provided filter condition.
+  """
+  _not: SubscriptionType_Filter
+  """
+  Apply multiple filter conditions using `OR` logic.
+  """
+  _or: [SubscriptionType_Filter!]
+  """
+  ✨ Generated from Field `SubscriptionType`.`id` of type `UUID!`
+  """
+  id: UUID_Filter
+  """
+  ✨ Generated from Field `SubscriptionType`.`basePrice` of type `Float!`
+  """
+  basePrice: Float_Filter
+  """
+  ✨ Generated from Field `SubscriptionType`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: Timestamp_Filter
+  """
+  ✨ Generated from Field `SubscriptionType`.`deliveryFrequency` of type `String!`
+  """
+  deliveryFrequency: String_Filter
+  """
+  ✨ Generated from Field `SubscriptionType`.`description` of type `String`
+  """
+  description: String_Filter
+  """
+  ✨ Generated from Field `SubscriptionType`.`mealsPerDelivery` of type `Int!`
+  """
+  mealsPerDelivery: Int_Filter
+  """
+  ✨ Generated from Field `SubscriptionType`.`name` of type `String!`
+  """
+  name: String_Filter
+  """
+  ✨ Generated from Field `SubscriptionType`.`userSubscriptions_on_subscriptionType` of type `[UserSubscription!]!`
+  """
+  userSubscriptions_on_subscriptionType: UserSubscription_ListFilter
+}
+"""
+✨ Generated first-row input type for table 'SubscriptionType'. This input selects the first row matching the filter criteria, ordered according to the specified conditions.
+"""
+input SubscriptionType_FirstRow {
+  """
+  Order the result by the specified fields.
+  """
+  orderBy: [SubscriptionType_Order!]
+  """
+  Filters rows based on the specified conditions.
+  """
+  where: SubscriptionType_Filter
+}
+"""
+✨ Generated having input type for table 'SubscriptionType'. This input allows you to filter groups during aggregate queries using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input SubscriptionType_Having {
+  """
+  Apply multiple Having conditions using `AND` logic.
+  """
+  _and: [SubscriptionType_Having!]
+  """
+  Whether to apply DISTINCT to the aggregate function.
+  """
+  _distinct: Boolean
+  """
+  Negate the result of the provided Having condition.
+  """
+  _not: SubscriptionType_Having
+  """
+  Apply multiple Having conditions using `OR` logic.
+  """
+  _or: [SubscriptionType_Having!]
+  """
+  ✨ Generated from Field `SubscriptionType`.`_count` of type `Int!`
+  """
+  _count: Int_Filter
+  """
+  ✨ Generated from Field `SubscriptionType`.`basePrice_count` of type `Int!`
+  """
+  basePrice_count: Int_Filter
+  """
+  ✨ Generated from Field `SubscriptionType`.`createdAt_count` of type `Int!`
+  """
+  createdAt_count: Int_Filter
+  """
+  ✨ Generated from Field `SubscriptionType`.`deliveryFrequency_count` of type `Int!`
+  """
+  deliveryFrequency_count: Int_Filter
+  """
+  ✨ Generated from Field `SubscriptionType`.`description_count` of type `Int!`
+  """
+  description_count: Int_Filter
+  """
+  ✨ Generated from Field `SubscriptionType`.`id_count` of type `Int!`
+  """
+  id_count: Int_Filter
+  """
+  ✨ Generated from Field `SubscriptionType`.`mealsPerDelivery_count` of type `Int!`
+  """
+  mealsPerDelivery_count: Int_Filter
+  """
+  ✨ Generated from Field `SubscriptionType`.`name_count` of type `Int!`
+  """
+  name_count: Int_Filter
+  """
+  ✨ Generated from Field `SubscriptionType`.`basePrice_sum` of type `Float`
+  """
+  basePrice_sum: Float_Filter
+  """
+  ✨ Generated from Field `SubscriptionType`.`mealsPerDelivery_sum` of type `Int`
+  """
+  mealsPerDelivery_sum: Int_Filter
+  """
+  ✨ Generated from Field `SubscriptionType`.`basePrice_avg` of type `Float`
+  """
+  basePrice_avg: Float_Filter
+  """
+  ✨ Generated from Field `SubscriptionType`.`mealsPerDelivery_avg` of type `Float`
+  """
+  mealsPerDelivery_avg: Float_Filter
+  """
+  ✨ Generated from Field `SubscriptionType`.`basePrice_min` of type `Float`
+  """
+  basePrice_min: Float_Filter
+  """
+  ✨ Generated from Field `SubscriptionType`.`createdAt_min` of type `Timestamp`
+  """
+  createdAt_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `SubscriptionType`.`mealsPerDelivery_min` of type `Int`
+  """
+  mealsPerDelivery_min: Int_Filter
+  """
+  ✨ Generated from Field `SubscriptionType`.`basePrice_max` of type `Float`
+  """
+  basePrice_max: Float_Filter
+  """
+  ✨ Generated from Field `SubscriptionType`.`createdAt_max` of type `Timestamp`
+  """
+  createdAt_max: Timestamp_Filter
+  """
+  ✨ Generated from Field `SubscriptionType`.`mealsPerDelivery_max` of type `Int`
+  """
+  mealsPerDelivery_max: Int_Filter
+}
+"""
+✨ Generated key input type for table 'SubscriptionType'. It represents the primary key fields used to uniquely identify a row in the table.
+"""
+input SubscriptionType_Key {
+  """
+  ✨ Generated from Field `SubscriptionType`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `SubscriptionType`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr
+}
+"""
+✨ Generated list filter input type for table 'SubscriptionType'. This input applies filtering logic based on the count or existence of related objects that matches certain criteria.
+"""
+input SubscriptionType_ListFilter {
+  """
+  The desired number of objects that match the condition (defaults to at least one).
+  """
+  count: Int_Filter = {gt:0}
+  """
+  Condition of the related objects to filter for.
+  """
+  exist: SubscriptionType_Filter
+}
+"""
+✨ Generated order input type for table 'SubscriptionType'. This input defines the sorting order of rows in query results based on one or more fields.
+"""
+input SubscriptionType_Order {
+  """
+  ✨ Generated from Field `SubscriptionType`.`id` of type `UUID!`
+  """
+  id: OrderDirection
+  """
+  ✨ Generated from Field `SubscriptionType`.`basePrice` of type `Float!`
+  """
+  basePrice: OrderDirection
+  """
+  ✨ Generated from Field `SubscriptionType`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: OrderDirection
+  """
+  ✨ Generated from Field `SubscriptionType`.`deliveryFrequency` of type `String!`
+  """
+  deliveryFrequency: OrderDirection
+  """
+  ✨ Generated from Field `SubscriptionType`.`description` of type `String`
+  """
+  description: OrderDirection
+  """
+  ✨ Generated from Field `SubscriptionType`.`mealsPerDelivery` of type `Int!`
+  """
+  mealsPerDelivery: OrderDirection
+  """
+  ✨ Generated from Field `SubscriptionType`.`name` of type `String!`
+  """
+  name: OrderDirection
+}
+"""
+✨ Generated data input type for table 'User'. It includes all necessary fields for creating or upserting rows into table.
+"""
+input User_Data {
+  """
+  ✨ Generated from Field `User`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `User`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr
+  """
+  ✨ Generated from Field `User`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: Timestamp
+  """
+  ✨ `_expr` server value variant of `createdAt` (✨ Generated from Field `User`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_expr: Timestamp_Expr
+  """
+  ✨ `_time` server value variant of `createdAt` (✨ Generated from Field `User`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_time: Timestamp_Relative
+  """
+  ✨ `_update` server value variant of `createdAt` (✨ Generated from Field `User`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_update: [Timestamp_Update!]
+  """
+  ✨ Generated from Field `User`.`displayName` of type `String!`
+  """
+  displayName: String
+  """
+  ✨ `_expr` server value variant of `displayName` (✨ Generated from Field `User`.`displayName` of type `String!`)
+  """
+  displayName_expr: String_Expr
+  """
+  ✨ Generated from Field `User`.`email` of type `String!`
+  """
+  email: String
+  """
+  ✨ `_expr` server value variant of `email` (✨ Generated from Field `User`.`email` of type `String!`)
+  """
+  email_expr: String_Expr
+  """
+  ✨ Generated from Field `User`.`photoUrl` of type `String`
+  """
+  photoUrl: String
+  """
+  ✨ `_expr` server value variant of `photoUrl` (✨ Generated from Field `User`.`photoUrl` of type `String`)
+  """
+  photoUrl_expr: String_Expr
+  """
+  ✨ Generated from Field `User`.`preferredDeliveryNotes` of type `String`
+  """
+  preferredDeliveryNotes: String
+  """
+  ✨ `_expr` server value variant of `preferredDeliveryNotes` (✨ Generated from Field `User`.`preferredDeliveryNotes` of type `String`)
+  """
+  preferredDeliveryNotes_expr: String_Expr
+  """
+  ✨ Generated from Field `User`.`targetCalories` of type `Int`
+  """
+  targetCalories: Int
+  """
+  ✨ `_expr` server value variant of `targetCalories` (✨ Generated from Field `User`.`targetCalories` of type `Int`)
+  """
+  targetCalories_expr: Int_Expr
+  """
+  ✨ `_update` server value variant of `targetCalories` (✨ Generated from Field `User`.`targetCalories` of type `Int`)
+  """
+  targetCalories_update: [Int_Update!]
+  """
+  ✨ Generated from Field `User`.`targetCarbs` of type `Float`
+  """
+  targetCarbs: Float
+  """
+  ✨ `_expr` server value variant of `targetCarbs` (✨ Generated from Field `User`.`targetCarbs` of type `Float`)
+  """
+  targetCarbs_expr: Float_Expr
+  """
+  ✨ `_update` server value variant of `targetCarbs` (✨ Generated from Field `User`.`targetCarbs` of type `Float`)
+  """
+  targetCarbs_update: [Float_Update!]
+  """
+  ✨ Generated from Field `User`.`targetFat` of type `Float`
+  """
+  targetFat: Float
+  """
+  ✨ `_expr` server value variant of `targetFat` (✨ Generated from Field `User`.`targetFat` of type `Float`)
+  """
+  targetFat_expr: Float_Expr
+  """
+  ✨ `_update` server value variant of `targetFat` (✨ Generated from Field `User`.`targetFat` of type `Float`)
+  """
+  targetFat_update: [Float_Update!]
+  """
+  ✨ Generated from Field `User`.`targetProtein` of type `Float`
+  """
+  targetProtein: Float
+  """
+  ✨ `_expr` server value variant of `targetProtein` (✨ Generated from Field `User`.`targetProtein` of type `Float`)
+  """
+  targetProtein_expr: Float_Expr
+  """
+  ✨ `_update` server value variant of `targetProtein` (✨ Generated from Field `User`.`targetProtein` of type `Float`)
+  """
+  targetProtein_update: [Float_Update!]
+}
+"""
+✨ Generated filter input type for table 'User'. This input allows filtering objects using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input User_Filter {
+  """
+  Apply multiple filter conditions using `AND` logic.
+  """
+  _and: [User_Filter!]
+  """
+  Negate the result of the provided filter condition.
+  """
+  _not: User_Filter
+  """
+  Apply multiple filter conditions using `OR` logic.
+  """
+  _or: [User_Filter!]
+  """
+  ✨ Generated from Field `User`.`id` of type `UUID!`
+  """
+  id: UUID_Filter
+  """
+  ✨ Generated from Field `User`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: Timestamp_Filter
+  """
+  ✨ Generated from Field `User`.`displayName` of type `String!`
+  """
+  displayName: String_Filter
+  """
+  ✨ Generated from Field `User`.`email` of type `String!`
+  """
+  email: String_Filter
+  """
+  ✨ Generated from Field `User`.`photoUrl` of type `String`
+  """
+  photoUrl: String_Filter
+  """
+  ✨ Generated from Field `User`.`preferredDeliveryNotes` of type `String`
+  """
+  preferredDeliveryNotes: String_Filter
+  """
+  ✨ Generated from Field `User`.`targetCalories` of type `Int`
+  """
+  targetCalories: Int_Filter
+  """
+  ✨ Generated from Field `User`.`targetCarbs` of type `Float`
+  """
+  targetCarbs: Float_Filter
+  """
+  ✨ Generated from Field `User`.`targetFat` of type `Float`
+  """
+  targetFat: Float_Filter
+  """
+  ✨ Generated from Field `User`.`targetProtein` of type `Float`
+  """
+  targetProtein: Float_Filter
+  """
+  ✨ Generated from Field `User`.`deliveryAddresses_on_user` of type `[DeliveryAddress!]!`
+  """
+  deliveryAddresses_on_user: DeliveryAddress_ListFilter
+  """
+  ✨ Generated from Field `User`.`userSubscriptions_on_user` of type `[UserSubscription!]!`
+  """
+  userSubscriptions_on_user: UserSubscription_ListFilter
+}
+"""
+✨ Generated first-row input type for table 'User'. This input selects the first row matching the filter criteria, ordered according to the specified conditions.
+"""
+input User_FirstRow {
+  """
+  Order the result by the specified fields.
+  """
+  orderBy: [User_Order!]
+  """
+  Filters rows based on the specified conditions.
+  """
+  where: User_Filter
+}
+"""
+✨ Generated having input type for table 'User'. This input allows you to filter groups during aggregate queries using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input User_Having {
+  """
+  Apply multiple Having conditions using `AND` logic.
+  """
+  _and: [User_Having!]
+  """
+  Whether to apply DISTINCT to the aggregate function.
+  """
+  _distinct: Boolean
+  """
+  Negate the result of the provided Having condition.
+  """
+  _not: User_Having
+  """
+  Apply multiple Having conditions using `OR` logic.
+  """
+  _or: [User_Having!]
+  """
+  ✨ Generated from Field `User`.`_count` of type `Int!`
+  """
+  _count: Int_Filter
+  """
+  ✨ Generated from Field `User`.`createdAt_count` of type `Int!`
+  """
+  createdAt_count: Int_Filter
+  """
+  ✨ Generated from Field `User`.`displayName_count` of type `Int!`
+  """
+  displayName_count: Int_Filter
+  """
+  ✨ Generated from Field `User`.`email_count` of type `Int!`
+  """
+  email_count: Int_Filter
+  """
+  ✨ Generated from Field `User`.`id_count` of type `Int!`
+  """
+  id_count: Int_Filter
+  """
+  ✨ Generated from Field `User`.`photoUrl_count` of type `Int!`
+  """
+  photoUrl_count: Int_Filter
+  """
+  ✨ Generated from Field `User`.`preferredDeliveryNotes_count` of type `Int!`
+  """
+  preferredDeliveryNotes_count: Int_Filter
+  """
+  ✨ Generated from Field `User`.`targetCalories_count` of type `Int!`
+  """
+  targetCalories_count: Int_Filter
+  """
+  ✨ Generated from Field `User`.`targetCarbs_count` of type `Int!`
+  """
+  targetCarbs_count: Int_Filter
+  """
+  ✨ Generated from Field `User`.`targetFat_count` of type `Int!`
+  """
+  targetFat_count: Int_Filter
+  """
+  ✨ Generated from Field `User`.`targetProtein_count` of type `Int!`
+  """
+  targetProtein_count: Int_Filter
+  """
+  ✨ Generated from Field `User`.`targetCalories_sum` of type `Int`
+  """
+  targetCalories_sum: Int_Filter
+  """
+  ✨ Generated from Field `User`.`targetCarbs_sum` of type `Float`
+  """
+  targetCarbs_sum: Float_Filter
+  """
+  ✨ Generated from Field `User`.`targetFat_sum` of type `Float`
+  """
+  targetFat_sum: Float_Filter
+  """
+  ✨ Generated from Field `User`.`targetProtein_sum` of type `Float`
+  """
+  targetProtein_sum: Float_Filter
+  """
+  ✨ Generated from Field `User`.`targetCalories_avg` of type `Float`
+  """
+  targetCalories_avg: Float_Filter
+  """
+  ✨ Generated from Field `User`.`targetCarbs_avg` of type `Float`
+  """
+  targetCarbs_avg: Float_Filter
+  """
+  ✨ Generated from Field `User`.`targetFat_avg` of type `Float`
+  """
+  targetFat_avg: Float_Filter
+  """
+  ✨ Generated from Field `User`.`targetProtein_avg` of type `Float`
+  """
+  targetProtein_avg: Float_Filter
+  """
+  ✨ Generated from Field `User`.`createdAt_min` of type `Timestamp`
+  """
+  createdAt_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `User`.`targetCalories_min` of type `Int`
+  """
+  targetCalories_min: Int_Filter
+  """
+  ✨ Generated from Field `User`.`targetCarbs_min` of type `Float`
+  """
+  targetCarbs_min: Float_Filter
+  """
+  ✨ Generated from Field `User`.`targetFat_min` of type `Float`
+  """
+  targetFat_min: Float_Filter
+  """
+  ✨ Generated from Field `User`.`targetProtein_min` of type `Float`
+  """
+  targetProtein_min: Float_Filter
+  """
+  ✨ Generated from Field `User`.`createdAt_max` of type `Timestamp`
+  """
+  createdAt_max: Timestamp_Filter
+  """
+  ✨ Generated from Field `User`.`targetCalories_max` of type `Int`
+  """
+  targetCalories_max: Int_Filter
+  """
+  ✨ Generated from Field `User`.`targetCarbs_max` of type `Float`
+  """
+  targetCarbs_max: Float_Filter
+  """
+  ✨ Generated from Field `User`.`targetFat_max` of type `Float`
+  """
+  targetFat_max: Float_Filter
+  """
+  ✨ Generated from Field `User`.`targetProtein_max` of type `Float`
+  """
+  targetProtein_max: Float_Filter
+}
+"""
+✨ Generated key input type for table 'User'. It represents the primary key fields used to uniquely identify a row in the table.
+"""
+input User_Key {
+  """
+  ✨ Generated from Field `User`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `User`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr
+}
+"""
+✨ Generated list filter input type for table 'User'. This input applies filtering logic based on the count or existence of related objects that matches certain criteria.
+"""
+input User_ListFilter {
+  """
+  The desired number of objects that match the condition (defaults to at least one).
+  """
+  count: Int_Filter = {gt:0}
+  """
+  Condition of the related objects to filter for.
+  """
+  exist: User_Filter
+}
+"""
+✨ Generated order input type for table 'User'. This input defines the sorting order of rows in query results based on one or more fields.
+"""
+input User_Order {
+  """
+  ✨ Generated from Field `User`.`id` of type `UUID!`
+  """
+  id: OrderDirection
+  """
+  ✨ Generated from Field `User`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: OrderDirection
+  """
+  ✨ Generated from Field `User`.`displayName` of type `String!`
+  """
+  displayName: OrderDirection
+  """
+  ✨ Generated from Field `User`.`email` of type `String!`
+  """
+  email: OrderDirection
+  """
+  ✨ Generated from Field `User`.`photoUrl` of type `String`
+  """
+  photoUrl: OrderDirection
+  """
+  ✨ Generated from Field `User`.`preferredDeliveryNotes` of type `String`
+  """
+  preferredDeliveryNotes: OrderDirection
+  """
+  ✨ Generated from Field `User`.`targetCalories` of type `Int`
+  """
+  targetCalories: OrderDirection
+  """
+  ✨ Generated from Field `User`.`targetCarbs` of type `Float`
+  """
+  targetCarbs: OrderDirection
+  """
+  ✨ Generated from Field `User`.`targetFat` of type `Float`
+  """
+  targetFat: OrderDirection
+  """
+  ✨ Generated from Field `User`.`targetProtein` of type `Float`
+  """
+  targetProtein: OrderDirection
+}
+"""
+✨ Generated data input type for table 'UserSubscription'. It includes all necessary fields for creating or upserting rows into table.
+"""
+input UserSubscription_Data {
+  """
+  ✨ Generated from Field `UserSubscription`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `UserSubscription`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr
+  """
+  ✨ Generated from Field `UserSubscription`.`shippingAddressId` of type `UUID`
+  """
+  shippingAddressId: UUID
+  """
+  ✨ `_expr` server value variant of `shippingAddressId` (✨ Generated from Field `UserSubscription`.`shippingAddressId` of type `UUID`)
+  """
+  shippingAddressId_expr: UUID_Expr
+  """
+  ✨ Generated from Field `UserSubscription`.`subscriptionTypeId` of type `UUID!`
+  """
+  subscriptionTypeId: UUID
+  """
+  ✨ `_expr` server value variant of `subscriptionTypeId` (✨ Generated from Field `UserSubscription`.`subscriptionTypeId` of type `UUID!`)
+  """
+  subscriptionTypeId_expr: UUID_Expr
+  """
+  ✨ Generated from Field `UserSubscription`.`userId` of type `UUID!`
+  """
+  userId: UUID
+  """
+  ✨ `_expr` server value variant of `userId` (✨ Generated from Field `UserSubscription`.`userId` of type `UUID!`)
+  """
+  userId_expr: UUID_Expr
+  """
+  ✨ Generated from Field `UserSubscription`.`shippingAddress` of type `DeliveryAddress`
+  """
+  shippingAddress: DeliveryAddress_Key
+  """
+  ✨ Generated from Field `UserSubscription`.`subscriptionType` of type `SubscriptionType!`
+  """
+  subscriptionType: SubscriptionType_Key
+  """
+  ✨ Generated from Field `UserSubscription`.`user` of type `User!`
+  """
+  user: User_Key
+  """
+  ✨ Generated from Field `UserSubscription`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: Timestamp
+  """
+  ✨ `_expr` server value variant of `createdAt` (✨ Generated from Field `UserSubscription`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_expr: Timestamp_Expr
+  """
+  ✨ `_time` server value variant of `createdAt` (✨ Generated from Field `UserSubscription`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_time: Timestamp_Relative
+  """
+  ✨ `_update` server value variant of `createdAt` (✨ Generated from Field `UserSubscription`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_update: [Timestamp_Update!]
+  """
+  ✨ Generated from Field `UserSubscription`.`endDate` of type `Timestamp`
+  """
+  endDate: Timestamp
+  """
+  ✨ `_expr` server value variant of `endDate` (✨ Generated from Field `UserSubscription`.`endDate` of type `Timestamp`)
+  """
+  endDate_expr: Timestamp_Expr
+  """
+  ✨ `_time` server value variant of `endDate` (✨ Generated from Field `UserSubscription`.`endDate` of type `Timestamp`)
+  """
+  endDate_time: Timestamp_Relative
+  """
+  ✨ `_update` server value variant of `endDate` (✨ Generated from Field `UserSubscription`.`endDate` of type `Timestamp`)
+  """
+  endDate_update: [Timestamp_Update!]
+  """
+  ✨ Generated from Field `UserSubscription`.`lastDeliveryDate` of type `Timestamp`
+  """
+  lastDeliveryDate: Timestamp
+  """
+  ✨ `_expr` server value variant of `lastDeliveryDate` (✨ Generated from Field `UserSubscription`.`lastDeliveryDate` of type `Timestamp`)
+  """
+  lastDeliveryDate_expr: Timestamp_Expr
+  """
+  ✨ `_time` server value variant of `lastDeliveryDate` (✨ Generated from Field `UserSubscription`.`lastDeliveryDate` of type `Timestamp`)
+  """
+  lastDeliveryDate_time: Timestamp_Relative
+  """
+  ✨ `_update` server value variant of `lastDeliveryDate` (✨ Generated from Field `UserSubscription`.`lastDeliveryDate` of type `Timestamp`)
+  """
+  lastDeliveryDate_update: [Timestamp_Update!]
+  """
+  ✨ Generated from Field `UserSubscription`.`nextDeliveryDate` of type `Timestamp`
+  """
+  nextDeliveryDate: Timestamp
+  """
+  ✨ `_expr` server value variant of `nextDeliveryDate` (✨ Generated from Field `UserSubscription`.`nextDeliveryDate` of type `Timestamp`)
+  """
+  nextDeliveryDate_expr: Timestamp_Expr
+  """
+  ✨ `_time` server value variant of `nextDeliveryDate` (✨ Generated from Field `UserSubscription`.`nextDeliveryDate` of type `Timestamp`)
+  """
+  nextDeliveryDate_time: Timestamp_Relative
+  """
+  ✨ `_update` server value variant of `nextDeliveryDate` (✨ Generated from Field `UserSubscription`.`nextDeliveryDate` of type `Timestamp`)
+  """
+  nextDeliveryDate_update: [Timestamp_Update!]
+  """
+  ✨ Generated from Field `UserSubscription`.`preferredDeliveryDay` of type `String`
+  """
+  preferredDeliveryDay: String
+  """
+  ✨ `_expr` server value variant of `preferredDeliveryDay` (✨ Generated from Field `UserSubscription`.`preferredDeliveryDay` of type `String`)
+  """
+  preferredDeliveryDay_expr: String_Expr
+  """
+  ✨ Generated from Field `UserSubscription`.`preferredDeliveryTimeSlot` of type `String`
+  """
+  preferredDeliveryTimeSlot: String
+  """
+  ✨ `_expr` server value variant of `preferredDeliveryTimeSlot` (✨ Generated from Field `UserSubscription`.`preferredDeliveryTimeSlot` of type `String`)
+  """
+  preferredDeliveryTimeSlot_expr: String_Expr
+  """
+  ✨ Generated from Field `UserSubscription`.`startDate` of type `Timestamp!`
+  """
+  startDate: Timestamp
+  """
+  ✨ `_expr` server value variant of `startDate` (✨ Generated from Field `UserSubscription`.`startDate` of type `Timestamp!`)
+  """
+  startDate_expr: Timestamp_Expr
+  """
+  ✨ `_time` server value variant of `startDate` (✨ Generated from Field `UserSubscription`.`startDate` of type `Timestamp!`)
+  """
+  startDate_time: Timestamp_Relative
+  """
+  ✨ `_update` server value variant of `startDate` (✨ Generated from Field `UserSubscription`.`startDate` of type `Timestamp!`)
+  """
+  startDate_update: [Timestamp_Update!]
+  """
+  ✨ Generated from Field `UserSubscription`.`status` of type `String!`
+  """
+  status: String
+  """
+  ✨ `_expr` server value variant of `status` (✨ Generated from Field `UserSubscription`.`status` of type `String!`)
+  """
+  status_expr: String_Expr
+}
+"""
+✨ Generated filter input type for table 'UserSubscription'. This input allows filtering objects using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input UserSubscription_Filter {
+  """
+  Apply multiple filter conditions using `AND` logic.
+  """
+  _and: [UserSubscription_Filter!]
+  """
+  Negate the result of the provided filter condition.
+  """
+  _not: UserSubscription_Filter
+  """
+  Apply multiple filter conditions using `OR` logic.
+  """
+  _or: [UserSubscription_Filter!]
+  """
+  ✨ Generated from Field `UserSubscription`.`id` of type `UUID!`
+  """
+  id: UUID_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`shippingAddressId` of type `UUID`
+  """
+  shippingAddressId: UUID_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`subscriptionTypeId` of type `UUID!`
+  """
+  subscriptionTypeId: UUID_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`userId` of type `UUID!`
+  """
+  userId: UUID_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`shippingAddress` of type `DeliveryAddress`
+  """
+  shippingAddress: DeliveryAddress_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`subscriptionType` of type `SubscriptionType!`
+  """
+  subscriptionType: SubscriptionType_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`user` of type `User!`
+  """
+  user: User_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: Timestamp_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`endDate` of type `Timestamp`
+  """
+  endDate: Timestamp_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`lastDeliveryDate` of type `Timestamp`
+  """
+  lastDeliveryDate: Timestamp_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`nextDeliveryDate` of type `Timestamp`
+  """
+  nextDeliveryDate: Timestamp_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`preferredDeliveryDay` of type `String`
+  """
+  preferredDeliveryDay: String_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`preferredDeliveryTimeSlot` of type `String`
+  """
+  preferredDeliveryTimeSlot: String_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`startDate` of type `Timestamp!`
+  """
+  startDate: Timestamp_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`status` of type `String!`
+  """
+  status: String_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`subscriptionMeals_on_userSubscription` of type `[SubscriptionMeal!]!`
+  """
+  subscriptionMeals_on_userSubscription: SubscriptionMeal_ListFilter
+}
+"""
+✨ Generated first-row input type for table 'UserSubscription'. This input selects the first row matching the filter criteria, ordered according to the specified conditions.
+"""
+input UserSubscription_FirstRow {
+  """
+  Order the result by the specified fields.
+  """
+  orderBy: [UserSubscription_Order!]
+  """
+  Filters rows based on the specified conditions.
+  """
+  where: UserSubscription_Filter
+}
+"""
+✨ Generated having input type for table 'UserSubscription'. This input allows you to filter groups during aggregate queries using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input UserSubscription_Having {
+  """
+  Apply multiple Having conditions using `AND` logic.
+  """
+  _and: [UserSubscription_Having!]
+  """
+  Whether to apply DISTINCT to the aggregate function.
+  """
+  _distinct: Boolean
+  """
+  Negate the result of the provided Having condition.
+  """
+  _not: UserSubscription_Having
+  """
+  Apply multiple Having conditions using `OR` logic.
+  """
+  _or: [UserSubscription_Having!]
+  """
+  ✨ Generated from Field `UserSubscription`.`_count` of type `Int!`
+  """
+  _count: Int_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`createdAt_count` of type `Int!`
+  """
+  createdAt_count: Int_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`endDate_count` of type `Int!`
+  """
+  endDate_count: Int_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`id_count` of type `Int!`
+  """
+  id_count: Int_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`lastDeliveryDate_count` of type `Int!`
+  """
+  lastDeliveryDate_count: Int_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`nextDeliveryDate_count` of type `Int!`
+  """
+  nextDeliveryDate_count: Int_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`preferredDeliveryDay_count` of type `Int!`
+  """
+  preferredDeliveryDay_count: Int_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`preferredDeliveryTimeSlot_count` of type `Int!`
+  """
+  preferredDeliveryTimeSlot_count: Int_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`shippingAddressId_count` of type `Int!`
+  """
+  shippingAddressId_count: Int_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`startDate_count` of type `Int!`
+  """
+  startDate_count: Int_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`status_count` of type `Int!`
+  """
+  status_count: Int_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`subscriptionTypeId_count` of type `Int!`
+  """
+  subscriptionTypeId_count: Int_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`userId_count` of type `Int!`
+  """
+  userId_count: Int_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`createdAt_min` of type `Timestamp`
+  """
+  createdAt_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`endDate_min` of type `Timestamp`
+  """
+  endDate_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`lastDeliveryDate_min` of type `Timestamp`
+  """
+  lastDeliveryDate_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`nextDeliveryDate_min` of type `Timestamp`
+  """
+  nextDeliveryDate_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`startDate_min` of type `Timestamp`
+  """
+  startDate_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`createdAt_max` of type `Timestamp`
+  """
+  createdAt_max: Timestamp_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`endDate_max` of type `Timestamp`
+  """
+  endDate_max: Timestamp_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`lastDeliveryDate_max` of type `Timestamp`
+  """
+  lastDeliveryDate_max: Timestamp_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`nextDeliveryDate_max` of type `Timestamp`
+  """
+  nextDeliveryDate_max: Timestamp_Filter
+  """
+  ✨ Generated from Field `UserSubscription`.`startDate_max` of type `Timestamp`
+  """
+  startDate_max: Timestamp_Filter
+}
+"""
+✨ Generated key input type for table 'UserSubscription'. It represents the primary key fields used to uniquely identify a row in the table.
+"""
+input UserSubscription_Key {
+  """
+  ✨ Generated from Field `UserSubscription`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `UserSubscription`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr
+}
+"""
+✨ Generated list filter input type for table 'UserSubscription'. This input applies filtering logic based on the count or existence of related objects that matches certain criteria.
+"""
+input UserSubscription_ListFilter {
+  """
+  The desired number of objects that match the condition (defaults to at least one).
+  """
+  count: Int_Filter = {gt:0}
+  """
+  Condition of the related objects to filter for.
+  """
+  exist: UserSubscription_Filter
+}
+"""
+✨ Generated order input type for table 'UserSubscription'. This input defines the sorting order of rows in query results based on one or more fields.
+"""
+input UserSubscription_Order {
+  """
+  ✨ Generated from Field `UserSubscription`.`id` of type `UUID!`
+  """
+  id: OrderDirection
+  """
+  ✨ Generated from Field `UserSubscription`.`shippingAddressId` of type `UUID`
+  """
+  shippingAddressId: OrderDirection
+  """
+  ✨ Generated from Field `UserSubscription`.`subscriptionTypeId` of type `UUID!`
+  """
+  subscriptionTypeId: OrderDirection
+  """
+  ✨ Generated from Field `UserSubscription`.`userId` of type `UUID!`
+  """
+  userId: OrderDirection
+  """
+  ✨ Generated from Field `UserSubscription`.`shippingAddress` of type `DeliveryAddress`
+  """
+  shippingAddress: DeliveryAddress_Order
+  """
+  ✨ Generated from Field `UserSubscription`.`subscriptionType` of type `SubscriptionType!`
+  """
+  subscriptionType: SubscriptionType_Order
+  """
+  ✨ Generated from Field `UserSubscription`.`user` of type `User!`
+  """
+  user: User_Order
+  """
+  ✨ Generated from Field `UserSubscription`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: OrderDirection
+  """
+  ✨ Generated from Field `UserSubscription`.`endDate` of type `Timestamp`
+  """
+  endDate: OrderDirection
+  """
+  ✨ Generated from Field `UserSubscription`.`lastDeliveryDate` of type `Timestamp`
+  """
+  lastDeliveryDate: OrderDirection
+  """
+  ✨ Generated from Field `UserSubscription`.`nextDeliveryDate` of type `Timestamp`
+  """
+  nextDeliveryDate: OrderDirection
+  """
+  ✨ Generated from Field `UserSubscription`.`preferredDeliveryDay` of type `String`
+  """
+  preferredDeliveryDay: OrderDirection
+  """
+  ✨ Generated from Field `UserSubscription`.`preferredDeliveryTimeSlot` of type `String`
+  """
+  preferredDeliveryTimeSlot: OrderDirection
+  """
+  ✨ Generated from Field `UserSubscription`.`startDate` of type `Timestamp!`
+  """
+  startDate: OrderDirection
+  """
+  ✨ Generated from Field `UserSubscription`.`status` of type `String!`
+  """
+  status: OrderDirection
+}

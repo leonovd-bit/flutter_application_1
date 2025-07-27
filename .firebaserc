@@ -1,5 +1,7 @@
 {
   "projects": {
     "default": "freshpunk-48db1"
-  }
+  },
+  "targets": {},
+  "etags": {}
 }

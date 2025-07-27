@@ -1,0 +1,421 @@
+extend type Query {
+  """
+  ✨ Look up a single `DeliveryAddress` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  """
+  deliveryAddress(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: DeliveryAddress_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: DeliveryAddress_FirstRow
+  ): DeliveryAddress @fdc_generated(from: "DeliveryAddress", purpose: QUERY_SINGLE)
+  """
+  ✨ Look up a single `DietaryTag` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  """
+  dietaryTag(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: DietaryTag_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: DietaryTag_FirstRow
+  ): DietaryTag @fdc_generated(from: "DietaryTag", purpose: QUERY_SINGLE)
+  """
+  ✨ Look up a single `Meal` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  """
+  meal(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: Meal_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Meal_FirstRow
+  ): Meal @fdc_generated(from: "Meal", purpose: QUERY_SINGLE)
+  """
+  ✨ Look up a single `MealDietaryTag` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  """
+  mealDietaryTag(
+    """
+    The key used to identify the object.
+    """
+    key: MealDietaryTag_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: MealDietaryTag_FirstRow
+  ): MealDietaryTag @fdc_generated(from: "MealDietaryTag", purpose: QUERY_SINGLE)
+  """
+  ✨ Look up a single `SubscriptionMeal` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  """
+  subscriptionMeal(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: SubscriptionMeal_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: SubscriptionMeal_FirstRow
+  ): SubscriptionMeal @fdc_generated(from: "SubscriptionMeal", purpose: QUERY_SINGLE)
+  """
+  ✨ Look up a single `SubscriptionType` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  """
+  subscriptionType(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: SubscriptionType_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: SubscriptionType_FirstRow
+  ): SubscriptionType @fdc_generated(from: "SubscriptionType", purpose: QUERY_SINGLE)
+  """
+  ✨ Look up a single `User` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  """
+  user(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: User_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: User_FirstRow
+  ): User @fdc_generated(from: "User", purpose: QUERY_SINGLE)
+  """
+  ✨ Look up a single `UserSubscription` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  """
+  userSubscription(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: UserSubscription_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: UserSubscription_FirstRow
+  ): UserSubscription @fdc_generated(from: "UserSubscription", purpose: QUERY_SINGLE)
+  """
+  ✨ List `DeliveryAddress` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  deliveryAddresses(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: DeliveryAddress_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [DeliveryAddress_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: DeliveryAddress_Having
+  ): [DeliveryAddress!]! @fdc_generated(from: "DeliveryAddress", purpose: QUERY_MULTIPLE)
+  """
+  ✨ List `DietaryTag` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  dietaryTags(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: DietaryTag_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [DietaryTag_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: DietaryTag_Having
+  ): [DietaryTag!]! @fdc_generated(from: "DietaryTag", purpose: QUERY_MULTIPLE)
+  """
+  ✨ List `Meal` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  meals(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: Meal_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [Meal_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: Meal_Having
+  ): [Meal!]! @fdc_generated(from: "Meal", purpose: QUERY_MULTIPLE)
+  """
+  ✨ List `MealDietaryTag` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  mealDietaryTags(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: MealDietaryTag_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [MealDietaryTag_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: MealDietaryTag_Having
+  ): [MealDietaryTag!]! @fdc_generated(from: "MealDietaryTag", purpose: QUERY_MULTIPLE)
+  """
+  ✨ List `SubscriptionMeal` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  subscriptionMeals(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: SubscriptionMeal_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [SubscriptionMeal_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: SubscriptionMeal_Having
+  ): [SubscriptionMeal!]! @fdc_generated(from: "SubscriptionMeal", purpose: QUERY_MULTIPLE)
+  """
+  ✨ List `SubscriptionType` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  subscriptionTypes(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: SubscriptionType_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [SubscriptionType_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: SubscriptionType_Having
+  ): [SubscriptionType!]! @fdc_generated(from: "SubscriptionType", purpose: QUERY_MULTIPLE)
+  """
+  ✨ List `User` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  users(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: User_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [User_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: User_Having
+  ): [User!]! @fdc_generated(from: "User", purpose: QUERY_MULTIPLE)
+  """
+  ✨ List `UserSubscription` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  userSubscriptions(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: UserSubscription_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [UserSubscription_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: UserSubscription_Having
+  ): [UserSubscription!]! @fdc_generated(from: "UserSubscription", purpose: QUERY_MULTIPLE)
+}
