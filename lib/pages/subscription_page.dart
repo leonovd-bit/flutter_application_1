@@ -357,7 +357,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                                     ),
                             ),
                           );
-                        }).toList(),
+                        }),
                         const SizedBox(height: 24),
                       ],
 
@@ -390,7 +390,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                           width: double.infinity,
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.orange.withOpacity(0.1),
+                            color: Colors.orange.withValues(alpha: 0.1),
                             border: Border.all(color: Colors.orange),
                             borderRadius: BorderRadius.circular(8),
                           ),

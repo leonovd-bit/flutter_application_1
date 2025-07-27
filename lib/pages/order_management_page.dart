@@ -39,7 +39,7 @@ class _OrderManagementPageState extends State<OrderManagementPage> {
         ];
       }
     } catch (e) {
-      print('Error loading orders: $e');
+      debugPrint('Error loading orders: $e');
     }
 
     setState(() {
@@ -148,7 +148,7 @@ class _OrderManagementPageState extends State<OrderManagementPage> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: _getStatusColor(order.status).withOpacity(0.1),
+                    color: _getStatusColor(order.status).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(

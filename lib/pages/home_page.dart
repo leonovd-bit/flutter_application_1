@@ -55,7 +55,7 @@ class _HomePageState extends State<HomePage> {
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading home data: $e');
+      debugPrint('Error loading home data: $e');
       setState(() {
         _isLoading = false;
       });
@@ -300,7 +300,7 @@ class _HomePageState extends State<HomePage> {
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 10,
                       offset: const Offset(0, 2),
                     ),
@@ -448,7 +448,7 @@ class _HomePageState extends State<HomePage> {
               border: Border.all(color: const Color(0xFFE2E8F0)),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 5,
                   offset: const Offset(0, 2),
                 ),
@@ -500,7 +500,7 @@ class _HomePageState extends State<HomePage> {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF6366F1).withOpacity(0.1),
+                              color: const Color(0xFF6366F1).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(

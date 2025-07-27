@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/meal.dart';
 
 class DataSeeder {
@@ -230,9 +231,9 @@ class DataSeeder {
       for (final meal in meals) {
         await _firestore.collection('meals').doc(meal.id).set(meal.toMap());
       }
-      print('Successfully seeded ${meals.length} meals to Firestore');
+      debugPrint('Successfully seeded ${meals.length} meals to Firestore');
     } catch (e) {
-      print('Error seeding meals: $e');
+      debugPrint('Error seeding meals: $e');
     }
   }
 
@@ -242,9 +243,9 @@ class DataSeeder {
       for (final doc in querySnapshot.docs) {
         await doc.reference.delete();
       }
-      print('Successfully deleted all meals from Firestore');
+      debugPrint('Successfully deleted all meals from Firestore');
     } catch (e) {
-      print('Error deleting meals: $e');
+      debugPrint('Error deleting meals: $e');
     }
   }
 }

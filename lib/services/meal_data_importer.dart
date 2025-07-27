@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/meal.dart';
 
 class MealDataImporter {
@@ -35,16 +36,16 @@ class MealDataImporter {
         throw Exception('Unexpected JSON format. Expected array or object with "meals" key.');
       }
 
-      print('Parsed ${meals.length} meals from JSON');
+      debugPrint('Parsed ${meals.length} meals from JSON');
 
       // Import to Firestore
       await _importMealsToFirestore(meals);
       
-      print('Successfully imported ${meals.length} meals to Firestore');
+      debugPrint('Successfully imported ${meals.length} meals to Firestore');
       
     } catch (e) {
-      print('Error importing meals: $e');
-      throw e;
+      debugPrint('Error importing meals: $e');
+      rethrow;
     }
   }
 
@@ -208,6 +209,6 @@ class MealDataImporter {
 
     final meals = sampleMeals.map((json) => _parseMealFromJson(json)).toList();
     await _importMealsToFirestore(meals);
-    print('Sample NYC meals imported successfully!');
+    debugPrint('Sample NYC meals imported successfully!');
   }
 }

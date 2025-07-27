@@ -67,7 +67,7 @@ class _AccountPageState extends State<AccountPage> {
         });
       }
     } catch (e) {
-      print('Error loading user data: $e');
+      debugPrint('Error loading user data: $e');
       setState(() {
         _isLoading = false;
       });
@@ -100,7 +100,7 @@ class _AccountPageState extends State<AccountPage> {
 
       // Update email if changed (requires re-authentication in production)
       if (_emailController.text.trim() != _userProfile!.email) {
-        await user.updateEmail(_emailController.text.trim());
+        await user.verifyBeforeUpdateEmail(_emailController.text.trim());
       }
 
       setState(() {
@@ -581,7 +581,7 @@ class _AccountPageState extends State<AccountPage> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: address.isDefault ? const Color(0xFF2D5A2D).withOpacity(0.1) : Colors.grey[50],
+        color: address.isDefault ? const Color(0xFF2D5A2D).withValues(alpha: 0.1) : Colors.grey[50],
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: address.isDefault ? const Color(0xFF2D5A2D) : Colors.grey[200]!,
@@ -687,7 +687,7 @@ class _AccountPageState extends State<AccountPage> {
     } else if (digits.length >= 3) {
       return '(${digits.substring(0, 3)}) ${digits.substring(3)}';
     } else if (digits.isNotEmpty) {
-      return '(${digits}';
+      return '($digits';
     }
     
     return '';

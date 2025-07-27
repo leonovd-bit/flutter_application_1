@@ -72,7 +72,7 @@ class _UpcomingOrderPageState extends State<UpcomingOrderPage> {
         });
       }
     } catch (e) {
-      print('Error loading order: $e');
+            debugPrint('Error loading upcoming order: $e');
       setState(() {
         _isLoading = false;
       });
@@ -159,7 +159,7 @@ class _UpcomingOrderPageState extends State<UpcomingOrderPage> {
     );
 
     // Handle the result if meal was selected
-    if (result != null) {
+    if (result != null && mounted) {
       // TODO: Update order with new meal
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

@@ -20,13 +20,13 @@ class AppTheme {
   // Enhanced shadows and effects
   static List<BoxShadow> get cardShadow => [
     BoxShadow(
-      color: Colors.black.withOpacity(0.3),
+      color: Colors.black.withValues(alpha: 0.3),
       blurRadius: 12,
       offset: const Offset(0, 4),
       spreadRadius: 0,
     ),
     BoxShadow(
-      color: accent.withOpacity(0.1),
+      color: accent.withValues(alpha: 0.1),
       blurRadius: 20,
       offset: const Offset(0, 8),
       spreadRadius: -4,
@@ -35,13 +35,13 @@ class AppTheme {
 
   static List<BoxShadow> get buttonShadow => [
     BoxShadow(
-      color: accent.withOpacity(0.4),
+      color: accent.withValues(alpha: 0.4),
       blurRadius: 16,
       offset: const Offset(0, 6),
       spreadRadius: 0,
     ),
     BoxShadow(
-      color: Colors.black.withOpacity(0.2),
+      color: Colors.black.withValues(alpha: 0.2),
       blurRadius: 8,
       offset: const Offset(0, 2),
       spreadRadius: 0,
@@ -126,8 +126,6 @@ class AppTheme {
       onSecondary: textPrimary,
       surface: surface,
       onSurface: textPrimary,
-      background: background,
-      onBackground: textPrimary,
       error: Color(0xFFCF6679),
       onError: Color(0xFF000000),
       outline: border,
@@ -167,7 +165,7 @@ class AppTheme {
         ),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ).copyWith(
-        overlayColor: WidgetStateProperty.all(hover.withOpacity(0.1)),
+        overlayColor: WidgetStateProperty.all(hover.withValues(alpha: 0.1)),
       ),
     ),
     cardTheme: CardThemeData(
@@ -195,7 +193,7 @@ class AppTheme {
         borderSide: const BorderSide(color: accent, width: 2),
       ),
       labelStyle: const TextStyle(color: textPrimary),
-      hintStyle: TextStyle(color: textPrimary.withOpacity(0.6)),
+      hintStyle: TextStyle(color: textPrimary.withValues(alpha: 0.6)),
     ),
   );
 }
@@ -382,7 +380,7 @@ class _AppButtonState extends State<AppButton> with SingleTickerProviderStateMix
                 boxShadow: widget.isPrimary ? [
                   ...AppTheme.buttonShadow,
                   BoxShadow(
-                    color: AppTheme.accent.withOpacity(0.3 * _glowAnimation.value),
+                    color: AppTheme.accent.withValues(alpha: 0.3 * _glowAnimation.value),
                     blurRadius: 24,
                     offset: const Offset(0, 0),
                     spreadRadius: 4,
@@ -530,7 +528,7 @@ class _AppTextFieldState extends State<AppTextField> with SingleTickerProviderSt
             borderRadius: BorderRadius.circular(16),
             boxShadow: _isFocused ? [
               BoxShadow(
-                color: AppTheme.accent.withOpacity(0.2 * _glowAnimation.value),
+                color: AppTheme.accent.withValues(alpha: 0.2 * _glowAnimation.value),
                 blurRadius: 20,
                 offset: const Offset(0, 4),
                 spreadRadius: 2,
@@ -689,7 +687,7 @@ class _AppLoadingIndicatorState extends State<AppLoadingIndicator>
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: widget.color?.withOpacity(0.3) ?? AppTheme.accent.withOpacity(0.3),
+                        color: widget.color?.withValues(alpha: 0.3) ?? AppTheme.accent.withValues(alpha: 0.3),
                         blurRadius: 20,
                         spreadRadius: 5,
                       ),
@@ -799,7 +797,7 @@ class _AppFloatingActionButtonState extends State<AppFloatingActionButton>
                 boxShadow: [
                   ...AppTheme.buttonShadow,
                   BoxShadow(
-                    color: AppTheme.accent.withOpacity(0.4 * _glowAnimation.value),
+                    color: AppTheme.accent.withValues(alpha: 0.4 * _glowAnimation.value),
                     blurRadius: 30,
                     spreadRadius: 5,
                   ),

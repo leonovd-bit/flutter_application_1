@@ -85,7 +85,7 @@ class _SubscriptionSetupPageState extends State<SubscriptionSetupPage> {
                           value: day,
                           enabled: canAdd,
                           child: Text(
-                            '$day (${currentMeals}/${selectedMealPlan ?? 0} meals)',
+                            '$day ($currentMeals/${selectedMealPlan ?? 0} meals)',
                             style: TextStyle(
                               color: canAdd ? Colors.black : Colors.grey,
                             ),
@@ -458,7 +458,7 @@ class _SubscriptionSetupPageState extends State<SubscriptionSetupPage> {
             width: isSelected ? 2 : 1,
           ),
           borderRadius: BorderRadius.circular(12),
-          color: isSelected ? const Color(0xFF2D5A2D).withOpacity(0.1) : Colors.white,
+          color: isSelected ? const Color(0xFF2D5A2D).withValues(alpha: 0.1) : Colors.white,
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

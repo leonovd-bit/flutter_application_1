@@ -51,7 +51,7 @@ class _CircleOfHealthPageState extends State<CircleOfHealthPage> {
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading daily progress: $e');
+      debugPrint('Error loading daily progress: $e');
       setState(() {
         _isLoading = false;
       });
@@ -275,9 +275,9 @@ class _CircleOfHealthPageState extends State<CircleOfHealthPage> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
       decoration: BoxDecoration(
-        color: const Color(0xFF6366F1).withOpacity(0.1),
+        color: const Color(0xFF6366F1).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF6366F1).withOpacity(0.2)),
+        border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.2)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -352,7 +352,7 @@ class _CircleOfHealthPageState extends State<CircleOfHealthPage> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isConsumed ? color.withOpacity(0.15) : Colors.grey[100],
+          color: isConsumed ? color.withValues(alpha: 0.15) : Colors.grey[100],
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isConsumed ? color : Colors.grey[300]!,
@@ -510,7 +510,7 @@ class _CircleOfHealthPageState extends State<CircleOfHealthPage> {
                 child: Container(
                   height: 8,
                   decoration: BoxDecoration(
-                    color: isCompleted ? const Color(0xFF10B981) : color.withOpacity(0.7),
+                    color: isCompleted ? const Color(0xFF10B981) : color.withValues(alpha: 0.7),
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),

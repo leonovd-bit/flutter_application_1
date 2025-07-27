@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/review.dart';
 
 class ReviewService {
@@ -25,7 +26,7 @@ class ReviewService {
       await _firestore.collection(_collection).doc(review.id).set(review.toMap());
       return true;
     } catch (e) {
-      print('Error submitting review: $e');
+      debugPrint('Error submitting review: $e');
       return false;
     }
   }
@@ -41,7 +42,7 @@ class ReviewService {
 
       return querySnapshot.docs.isNotEmpty;
     } catch (e) {
-      print('Error checking review: $e');
+      debugPrint('Error checking review: $e');
       return false;
     }
   }
@@ -59,7 +60,7 @@ class ReviewService {
           .map((doc) => Review.fromMap(doc.data()))
           .toList();
     } catch (e) {
-      print('Error getting user reviews: $e');
+      debugPrint('Error getting user reviews: $e');
       return [];
     }
   }

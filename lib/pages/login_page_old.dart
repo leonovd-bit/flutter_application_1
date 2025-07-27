@@ -241,8 +241,39 @@ class _LoginPageState extends State<LoginPage> {
                 
                 // Forgot password
                 TextButton(
-                  onPressed: () {
-                    // TODO: Implement forgot password
+                  onPressed: () async {
+                    if (_emailController.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please enter your email address first'),
+                          backgroundColor: Colors.orange,
+                        ),
+                      );
+                      return;
+                    }
+                    
+                    try {
+                      await FirebaseAuth.instance.sendPasswordResetEmail(
+                        email: _emailController.text.trim(),
+                      );
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Password reset email sent! Check your inbox.'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Error: ${e.toString()}'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
                   },
                   child: const Text(
                     'Forgot Password?',

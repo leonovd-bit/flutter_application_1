@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/order.dart' as app_models;
 
 class OrderService {
@@ -20,7 +21,7 @@ class OrderService {
 
       return app_models.Order.fromMap(querySnapshot.docs.first.data());
     } catch (e) {
-      print('Error getting upcoming order: $e');
+      debugPrint('Error getting upcoming order: $e');
       return null;
     }
   }
@@ -45,7 +46,7 @@ class OrderService {
 
       return app_models.Order.fromMap(querySnapshot.docs.first.data());
     } catch (e) {
-      print('Error getting active order: $e');
+            debugPrint('Error getting active order: $e');
       return null;
     }
   }
@@ -72,7 +73,7 @@ class OrderService {
       });
       return true;
     } catch (e) {
-      print('Error confirming order: $e');
+      debugPrint('Error confirming order: $e');
       return false;
     }
   }
@@ -86,7 +87,7 @@ class OrderService {
       });
       return true;
     } catch (e) {
-      print('Error cancelling order: $e');
+      debugPrint('Error cancelling order: $e');
       return false;
     }
   }
@@ -123,7 +124,7 @@ class OrderService {
       await _firestore.collection(_collection).doc(orderId).update(updateData);
       return true;
     } catch (e) {
-      print('Error updating order status: $e');
+      debugPrint('Error updating order status: $e');
       return false;
     }
   }
@@ -140,7 +141,7 @@ class OrderService {
       });
       return true;
     } catch (e) {
-      print('Error replacing meal: $e');
+      debugPrint('Error replacing meal: $e');
       return false;
     }
   }
@@ -154,7 +155,7 @@ class OrderService {
       });
       return true;
     } catch (e) {
-      print('Error marking notification sent: $e');
+      debugPrint('Error marking notification sent: $e');
       return false;
     }
   }
@@ -170,7 +171,7 @@ class OrderService {
       });
       return true;
     } catch (e) {
-      print('Error auto-confirming order: $e');
+      debugPrint('Error auto-confirming order: $e');
       return false;
     }
   }
@@ -196,7 +197,7 @@ class OrderService {
       await _firestore.collection(_collection).doc(order.id).set(order.toMap());
       return order.id;
     } catch (e) {
-      print('Error creating mock order: $e');
+      debugPrint('Error creating mock order: $e');
       return null;
     }
   }

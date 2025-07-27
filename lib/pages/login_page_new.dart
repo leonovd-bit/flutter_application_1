@@ -16,6 +16,7 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _isPasswordVisible = false;
   bool _isLoading = false;
 
   @override
@@ -239,12 +240,14 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 48),
 
                   // Email field
-                  AppTextField(
-                    label: 'EMAIL',
-                    hint: 'Enter your email address',
+                  TextFormField(
                     controller: _emailController,
-                    isEmail: true,
-                    prefixIcon: Icons.email_outlined,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      labelText: 'EMAIL',
+                      prefixIcon: Icon(Icons.email_outlined, color: AppTheme.accent),
+                    ),
+                    style: AppTheme.textTheme.bodyLarge,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter your email';
@@ -256,13 +259,28 @@ class _LoginPageState extends State<LoginPage> {
                     },
                   ),
 
+                  const SizedBox(height: 24),
+
                   // Password field
-                  AppTextField(
-                    label: 'PASSWORD',
-                    hint: 'Enter your password',
+                  TextFormField(
                     controller: _passwordController,
-                    isPassword: true,
-                    prefixIcon: Icons.lock_outline,
+                    obscureText: !_isPasswordVisible,
+                    decoration: InputDecoration(
+                      labelText: 'PASSWORD',
+                      prefixIcon: const Icon(Icons.lock_outline, color: AppTheme.accent),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                          color: AppTheme.accent,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _isPasswordVisible = !_isPasswordVisible;
+                          });
+                        },
+                      ),
+                    ),
+                    style: AppTheme.textTheme.bodyLarge,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter your password';

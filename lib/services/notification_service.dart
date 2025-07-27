@@ -47,12 +47,12 @@ class NotificationService {
   }
 
   static Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-    print('Handling background message: ${message.messageId}');
+    debugPrint('Handling background message: ${message.messageId}');
     // Handle background message here
   }
 
   static void _handleForegroundMessage(RemoteMessage message) {
-    print('Handling foreground message: ${message.messageId}');
+    debugPrint('Handling foreground message: ${message.messageId}');
     
     // Show local notification for foreground messages
     if (message.notification != null) {
@@ -65,7 +65,7 @@ class NotificationService {
   }
 
   static void _onNotificationTapped(NotificationResponse response) {
-    print('Notification tapped: ${response.payload}');
+    debugPrint('Notification tapped: ${response.payload}');
     // Handle notification tap - could navigate to specific order
   }
 
@@ -156,7 +156,7 @@ class NotificationService {
   // Cancel order notifications
   static Future<void> cancelOrderNotifications(String orderId) async {
     await _localNotifications.cancel(orderId.hashCode);
-    await _localNotifications.cancel((orderId + '_autoconfirm').hashCode);
+    await _localNotifications.cancel('${orderId}_autoconfirm'.hashCode);
     
     // Remove from SharedPreferences
     final prefs = await SharedPreferences.getInstance();

@@ -32,7 +32,7 @@ class _PastOrdersPageState extends State<PastOrdersPage> {
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading order history: $e');
+      debugPrint('Error loading order history: $e');
       setState(() {
         _isLoading = false;
       });
@@ -194,7 +194,7 @@ class _PastOrdersPageState extends State<PastOrdersPage> {
     } else if (difference == 1) {
       return 'Yesterday';
     } else if (difference < 7) {
-      return '${difference} days ago';
+      return '$difference days ago';
     } else {
       return '${date.month}/${date.day}/${date.year}';
     }
@@ -287,7 +287,7 @@ class _PastOrdersPageState extends State<PastOrdersPage> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -369,7 +369,7 @@ class _PastOrdersPageState extends State<PastOrdersPage> {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: _getMealTypeColor(orderItem.meal.mealType).withOpacity(0.1),
+                          color: _getMealTypeColor(orderItem.meal.mealType).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
@@ -486,7 +486,7 @@ class _PastOrdersPageState extends State<PastOrdersPage> {
               decoration: BoxDecoration(
                 color: const Color(0xFFFEF2F2),
                 borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: const Color(0xFFEF4444).withOpacity(0.2)),
+                border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.2)),
               ),
               child: Text(
                 allergy,

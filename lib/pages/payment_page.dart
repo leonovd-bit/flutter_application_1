@@ -41,7 +41,7 @@ class _PaymentPageState extends State<PaymentPage> {
         });
       }
     } catch (e) {
-      print('Error loading payment data: $e');
+            debugPrint('Error loading payment method: $e');
       setState(() {
         _isLoading = false;
       });
@@ -128,6 +128,8 @@ class _PaymentPageState extends State<PaymentPage> {
   Future<void> _removePaymentMethod() async {
     final confirmed = await _showPasswordDialog('remove your payment method');
     if (!confirmed) return;
+    
+    if (!mounted) return;
 
     final doubleConfirmed = await showDialog<bool>(
       context: context,
