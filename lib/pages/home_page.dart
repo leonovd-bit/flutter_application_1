@@ -6,6 +6,7 @@ import '../models/subscription.dart';
 import '../services/address_service.dart';
 import '../services/subscription_service.dart';
 import '../widgets/circular_progress_widget.dart';
+import '../theme/app_theme.dart';
 import 'past_orders_page.dart';
 import 'circle_of_health_page.dart';
 import 'upcoming_order_page.dart';
@@ -208,33 +209,47 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
+      return Scaffold(
+        backgroundColor: AppTheme.background,
         body: Center(
-          child: CircularProgressIndicator(
-            color: Color(0xFF6366F1),
-          ),
+          child: AppLoadingIndicator(),
         ),
       );
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildTopBar(),
-              const SizedBox(height: 30),
-              _buildTrackingCircle(),
-              const SizedBox(height: 30),
-              _buildAddressSection(),
-              const SizedBox(height: 30),
-              _buildUpcomingOrder(),
-              const SizedBox(height: 30),
-              _buildPastOrders(),
+      backgroundColor: AppTheme.background,
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.topCenter,
+            radius: 1.5,
+            colors: [
+              AppTheme.background,
+              AppTheme.surface.withValues(alpha: 0.2),
+              AppTheme.background,
             ],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildTopBar(),
+                const SizedBox(height: 30),
+                _buildTrackingCircle(),
+                const SizedBox(height: 30),
+                _buildAddressSection(),
+                const SizedBox(height: 30),
+                _buildUpcomingOrder(),
+                const SizedBox(height: 30),
+                _buildPastOrders(),
+              ],
+            ),
           ),
         ),
       ),
@@ -245,27 +260,27 @@ class _HomePageState extends State<HomePage> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        const Icon(
+        Icon(
           Icons.location_on,
-          color: Color(0xFF6366F1),
+          color: AppTheme.accent,
           size: 28,
         ),
-        const Text(
-          'LeanFreak',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1F2937),
+        Text(
+          'FRESHPUNK',
+          style: AppTheme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.5,
+            color: AppTheme.textPrimary,
           ),
         ),
         IconButton(
           icon: const Icon(
             Icons.settings,
-            color: Color(0xFF6B7280),
+            color: AppTheme.textPrimary,
             size: 28,
           ),
           onPressed: () {
-            // TODO: Navigate to settings
+            Navigator.pushNamed(context, '/settings');
           },
         ),
       ],
@@ -296,24 +311,29 @@ class _HomePageState extends State<HomePage> {
                 width: 140,
                 height: 140,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppTheme.surface,
                   shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppTheme.accent.withValues(alpha: 0.3),
+                    width: 2,
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
+                      color: AppTheme.accent.withValues(alpha: 0.1),
+                      blurRadius: 20,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
                 child: Center(
                   child: Text(
                     _getSubscriptionDisplayName(),
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1F2937),
+                    style: AppTheme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.accent,
+                      letterSpacing: 0.5,
                     ),
+                    textAlign: TextAlign.center,
                   ),
                 ),
               ),
@@ -366,47 +386,48 @@ class _HomePageState extends State<HomePage> {
   }) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-        ),
+      child: AppCard(
         child: Row(
           children: [
-            Icon(
-              icon,
-              color: const Color(0xFF6366F1),
-              size: 24,
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppTheme.accent.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                color: AppTheme.accent,
+                size: 24,
+              ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    label,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF374151),
+                    label.toUpperCase(),
+                    style: AppTheme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.accent,
+                      letterSpacing: 1.0,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   Text(
                     address,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF6B7280),
+                    style: AppTheme.textTheme.bodyMedium?.copyWith(
+                      color: AppTheme.textPrimary.withValues(alpha: 0.7),
+                      height: 1.3,
                     ),
                   ),
                 ],
               ),
             ),
-            const Icon(
+            Icon(
               Icons.arrow_forward_ios,
-              color: Color(0xFF9CA3AF),
+              color: AppTheme.textPrimary.withValues(alpha: 0.3),
               size: 16,
             ),
           ],

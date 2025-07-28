@@ -4,6 +4,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'welcome_page.dart';
 import 'user_portal_page.dart';
 import '../theme/app_theme.dart';
+import '../services/social_auth_service.dart';
+import '../services/user_service.dart';
+import '../models/user_profile.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -127,6 +130,124 @@ class _LoginPageState extends State<LoginPage> {
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
+      }
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final userCredential = await SocialAuthService.signInWithGoogle();
+      
+      if (userCredential?.user != null) {
+        final user = userCredential!.user!;
+        
+        // Check if user profile exists, if not create one
+        try {
+          await UserService.getUserProfile(user.uid);
+        } catch (e) {
+          // User profile doesn't exist, create one with basic info
+          final userProfile = UserProfile(
+            uid: user.uid,
+            firstName: user.displayName?.split(' ').first ?? '',
+            lastName: user.displayName?.split(' ').skip(1).join(' ') ?? '',
+            email: user.email ?? '',
+            phoneNumber: user.phoneNumber ?? '',
+            subscriptionPlan: '1-meal',
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+            isActive: true,
+          );
+
+          await UserService.createUserProfile(userProfile);
+        }
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('isLoggedIn', true);
+
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const UserPortalPage()),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Google sign-in failed: ${e.toString()}'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _signInWithApple() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final userCredential = await SocialAuthService.signInWithApple();
+      
+      if (userCredential?.user != null) {
+        final user = userCredential!.user!;
+        
+        // Check if user profile exists, if not create one
+        try {
+          await UserService.getUserProfile(user.uid);
+        } catch (e) {
+          // User profile doesn't exist, create one with basic info
+          final userProfile = UserProfile(
+            uid: user.uid,
+            firstName: user.displayName?.split(' ').first ?? '',
+            lastName: user.displayName?.split(' ').skip(1).join(' ') ?? '',
+            email: user.email ?? '',
+            phoneNumber: user.phoneNumber ?? '',
+            subscriptionPlan: '1-meal',
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+            isActive: true,
+          );
+
+          await UserService.createUserProfile(userProfile);
+        }
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('isLoggedIn', true);
+
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const UserPortalPage()),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Apple sign-in failed: ${e.toString()}'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }
@@ -287,6 +408,112 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                     ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Divider with "OR" text
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          height: 1,
+                          color: AppTheme.textPrimary.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          'OR',
+                          style: AppTheme.textTheme.bodyMedium?.copyWith(
+                            color: AppTheme.textPrimary.withValues(alpha: 0.6),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Container(
+                          height: 1,
+                          color: AppTheme.textPrimary.withValues(alpha: 0.3),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Social login buttons
+                  Column(
+                    children: [
+                      // Google Sign In button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: OutlinedButton.icon(
+                          onPressed: _isLoading ? null : _signInWithGoogle,
+                          icon: Container(
+                            width: 24,
+                            height: 24,
+                            decoration: const BoxDecoration(
+                              image: DecorationImage(
+                                image: NetworkImage('https://developers.google.com/identity/images/g-logo.png'),
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                          ),
+                          label: Text(
+                            'CONTINUE WITH GOOGLE',
+                            style: AppTheme.textTheme.labelLarge?.copyWith(
+                              color: AppTheme.textPrimary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            side: BorderSide(
+                              color: AppTheme.accent.withValues(alpha: 0.3),
+                              width: 1,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Apple Sign In button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: OutlinedButton.icon(
+                          onPressed: _isLoading ? null : _signInWithApple,
+                          icon: const Icon(
+                            Icons.apple,
+                            color: AppTheme.textPrimary,
+                            size: 24,
+                          ),
+                          label: Text(
+                            'CONTINUE WITH APPLE',
+                            style: AppTheme.textTheme.labelLarge?.copyWith(
+                              color: AppTheme.textPrimary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            side: BorderSide(
+                              color: AppTheme.accent.withValues(alpha: 0.3),
+                              width: 1,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
 
                   const SizedBox(height: 32),

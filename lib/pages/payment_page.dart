@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/subscription.dart';
 import '../services/subscription_service.dart';
+import '../theme/app_theme.dart';
 
 class PaymentPage extends StatefulWidget {
   const PaymentPage({super.key});
@@ -193,40 +194,58 @@ class _PaymentPageState extends State<PaymentPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: const Icon(Icons.arrow_back, color: AppTheme.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Payment',
-          style: TextStyle(
-            color: Colors.black,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+        title: Text(
+          'PAYMENT',
+          style: AppTheme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.5,
+            color: AppTheme.textPrimary,
           ),
         ),
+        centerTitle: false,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Current Payment Method
-                  _buildPaymentMethodSection(),
-                  const SizedBox(height: 32),
-                  
-                  // Billing Information
-                  if (_currentSubscription != null) _buildBillingSection(),
-                  
-                  // Payment History
-                  if (_currentSubscription != null) _buildPaymentHistorySection(),
-                ],
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.topCenter,
+            radius: 1.5,
+            colors: [
+              AppTheme.background,
+              AppTheme.surface.withValues(alpha: 0.2),
+              AppTheme.background,
+            ],
+          ),
+        ),
+        child: _isLoading
+            ? Center(
+                child: AppLoadingIndicator(),
+              )
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Current Payment Method
+                    _buildPaymentMethodSection(),
+                    const SizedBox(height: 32),
+                    
+                    // Billing Information
+                    if (_currentSubscription != null) _buildBillingSection(),
+                    
+                    // Payment History
+                    if (_currentSubscription != null) _buildPaymentHistorySection(),
+                  ],
+                ),
               ),
             ),
     );

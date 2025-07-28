@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/order.dart' as app_models;
 import '../services/order_service.dart';
 import '../services/notification_service.dart';
+import '../theme/app_theme.dart';
 
 class OrderManagementPage extends StatefulWidget {
   const OrderManagementPage({super.key});
@@ -72,44 +73,71 @@ class _OrderManagementPageState extends State<OrderManagementPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: const Icon(Icons.arrow_back, color: AppTheme.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Order Management',
-          style: TextStyle(
-            color: Colors.black,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+        title: Text(
+          'ORDER MANAGEMENT',
+          style: AppTheme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.5,
+            color: AppTheme.textPrimary,
           ),
         ),
         centerTitle: false,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _orders.isEmpty
-              ? const Center(
-                  child: Text(
-                    'No orders found',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey,
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.topCenter,
+            radius: 1.5,
+            colors: [
+              AppTheme.background,
+              AppTheme.surface.withValues(alpha: 0.2),
+              AppTheme.background,
+            ],
+          ),
+        ),
+        child: _isLoading
+            ? Center(child: AppLoadingIndicator())
+            : _orders.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.receipt_long_outlined,
+                          size: 80,
+                          color: AppTheme.textPrimary.withValues(alpha: 0.3),
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          'NO ORDERS FOUND',
+                          style: AppTheme.textTheme.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textPrimary.withValues(alpha: 0.7),
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ],
                     ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(24),
+                    itemCount: _orders.length,
+                    itemBuilder: (context, index) {
+                      final order = _orders[index];
+                      return _buildOrderCard(order);
+                    },
                   ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _orders.length,
-                  itemBuilder: (context, index) {
-                    final order = _orders[index];
-                    return _buildOrderCard(order);
-                  },
-                ),
+        ),
     );
   }
 

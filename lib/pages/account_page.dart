@@ -7,6 +7,7 @@ import '../models/user_profile.dart';
 import '../models/delivery_address.dart';
 import '../services/user_service.dart';
 import '../services/address_service.dart';
+import '../theme/app_theme.dart';
 import 'add_address_page.dart';
 
 class AccountPage extends StatefulWidget {
@@ -241,40 +242,45 @@ class _AccountPageState extends State<AccountPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: const Icon(Icons.arrow_back, color: AppTheme.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Account',
-          style: TextStyle(
-            color: Colors.black,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+        title: Text(
+          'ACCOUNT',
+          style: AppTheme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.5,
+            color: AppTheme.textPrimary,
           ),
         ),
+        centerTitle: false,
         actions: [
           if (_isSaving)
-            const Padding(
-              padding: EdgeInsets.all(16.0),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
               child: SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accent),
+                ),
               ),
             )
           else
             TextButton(
               onPressed: _updateProfile,
-              child: const Text(
-                'Save',
-                style: TextStyle(
-                  color: Color(0xFF2D5A2D),
-                  fontWeight: FontWeight.w600,
+              child: Text(
+                'SAVE',
+                style: AppTheme.textTheme.labelLarge?.copyWith(
+                  color: AppTheme.accent,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.0,
                 ),
               ),
             ),

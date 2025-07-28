@@ -4,6 +4,7 @@ import 'dart:async';
 import '../models/order.dart' as app_models;
 import '../services/order_service.dart';
 import '../services/review_service.dart';
+import '../theme/app_theme.dart';
 import 'menu_page.dart';
 import 'home_page.dart';
 
@@ -205,29 +206,44 @@ class _UpcomingOrderPageState extends State<UpcomingOrderPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: const Icon(Icons.arrow_back, color: AppTheme.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'FreshPunk',
-          style: TextStyle(
-            color: Colors.black,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+        title: Text(
+          'FRESHPUNK',
+          style: AppTheme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.5,
+            color: AppTheme.textPrimary,
           ),
         ),
         centerTitle: false,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _order == null
-              ? _buildNoOrderView()
-              : _buildOrderView(),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.topCenter,
+            radius: 1.5,
+            colors: [
+              AppTheme.background,
+              AppTheme.surface.withValues(alpha: 0.2),
+              AppTheme.background,
+            ],
+          ),
+        ),
+        child: _isLoading
+            ? Center(child: AppLoadingIndicator())
+            : _order == null
+                ? _buildNoOrderView()
+                : _buildOrderView(),
+      ),
     );
   }
 

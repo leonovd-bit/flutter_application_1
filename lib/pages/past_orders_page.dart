@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/meal.dart';
+import '../theme/app_theme.dart';
 
 class PastOrdersPage extends StatefulWidget {
   const PastOrdersPage({super.key});
@@ -203,33 +204,46 @@ class _PastOrdersPageState extends State<PastOrdersPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1F2937)),
+          icon: const Icon(Icons.arrow_back, color: AppTheme.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Past Orders',
-          style: TextStyle(
-            color: Color(0xFF1F2937),
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
+        title: Text(
+          'PAST ORDERS',
+          style: AppTheme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.5,
+            color: AppTheme.textPrimary,
           ),
         ),
-        centerTitle: true,
+        centerTitle: false,
       ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(
-                color: Color(0xFF6366F1),
-              ),
-            )
-          : _orderHistory.isEmpty
-              ? _buildEmptyState()
-              : _buildOrdersList(),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.topCenter,
+            radius: 1.5,
+            colors: [
+              AppTheme.background,
+              AppTheme.surface.withValues(alpha: 0.2),
+              AppTheme.background,
+            ],
+          ),
+        ),
+        child: _isLoading
+            ? Center(
+                child: AppLoadingIndicator(),
+              )
+            : _orderHistory.isEmpty
+                ? _buildEmptyState()
+                : _buildOrdersList(),
+      ),
     );
   }
 

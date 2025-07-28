@@ -8,6 +8,7 @@ import '../services/meal_schedule_service.dart';
 import '../services/meal_service.dart';
 import '../services/user_service.dart';
 import '../services/subscription_service.dart';
+import '../theme/app_theme.dart';
 import 'subscription_payment_page.dart';
 
 class MealSchedulePage extends StatefulWidget {
@@ -385,58 +386,84 @@ class _MealSchedulePageState extends State<MealSchedulePage>
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.background,
         appBar: AppBar(
-          title: const Text('Meal Schedule'),
-          backgroundColor: Colors.white,
+          title: Text(
+            'MEAL SCHEDULE',
+            style: AppTheme.textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.5,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+          backgroundColor: AppTheme.background,
           elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppTheme.textPrimary),
+            onPressed: () => Navigator.pop(context),
+          ),
         ),
-        body: const Center(
-          child: CircularProgressIndicator(),
+        body: Center(
+          child: AppLoadingIndicator(),
         ),
       );
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: const Text(
-          'Fresh Punk Meal Schedule',
-          style: TextStyle(
-            color: Colors.black,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+        title: Text(
+          'FRESHPUNK MEAL SCHEDULE',
+          style: AppTheme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.5,
+            color: AppTheme.textPrimary,
           ),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: const Icon(Icons.arrow_back, color: AppTheme.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: Column(
-        children: [
-          // Schedule Selection Section
-          _buildScheduleSelection(),
-          
-          // Meal Type Tabs
-          _buildMealTypeTabs(),
-          
-          // Day Selection (when customizing week)
-          if (_isCustomizingWeek) _buildWeekDaySelector(),
-          
-          // Auto Selection Switches
-          _buildAutoSelectionSwitches(),
-          
-          // Meals List
-          Expanded(
-            child: _buildMealsList(),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.topCenter,
+            radius: 1.5,
+            colors: [
+              AppTheme.background,
+              AppTheme.surface.withValues(alpha: 0.2),
+              AppTheme.background,
+            ],
           ),
-          
-          // Action Buttons
-          _buildActionButtons(),
-        ],
+        ),
+        child: Column(
+          children: [
+            // Schedule Selection Section
+            _buildScheduleSelection(),
+            
+            // Meal Type Tabs
+            _buildMealTypeTabs(),
+            
+            // Day Selection (when customizing week)
+            if (_isCustomizingWeek) _buildWeekDaySelector(),
+            
+            // Auto Selection Switches
+            _buildAutoSelectionSwitches(),
+            
+            // Meals List
+            Expanded(
+              child: _buildMealsList(),
+            ),
+            
+            // Action Buttons
+            _buildActionButtons(),
+          ],
+        ),
       ),
     );
   }

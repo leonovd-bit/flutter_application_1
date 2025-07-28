@@ -4,6 +4,7 @@ import 'payment_page.dart';
 import 'subscription_page.dart';
 import 'security_page.dart';
 import 'terms_of_service_page.dart';
+import '../theme/app_theme.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -11,95 +12,110 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: const Icon(Icons.arrow_back, color: AppTheme.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Settings',
-          style: TextStyle(
-            color: Colors.black,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+        title: Text(
+          'SETTINGS',
+          style: AppTheme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.5,
+            color: AppTheme.textPrimary,
           ),
         ),
         centerTitle: false,
       ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            children: [
-              const SizedBox(height: 20),
-              
-              // Settings options
-              _buildSettingsItem(
-                context,
-                icon: Icons.person_outline,
-                title: 'Account',
-                subtitle: 'Profile, addresses, and personal information',
-                onTap: () => Navigator.push(
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.topCenter,
+            radius: 1.5,
+            colors: [
+              AppTheme.background,
+              AppTheme.surface.withValues(alpha: 0.2),
+              AppTheme.background,
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              children: [
+                const SizedBox(height: 20),
+                
+                // Settings options
+                _buildSettingsItem(
                   context,
-                  MaterialPageRoute(builder: (context) => const AccountPage()),
+                  icon: Icons.person_outline,
+                  title: 'ACCOUNT',
+                  subtitle: 'Profile, addresses, and personal information',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const AccountPage()),
+                  ),
                 ),
-              ),
-              
-              _buildSettingsItem(
-                context,
-                icon: Icons.payment,
-                title: 'Payment',
-                subtitle: 'Payment methods and billing',
-                onTap: () => Navigator.push(
+                
+                _buildSettingsItem(
                   context,
-                  MaterialPageRoute(builder: (context) => const PaymentPage()),
+                  icon: Icons.payment,
+                  title: 'PAYMENT',
+                  subtitle: 'Payment methods and billing',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const PaymentPage()),
+                  ),
                 ),
-              ),
-              
-              _buildSettingsItem(
-                context,
-                icon: Icons.subscriptions,
-                title: 'Subscription',
-                subtitle: 'Manage your meal plan',
-                onTap: () => Navigator.push(
+                
+                _buildSettingsItem(
                   context,
-                  MaterialPageRoute(builder: (context) => const SubscriptionPage()),
+                  icon: Icons.subscriptions,
+                  title: 'SUBSCRIPTION',
+                  subtitle: 'Manage your meal plan',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const SubscriptionPage()),
+                  ),
                 ),
-              ),
-              
-              _buildSettingsItem(
-                context,
-                icon: Icons.security,
-                title: 'Security',
-                subtitle: 'Password, biometrics, and notifications',
-                onTap: () => Navigator.push(
+                
+                _buildSettingsItem(
                   context,
-                  MaterialPageRoute(builder: (context) => const SecurityPage()),
+                  icon: Icons.security,
+                  title: 'SECURITY',
+                  subtitle: 'Password, biometrics, and notifications',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const SecurityPage()),
+                  ),
                 ),
-              ),
-              
-              _buildSettingsItem(
-                context,
-                icon: Icons.description,
-                title: 'Terms of Service',
-                subtitle: 'Legal information and policies',
-                onTap: () => Navigator.push(
+                
+                _buildSettingsItem(
                   context,
-                  MaterialPageRoute(builder: (context) => const TermsOfServicePage()),
+                  icon: Icons.description,
+                  title: 'TERMS OF SERVICE',
+                  subtitle: 'Legal information and policies',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const TermsOfServicePage()),
+                  ),
                 ),
-              ),
               
               const Spacer(),
               
               // App version
               Text(
-                'FreshPunk v1.0.0',
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 14,
+                'FRESHPUNK v1.0.0',
+                style: AppTheme.textTheme.bodySmall?.copyWith(
+                  color: AppTheme.textPrimary.withValues(alpha: 0.5),
+                  letterSpacing: 1.0,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 20),
@@ -119,30 +135,24 @@ class SettingsPage extends StatelessWidget {
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      child: Material(
-        color: Colors.transparent,
+      child: AppCard(
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.grey[50],
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey[200]!),
-            ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
             child: Row(
               children: [
                 Container(
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF2D5A2D).withValues(alpha: 0.1),
+                    color: AppTheme.accent.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
                     icon,
-                    color: const Color(0xFF2D5A2D),
+                    color: AppTheme.accent,
                     size: 24,
                   ),
                 ),
@@ -153,18 +163,17 @@ class SettingsPage extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: const TextStyle(
-                          fontSize: 16,
+                        style: AppTheme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w600,
-                          color: Colors.black,
+                          color: AppTheme.textPrimary,
+                          letterSpacing: 0.5,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         subtitle,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
+                        style: AppTheme.textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.textPrimary.withValues(alpha: 0.6),
                         ),
                       ),
                     ],
@@ -172,7 +181,7 @@ class SettingsPage extends StatelessWidget {
                 ),
                 Icon(
                   Icons.arrow_forward_ios,
-                  color: Colors.grey[400],
+                  color: AppTheme.textPrimary.withValues(alpha: 0.5),
                   size: 16,
                 ),
               ],

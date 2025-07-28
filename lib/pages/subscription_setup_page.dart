@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'add_address_page.dart';
 import 'subscription_payment_page.dart';
 import '../models/subscription.dart';
+import '../theme/app_theme.dart';
 
 class SubscriptionSetupPage extends StatefulWidget {
   const SubscriptionSetupPage({super.key});
@@ -249,12 +250,12 @@ class _SubscriptionSetupPageState extends State<SubscriptionSetupPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: Icon(Icons.arrow_back, color: AppTheme.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -265,12 +266,12 @@ class _SubscriptionSetupPageState extends State<SubscriptionSetupPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Title
-              const Text(
-                'Select Meal Plan',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
+              Text(
+                'SELECT MEAL PLAN',
+                style: AppTheme.textTheme.headlineLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.5,
+                  color: AppTheme.textPrimary,
                 ),
               ),
               
@@ -291,12 +292,12 @@ class _SubscriptionSetupPageState extends State<SubscriptionSetupPage> {
                 const SizedBox(height: 40),
                 
                 // Customization section
-                const Text(
-                  'Customize weekly delivery schedule',
-                  style: TextStyle(
-                    fontSize: 20,
+                Text(
+                  'CUSTOMIZE WEEKLY DELIVERY SCHEDULE',
+                  style: AppTheme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: Colors.black,
+                    letterSpacing: 1.2,
+                    color: AppTheme.textPrimary,
                   ),
                 ),
                 
@@ -321,8 +322,10 @@ class _SubscriptionSetupPageState extends State<SubscriptionSetupPage> {
                                     margin: const EdgeInsets.only(bottom: 12),
                                     padding: const EdgeInsets.all(16),
                                     decoration: BoxDecoration(
-                                      border: Border.all(color: Colors.grey[300]!),
+                                      color: AppTheme.surface,
+                                      border: Border.all(color: AppTheme.border),
                                       borderRadius: BorderRadius.circular(12),
+                                      boxShadow: AppTheme.cardShadow,
                                     ),
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -332,27 +335,26 @@ class _SubscriptionSetupPageState extends State<SubscriptionSetupPage> {
                                           children: [
                                             Text(
                                               day,
-                                              style: const TextStyle(
-                                                fontSize: 16,
+                                              style: AppTheme.textTheme.titleMedium?.copyWith(
                                                 fontWeight: FontWeight.w600,
+                                                color: AppTheme.textPrimary,
                                               ),
                                             ),
                                             Container(
                                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                               decoration: BoxDecoration(
                                                 color: dayMeals.length == selectedMealPlan 
-                                                    ? Colors.green[100] 
-                                                    : Colors.orange[100],
+                                                    ? AppTheme.success.withValues(alpha: 0.2) 
+                                                    : AppTheme.warning.withValues(alpha: 0.2),
                                                 borderRadius: BorderRadius.circular(12),
                                               ),
                                               child: Text(
                                                 '${dayMeals.length}/$selectedMealPlan meals',
-                                                style: TextStyle(
-                                                  fontSize: 12,
+                                                style: AppTheme.textTheme.bodySmall?.copyWith(
                                                   fontWeight: FontWeight.w500,
                                                   color: dayMeals.length == selectedMealPlan 
-                                                      ? Colors.green[800] 
-                                                      : Colors.orange[800],
+                                                      ? AppTheme.success 
+                                                      : AppTheme.warning,
                                                 ),
                                               ),
                                             ),
@@ -368,9 +370,8 @@ class _SubscriptionSetupPageState extends State<SubscriptionSetupPage> {
                                             padding: const EdgeInsets.only(bottom: 4),
                                             child: Text(
                                               '${meal['mealType']} at ${meal['time']} → ${address['label']}',
-                                              style: TextStyle(
-                                                fontSize: 14,
-                                                color: Colors.grey[600],
+                                              style: AppTheme.textTheme.bodyMedium?.copyWith(
+                                                color: AppTheme.textSecondary,
                                               ),
                                             ),
                                           );
@@ -384,9 +385,8 @@ class _SubscriptionSetupPageState extends State<SubscriptionSetupPage> {
                                 child: Text(
                                   'No meals scheduled yet.\nTap "Add another" to start.',
                                   textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.grey[500],
+                                  style: AppTheme.textTheme.bodyLarge?.copyWith(
+                                    color: AppTheme.textSecondary,
                                   ),
                                 ),
                               ),
@@ -399,14 +399,20 @@ class _SubscriptionSetupPageState extends State<SubscriptionSetupPage> {
                             child: OutlinedButton(
                               onPressed: _addMealSlot,
                               style: OutlinedButton.styleFrom(
-                                foregroundColor: const Color(0xFF2D5A2D),
-                                side: const BorderSide(color: Color(0xFF2D5A2D)),
+                                foregroundColor: AppTheme.accent,
+                                side: BorderSide(color: AppTheme.accent),
                                 padding: const EdgeInsets.symmetric(vertical: 16),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                              child: const Text('Add another'),
+                              child: Text(
+                                'ADD ANOTHER',
+                                style: AppTheme.textTheme.labelLarge?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -414,14 +420,22 @@ class _SubscriptionSetupPageState extends State<SubscriptionSetupPage> {
                             child: ElevatedButton(
                               onPressed: _canProceed ? _proceedToMealSchedule : null,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.black,
-                                foregroundColor: Colors.white,
+                                backgroundColor: AppTheme.accent,
+                                foregroundColor: AppTheme.textPrimary,
                                 padding: const EdgeInsets.symmetric(vertical: 16),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
+                                elevation: 8,
+                                shadowColor: AppTheme.accent.withValues(alpha: 0.3),
                               ),
-                              child: const Text('Go to Meal Schedule'),
+                              child: Text(
+                                'GO TO MEAL SCHEDULE',
+                                style: AppTheme.textTheme.labelLarge?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
                             ),
                           ),
                         ],
@@ -454,29 +468,28 @@ class _SubscriptionSetupPageState extends State<SubscriptionSetupPage> {
         height: 100,
         decoration: BoxDecoration(
           border: Border.all(
-            color: isSelected ? const Color(0xFF2D5A2D) : Colors.grey[300]!,
+            color: isSelected ? AppTheme.accent : AppTheme.border,
             width: isSelected ? 2 : 1,
           ),
           borderRadius: BorderRadius.circular(12),
-          color: isSelected ? const Color(0xFF2D5A2D).withValues(alpha: 0.1) : Colors.white,
+          color: isSelected ? AppTheme.accent.withValues(alpha: 0.2) : AppTheme.surface,
+          boxShadow: isSelected ? AppTheme.cardShadow : null,
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
               '$mealsPerDay',
-              style: TextStyle(
-                fontSize: 24,
+              style: AppTheme.textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.bold,
-                color: isSelected ? const Color(0xFF2D5A2D) : Colors.black,
+                color: isSelected ? AppTheme.accent : AppTheme.textPrimary,
               ),
             ),
             const SizedBox(height: 4),
             Text(
               'meal${mealsPerDay > 1 ? 's' : ''}/day',
-              style: TextStyle(
-                fontSize: 14,
-                color: isSelected ? const Color(0xFF2D5A2D) : Colors.grey[600],
+              style: AppTheme.textTheme.bodyMedium?.copyWith(
+                color: isSelected ? AppTheme.accent : AppTheme.textSecondary,
               ),
             ),
           ],

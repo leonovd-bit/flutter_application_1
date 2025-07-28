@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/data_seeder.dart';
 import '../services/meal_data_importer.dart';
 import 'order_management_page.dart';
+import '../theme/app_theme.dart';
 
 class AdminDataPage extends StatefulWidget {
   const AdminDataPage({super.key});
@@ -109,20 +110,21 @@ class _AdminDataPageState extends State<AdminDataPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: const Text(
-          'Admin Data Management',
-          style: TextStyle(
-            color: Colors.black,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+        title: Text(
+          'ADMIN DATA MANAGEMENT',
+          style: AppTheme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.5,
+            color: AppTheme.textPrimary,
           ),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.background,
         elevation: 0,
+        centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: Icon(Icons.arrow_back, color: AppTheme.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
       ),

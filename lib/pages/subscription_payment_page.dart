@@ -6,6 +6,7 @@ import '../models/user_profile.dart';
 import '../services/stripe_service.dart';
 import '../services/subscription_service.dart';
 import '../services/user_service.dart';
+import '../theme/app_theme.dart';
 import 'user_portal_page.dart';
 
 class SubscriptionPaymentPage extends StatefulWidget {
@@ -232,33 +233,56 @@ class _SubscriptionPaymentPageState extends State<SubscriptionPaymentPage> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.background,
         appBar: AppBar(
-          title: const Text('Subscription Payment'),
-          backgroundColor: Colors.white,
+          title: Text(
+            'SUBSCRIPTION PAYMENT',
+            style: AppTheme.textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.5,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+          backgroundColor: AppTheme.background,
           elevation: 0,
+          centerTitle: true,
         ),
-        body: const Center(
-          child: CircularProgressIndicator(),
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment.topCenter,
+              radius: 2.0,
+              colors: [
+                AppTheme.accent.withValues(alpha: 0.1),
+                AppTheme.background,
+              ],
+            ),
+          ),
+          child: Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accent),
+            ),
+          ),
         ),
       );
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: const Text(
-          'Complete Your Subscription',
-          style: TextStyle(
-            color: Colors.black,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+        title: Text(
+          'COMPLETE YOUR SUBSCRIPTION',
+          style: AppTheme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.5,
+            color: AppTheme.textPrimary,
           ),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.background,
         elevation: 0,
+        centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: Icon(Icons.arrow_back, color: AppTheme.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
       ),

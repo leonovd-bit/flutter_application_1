@@ -17,6 +17,7 @@ export 'services/stripe_service.dart';
 export 'services/data_seeder.dart';
 export 'services/order_service.dart';
 export 'services/review_service.dart';
+export 'services/social_auth_service.dart';
 
 // Pages
 export 'pages/meal_schedule_page.dart';

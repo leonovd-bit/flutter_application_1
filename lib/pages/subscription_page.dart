@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/subscription.dart';
 import '../services/subscription_service.dart';
+import '../theme/app_theme.dart';
 
 class SubscriptionPage extends StatefulWidget {
   const SubscriptionPage({super.key});
@@ -226,9 +227,20 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: const Text('Subscription'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        title: Text(
+          'SUBSCRIPTION',
+          style: AppTheme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.5,
+            color: AppTheme.textPrimary,
+          ),
+        ),
+        backgroundColor: AppTheme.background,
+        elevation: 0,
+        centerTitle: true,
+        iconTheme: IconThemeData(color: AppTheme.textPrimary),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

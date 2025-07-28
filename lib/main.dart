@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-import 'pages/splash_page.dart';
-import 'services/stripe_service.dart';
+import 'pages/splash_page_new.dart';
 import 'services/notification_service.dart';
 import 'theme/app_theme.dart';
 
@@ -13,10 +11,10 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   
-  // Only initialize Stripe on mobile platforms
-  if (!kIsWeb) {
-    await StripeService.init();
-  }
+  // Temporarily disable Stripe to fix app startup
+  // if (!kIsWeb) {
+  //   await StripeService.init();
+  // }
   
   await NotificationService.initialize();
   runApp(const FreshPunkApp());
@@ -27,6 +25,7 @@ class FreshPunkApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Updated to use new splash screen
     return MaterialApp(
       title: 'FreshPunk',
       theme: AppTheme.darkTheme,
