@@ -47,6 +47,11 @@ class _EmailVerificationPageV3State extends State<EmailVerificationPageV3> {
 
   void _startResendCooldown() {
     Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      
       if (_resendCooldown > 0) {
         setState(() {
           _resendCooldown--;

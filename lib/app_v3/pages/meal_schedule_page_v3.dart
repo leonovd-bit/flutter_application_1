@@ -61,22 +61,24 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppThemeV3.background,
-      appBar: AppBar(
-        backgroundColor: AppThemeV3.surface,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          'Meal Schedule',
-          style: AppThemeV3.textTheme.headlineMedium?.copyWith(
-            fontWeight: FontWeight.w600,
+    return DefaultTabController(
+      length: _getAvailableMealTypes().length,
+      child: Scaffold(
+        backgroundColor: AppThemeV3.background,
+        appBar: AppBar(
+          backgroundColor: AppThemeV3.surface,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(
+            'Meal Schedule',
+            style: AppThemeV3.textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
-      ),
       body: Column(
         children: [
           // Schedule selector at top
@@ -113,11 +115,6 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
           Container(
             color: AppThemeV3.surface,
             child: TabBar(
-              controller: TabController(
-                length: _getAvailableMealTypes().length,
-                vsync: Scaffold.of(context),
-                initialIndex: 0,
-              ),
               tabs: _getAvailableMealTypes()
                   .map((mealType) => Tab(text: mealType))
                   .toList(),
@@ -304,6 +301,7 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
           ),
         ],
       ),
+    ),
     );
   }
 
@@ -332,12 +330,15 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              day.substring(0, 3), // Mon, Tue, etc.
-              style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: hasSchedule ? AppThemeV3.textPrimary : AppThemeV3.textSecondary,
+            Flexible(
+              child: Text(
+                day.substring(0, 3), // Mon, Tue, etc.
+                style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: hasSchedule ? AppThemeV3.textPrimary : AppThemeV3.textSecondary,
+                ),
               ),
             ),
             const SizedBox(height: 4),

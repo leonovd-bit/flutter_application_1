@@ -168,6 +168,30 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
                   ),
                 ),
               ),
+              
+              const SizedBox(height: 12),
+              
+              // Skip for Now Button (Development Bypass)
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: _skipDeliverySchedule,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    side: BorderSide(color: AppThemeV3.accent),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(
+                    'Skip for Now (Auto-fill Default)',
+                    style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                      color: AppThemeV3.accent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ],
         ),
@@ -463,6 +487,34 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
   }
 
   void _goToMealSchedule() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MealSchedulePageV3(
+          mealPlan: _selectedMealPlan!,
+          weeklySchedule: _weeklySchedule,
+        ),
+      ),
+    );
+  }
+
+  void _skipDeliverySchedule() {
+    // Auto-fill with default schedule for bypass
+    setState(() {
+      // Set default to NutritiousJr plan (first available plan)
+      _selectedMealPlan = _mealPlans.isNotEmpty ? _mealPlans.first : null;
+      
+      // Set default schedule for Monday-Friday lunch
+      for (String day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']) {
+        _weeklySchedule[day]!['lunch'] = {
+          'time': const TimeOfDay(hour: 12, minute: 0), // Default 12:00 PM
+          'address': '123 Main Street, New York, NY 10001', // Default address
+          'enabled': true,
+        };
+      }
+    });
+
+    // Navigate to meal schedule immediately
     Navigator.push(
       context,
       MaterialPageRoute(

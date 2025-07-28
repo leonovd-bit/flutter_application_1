@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_stripe/flutter_stripe.dart';
 import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
 import 'home_page_v3.dart';
@@ -425,17 +424,8 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
     setState(() => _isProcessing = true);
 
     try {
-      switch (_selectedPaymentMethod) {
-        case 'card':
-          await _processCardPayment();
-          break;
-        case 'paypal':
-          await _processPayPalPayment();
-          break;
-        case 'apple':
-          await _processApplePayment();
-          break;
-      }
+      // Mock payment processing for development
+      await _processMockPayment();
       
       // If payment successful, navigate to home
       if (mounted) {
@@ -463,50 +453,18 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
     }
   }
 
-  Future<void> _processCardPayment() async {
-    // Initialize payment sheet
-    await Stripe.instance.initPaymentSheet(
-      paymentSheetParameters: SetupPaymentSheetParameters(
-        merchantDisplayName: 'FreshPunk',
-        paymentIntentClientSecret: 'your_payment_intent_client_secret', // Get from backend
-        customerEphemeralKeySecret: 'your_ephemeral_key', // Get from backend
-        customerId: 'your_customer_id', // Get from backend
-        setupIntentClientSecret: 'your_setup_intent_client_secret', // For subscriptions
-        allowsDelayedPaymentMethods: true,
-      ),
-    );
-
-    // Present payment sheet
-    await Stripe.instance.presentPaymentSheet();
-    
-    // If we get here, payment was successful
-    await _saveSubscriptionToFirebase();
-  }
-
-  Future<void> _processPayPalPayment() async {
-    // Implement PayPal integration
-    // For now, simulate successful payment
+  Future<void> _processMockPayment() async {
+    // Mock payment processing delay
     await Future.delayed(const Duration(seconds: 2));
-    await _saveSubscriptionToFirebase();
-  }
-
-  Future<void> _processApplePayment() async {
-    // Implement Apple Pay integration
-    // For now, simulate successful payment
-    await Future.delayed(const Duration(seconds: 2));
-    await _saveSubscriptionToFirebase();
-  }
-
-  Future<void> _saveSubscriptionToFirebase() async {
-    // Save subscription data to Firebase
-    // This would include:
-    // - User's meal plan
-    // - Weekly schedule
-    // - Selected meals
-    // - Payment method
-    // - Subscription status
     
-    // For now, just simulate the save
-    await Future.delayed(const Duration(seconds: 1));
+    // Show success message
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Payment successful! Welcome to FreshPunk!'),
+          backgroundColor: AppThemeV3.success,
+        ),
+      );
+    }
   }
 }
