@@ -40,10 +40,10 @@
             android:name="flutterEmbedding"
             android:value="2" />
         
-        <!-- Google Maps API Key -->
+        <!-- Google Maps API Key - Using development placeholder -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyDevelopmentKeyForFreshPunkApp" />
+            android:value="AIzaSyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q7R8S" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
