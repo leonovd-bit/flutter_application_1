@@ -5,6 +5,8 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../theme/app_theme_v3.dart';
 import 'email_verification_page_v3.dart';
 import 'login_page_v3.dart';
+import 'delivery_schedule_page_v3.dart';
+import 'welcome_page_v3.dart';
 
 class SignUpPageV3 extends StatefulWidget {
   const SignUpPageV3({super.key});
@@ -24,6 +26,23 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
   bool _isLoading = false;
+  
+  // Validation states
+  bool _isEmailValid = false;
+  bool _isPhoneValid = false;
+  bool _emailTouched = false;
+  bool _phoneTouched = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Add listeners for real-time validation
+    _emailController.addListener(_validateEmail);
+    _phoneController.addListener(_validatePhone);
+    _nameController.addListener(() => setState(() {}));
+    _passwordController.addListener(() => setState(() {}));
+    _confirmPasswordController.addListener(() => setState(() {}));
+  }
 
   @override
   void dispose() {
@@ -35,6 +54,98 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
     super.dispose();
   }
 
+  // Email validation method
+  void _validateEmail() {
+    final email = _emailController.text;
+    setState(() {
+      _emailTouched = email.isNotEmpty;
+      _isEmailValid = _isValidEmail(email);
+    });
+  }
+
+  // Phone validation method
+  void _validatePhone() {
+    final phone = _phoneController.text;
+    setState(() {
+      _phoneTouched = phone.isNotEmpty;
+      _isPhoneValid = _isValidPhone(phone);
+    });
+  }
+
+  // Email format validation
+  bool _isValidEmail(String email) {
+    if (email.isEmpty) return false;
+    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
+  }
+
+  // Phone format validation
+  bool _isValidPhone(String phone) {
+    if (phone.isEmpty) return false;
+    // Remove all non-digit characters
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    // US phone number should have 10 digits
+    return digits.length == 10;
+  }
+
+  // Format phone number as user types
+  String _formatPhoneNumber(String phone) {
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    if (digits.length <= 3) {
+      return digits;
+    } else if (digits.length <= 6) {
+      return '(${digits.substring(0, 3)}) ${digits.substring(3)}';
+    } else {
+      return '(${digits.substring(0, 3)}) ${digits.substring(3, 6)}-${digits.substring(6, digits.length > 10 ? 10 : digits.length)}';
+    }
+  }
+
+  // Check if all required fields are valid
+  bool _areFieldsValid() {
+    return _nameController.text.isNotEmpty &&
+           _isEmailValid &&
+           _isPhoneValid &&
+           _passwordController.text.length >= 6 &&
+           _passwordController.text == _confirmPasswordController.text;
+  }
+
+  // Build requirement item widget
+  Widget _buildRequirementItem(String requirement, bool isValid) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          Icon(
+            isValid ? Icons.check_circle : Icons.radio_button_unchecked,
+            color: isValid ? Colors.green : AppThemeV3.textSecondary,
+            size: 16,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            requirement,
+            style: TextStyle(
+              color: isValid ? Colors.green : AppThemeV3.textSecondary,
+              fontSize: 13,
+              fontWeight: isValid ? FontWeight.w500 : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleBackNavigation() {
+    // If we can pop, do it (means we came from login or another page)
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    } else {
+      // If we can't pop (came from welcome), go to welcome page
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const WelcomePageV3()),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -44,7 +155,7 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => _handleBackNavigation(),
         ),
       ),
       body: SafeArea(
@@ -63,7 +174,7 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                   children: [
                     GestureDetector(
                       onTap: () {
-                        Navigator.pushReplacement(
+                        Navigator.push(
                           context,
                           MaterialPageRoute(builder: (context) => const LoginPageV3()),
                         );
@@ -98,6 +209,41 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                 
                 const SizedBox(height: 40),
                 
+                // Validation Requirements Panel
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppThemeV3.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppThemeV3.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.info_outline, color: AppThemeV3.accent, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Account Requirements',
+                            style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: AppThemeV3.accent,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      _buildRequirementItem('Valid email address', _isEmailValid),
+                      _buildRequirementItem('Valid 10-digit phone number', _isPhoneValid),
+                      _buildRequirementItem('Password (6+ characters)', _passwordController.text.length >= 6),
+                      _buildRequirementItem('Passwords match', _confirmPasswordController.text == _passwordController.text && _passwordController.text.isNotEmpty),
+                    ],
+                  ),
+                ),
+                
+                const SizedBox(height: 24),
+                
                 // Name field
                 TextFormField(
                   controller: _nameController,
@@ -124,21 +270,65 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                   keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
                     hintText: 'Email',
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () => _emailController.clear(),
+                    suffixIcon: _emailTouched
+                        ? Icon(
+                            _isEmailValid ? Icons.check_circle : Icons.error,
+                            color: _isEmailValid ? Colors.green : Colors.red,
+                          )
+                        : IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () => _emailController.clear(),
+                          ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: _emailTouched
+                            ? (_isEmailValid ? Colors.green : Colors.red)
+                            : AppThemeV3.border,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: _emailTouched
+                            ? (_isEmailValid ? Colors.green : Colors.red)
+                            : AppThemeV3.border,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: _emailTouched
+                            ? (_isEmailValid ? Colors.green : Colors.red)
+                            : AppThemeV3.accent,
+                      ),
                     ),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please enter your email';
                     }
-                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-                      return 'Please enter a valid email';
+                    if (!_isValidEmail(value)) {
+                      return 'Please enter a valid email address';
                     }
                     return null;
                   },
                 ),
+                
+                // Email validation message
+                if (_emailTouched && !_isEmailValid) ...[
+                  const SizedBox(height: 4),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 12),
+                    child: Text(
+                      'Please enter a valid email format (e.g., user@example.com)',
+                      style: TextStyle(
+                        color: Colors.red.shade600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
                 
                 const SizedBox(height: 16),
                 
@@ -147,19 +337,76 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
                   decoration: InputDecoration(
-                    hintText: 'Phone',
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () => _phoneController.clear(),
+                    hintText: 'Phone (e.g., (555) 123-4567)',
+                    suffixIcon: _phoneTouched
+                        ? Icon(
+                            _isPhoneValid ? Icons.check_circle : Icons.error,
+                            color: _isPhoneValid ? Colors.green : Colors.red,
+                          )
+                        : IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () => _phoneController.clear(),
+                          ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: _phoneTouched
+                            ? (_isPhoneValid ? Colors.green : Colors.red)
+                            : AppThemeV3.border,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: _phoneTouched
+                            ? (_isPhoneValid ? Colors.green : Colors.red)
+                            : AppThemeV3.border,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: _phoneTouched
+                            ? (_isPhoneValid ? Colors.green : Colors.red)
+                            : AppThemeV3.accent,
+                      ),
                     ),
                   ),
+                  onChanged: (value) {
+                    // Format phone number as user types
+                    final formatted = _formatPhoneNumber(value);
+                    if (formatted != value) {
+                      _phoneController.value = _phoneController.value.copyWith(
+                        text: formatted,
+                        selection: TextSelection.collapsed(offset: formatted.length),
+                      );
+                    }
+                  },
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please enter your phone number';
                     }
+                    if (!_isValidPhone(value)) {
+                      return 'Please enter a valid 10-digit phone number';
+                    }
                     return null;
                   },
                 ),
+                
+                // Phone validation message
+                if (_phoneTouched && !_isPhoneValid) ...[
+                  const SizedBox(height: 4),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 12),
+                    child: Text(
+                      'Please enter a valid 10-digit US phone number',
+                      style: TextStyle(
+                        color: Colors.red.shade600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
                 
                 const SizedBox(height: 16),
                 
@@ -168,14 +415,49 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                   controller: _passwordController,
                   obscureText: !_isPasswordVisible,
                   decoration: InputDecoration(
-                    hintText: 'Password',
-                    suffixIcon: IconButton(
-                      icon: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off),
-                      onPressed: () {
-                        setState(() {
-                          _isPasswordVisible = !_isPasswordVisible;
-                        });
-                      },
+                    hintText: 'Password (minimum 6 characters)',
+                    suffixIcon: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_passwordController.text.isNotEmpty)
+                          Icon(
+                            _passwordController.text.length >= 6 ? Icons.check_circle : Icons.error,
+                            color: _passwordController.text.length >= 6 ? Colors.green : Colors.red,
+                            size: 20,
+                          ),
+                        IconButton(
+                          icon: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off),
+                          onPressed: () {
+                            setState(() {
+                              _isPasswordVisible = !_isPasswordVisible;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: _passwordController.text.isNotEmpty
+                            ? (_passwordController.text.length >= 6 ? Colors.green : Colors.red)
+                            : AppThemeV3.border,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: _passwordController.text.isNotEmpty
+                            ? (_passwordController.text.length >= 6 ? Colors.green : Colors.red)
+                            : AppThemeV3.border,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: _passwordController.text.isNotEmpty
+                            ? (_passwordController.text.length >= 6 ? Colors.green : Colors.red)
+                            : AppThemeV3.accent,
+                      ),
                     ),
                   ),
                   validator: (value) {
@@ -197,13 +479,50 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                   obscureText: !_isConfirmPasswordVisible,
                   decoration: InputDecoration(
                     hintText: 'Confirm Password',
-                    suffixIcon: IconButton(
-                      icon: Icon(_isConfirmPasswordVisible ? Icons.visibility : Icons.visibility_off),
-                      onPressed: () {
-                        setState(() {
-                          _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
-                        });
-                      },
+                    suffixIcon: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_confirmPasswordController.text.isNotEmpty)
+                          Icon(
+                            _confirmPasswordController.text == _passwordController.text && _confirmPasswordController.text.isNotEmpty 
+                                ? Icons.check_circle : Icons.error,
+                            color: _confirmPasswordController.text == _passwordController.text && _confirmPasswordController.text.isNotEmpty 
+                                ? Colors.green : Colors.red,
+                            size: 20,
+                          ),
+                        IconButton(
+                          icon: Icon(_isConfirmPasswordVisible ? Icons.visibility : Icons.visibility_off),
+                          onPressed: () {
+                            setState(() {
+                              _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: _confirmPasswordController.text.isNotEmpty
+                            ? (_confirmPasswordController.text == _passwordController.text ? Colors.green : Colors.red)
+                            : AppThemeV3.border,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: _confirmPasswordController.text.isNotEmpty
+                            ? (_confirmPasswordController.text == _passwordController.text ? Colors.green : Colors.red)
+                            : AppThemeV3.border,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: _confirmPasswordController.text.isNotEmpty
+                            ? (_confirmPasswordController.text == _passwordController.text ? Colors.green : Colors.red)
+                            : AppThemeV3.accent,
+                      ),
                     ),
                   ),
                   validator: (value) {
@@ -223,9 +542,9 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: _isLoading ? null : _signUpWithEmail,
+                    onPressed: (_isLoading || !_areFieldsValid()) ? null : _signUpWithEmail,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppThemeV3.textPrimary,
+                      backgroundColor: _areFieldsValid() ? AppThemeV3.textPrimary : Colors.grey,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -242,6 +561,34 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                           ),
                   ),
                 ),
+                
+                // Validation status message
+                if (!_areFieldsValid() && (_emailTouched || _phoneTouched || _nameController.text.isNotEmpty)) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, color: Colors.blue, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Complete all fields with valid information to create account',
+                            style: TextStyle(
+                              color: Colors.blue.shade700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 
                 const SizedBox(height: 24),
                 
@@ -382,8 +729,11 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
       await FirebaseAuth.instance.signInWithCredential(credential);
 
       if (mounted) {
-        // Navigate to delivery schedule (will create later)
-        Navigator.pushReplacementNamed(context, '/delivery-schedule');
+        // Navigate to delivery schedule
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const DeliverySchedulePageV3()),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -417,8 +767,11 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
       await FirebaseAuth.instance.signInWithCredential(oauthCredential);
 
       if (mounted) {
-        // Navigate to delivery schedule (will create later)
-        Navigator.pushReplacementNamed(context, '/delivery-schedule');
+        // Navigate to delivery schedule
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const DeliverySchedulePageV3()),
+        );
       }
     } catch (e) {
       if (mounted) {

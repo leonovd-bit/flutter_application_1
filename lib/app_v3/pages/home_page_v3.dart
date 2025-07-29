@@ -125,14 +125,22 @@ class _HomePageV3State extends State<HomePageV3> {
       left: 0,
       right: 0,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(24, 50, 24, 16),
+        padding: const EdgeInsets.fromLTRB(24, 50, 24, 20),
         decoration: BoxDecoration(
-          color: AppThemeV3.background.withOpacity(0.95),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              AppThemeV3.surface,
+              AppThemeV3.surface.withOpacity(0.95),
+            ],
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+              spreadRadius: 2,
             ),
           ],
         ),
@@ -140,34 +148,86 @@ class _HomePageV3State extends State<HomePageV3> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             // Map icon
-            IconButton(
-              icon: const Icon(Icons.map, size: 28),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const MapPageV3()),
-                );
-              },
+            Container(
+              decoration: BoxDecoration(
+                color: AppThemeV3.accent.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppThemeV3.accent.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: IconButton(
+                icon: Icon(Icons.map, size: 28, color: AppThemeV3.accent),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const MapPageV3()),
+                  );
+                },
+              ),
             ),
             
             // FreshPunk logo
-            Text(
-              'FreshPunk',
-              style: AppThemeV3.textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: AppThemeV3.accent,
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppThemeV3.accent.withOpacity(0.1),
+                    AppThemeV3.accent.withOpacity(0.05),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: AppThemeV3.accent.withOpacity(0.3),
+                  width: 2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppThemeV3.accent.withOpacity(0.15),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Text(
+                'FreshPunk',
+                style: AppThemeV3.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: AppThemeV3.accent,
+                  letterSpacing: -0.5,
+                ),
               ),
             ),
             
             // Settings icon
-            IconButton(
-              icon: const Icon(Icons.settings, size: 28),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const SettingsPageV3()),
-                );
-              },
+            Container(
+              decoration: BoxDecoration(
+                color: AppThemeV3.accent.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppThemeV3.accent.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: IconButton(
+                icon: Icon(Icons.settings, size: 28, color: AppThemeV3.accent),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const SettingsPageV3()),
+                  );
+                },
+              ),
             ),
           ],
         ),
@@ -184,60 +244,118 @@ class _HomePageV3State extends State<HomePageV3> {
         );
       },
       child: Center(
-        child: SizedBox(
-          width: 200,
-          height: 200,
-          child: Stack(
-            children: [
-              // Outer circle
-              Container(
-                width: 200,
-                height: 200,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: AppThemeV3.accent,
-                    width: 3,
-                  ),
-                ),
+        child: Container(
+          width: 220,
+          height: 220,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              center: Alignment.center,
+              radius: 0.8,
+              colors: [
+                AppThemeV3.accent.withOpacity(0.05),
+                AppThemeV3.accent.withOpacity(0.01),
+                Colors.transparent,
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppThemeV3.accent.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+                spreadRadius: 5,
               ),
-              
-              // Inner circle
-              Positioned(
-                top: 40,
-                left: 40,
-                child: Container(
-                  width: 120,
-                  height: 120,
+            ],
+          ),
+          child: SizedBox(
+            width: 200,
+            height: 200,
+            child: Stack(
+              children: [
+                // Outer circle with enhanced styling
+                Container(
+                  width: 200,
+                  height: 200,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: AppThemeV3.accent.withOpacity(0.1),
-                    border: Border.all(
-                      color: AppThemeV3.accent,
-                      width: 2,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        AppThemeV3.accent,
+                        AppThemeV3.accent.withOpacity(0.8),
+                      ],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppThemeV3.accent.withOpacity(0.4),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Container(
+                    margin: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppThemeV3.background,
                     ),
                   ),
-                  child: Center(
-                    child: Text(
-                      _currentMealPlan,
-                      textAlign: TextAlign.center,
-                      style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
+                ),
+                
+                // Inner circle with enhanced styling
+                Positioned(
+                  top: 40,
+                  left: 40,
+                  child: Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          AppThemeV3.accent.withOpacity(0.15),
+                          AppThemeV3.accent.withOpacity(0.08),
+                        ],
+                      ),
+                      border: Border.all(
                         color: AppThemeV3.accent,
+                        width: 3,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppThemeV3.accent.withOpacity(0.3),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        _currentMealPlan,
+                        textAlign: TextAlign.center,
+                        style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: AppThemeV3.accent,
+                          letterSpacing: 0.5,
+                          fontSize: 16,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              
-              // Curved text at bottom
-              Positioned(
-                bottom: 15,
-                left: 0,
-                right: 0,
-                child: _buildCurvedText(),
-              ),
-            ],
+                
+                // Curved text at bottom
+                Positioned(
+                  bottom: 15,
+                  left: 0,
+                  right: 0,
+                  child: _buildCurvedText(),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -261,58 +379,148 @@ class _HomePageV3State extends State<HomePageV3> {
   }
 
   Widget _buildAddressesSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Your Addresses',
-              style: AppThemeV3.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const AddressPageV3()),
-                );
-              },
-              child: Text(
-                'Edit',
-                style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                  color: AppThemeV3.accent,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppThemeV3.surface,
+            AppThemeV3.surface.withOpacity(0.95),
           ],
         ),
-        const SizedBox(height: 12),
-        
-        // Address cards
-        Column(
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppThemeV3.accent.withOpacity(0.2),
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppThemeV3.accent,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.location_on,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Your Addresses',
+                    style: AppThemeV3.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppThemeV3.accent.withOpacity(0.1),
+                      AppThemeV3.accent.withOpacity(0.05),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppThemeV3.accent.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const AddressPageV3()),
+                    );
+                  },
+                  child: Text(
+                    'Edit',
+                    style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                      color: AppThemeV3.accent,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          
+          // Address cards
+          Column(
           children: _userAddresses.map((address) => Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppThemeV3.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppThemeV3.border),
-              boxShadow: AppThemeV3.cardShadow,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppThemeV3.accent.withOpacity(0.05),
+                  AppThemeV3.accent.withOpacity(0.02),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: AppThemeV3.accent.withOpacity(0.3),
+                width: 2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppThemeV3.accent.withOpacity(0.1),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Row(
               children: [
-                Icon(
-                  address.label.toLowerCase() == 'home' 
-                      ? Icons.home 
-                      : Icons.work,
-                  color: AppThemeV3.accent,
-                  size: 24,
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppThemeV3.accent,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppThemeV3.accent.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    address.label.toLowerCase() == 'home' 
+                        ? Icons.home 
+                        : Icons.work,
+                    color: Colors.white,
+                    size: 24,
+                  ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -322,37 +530,54 @@ class _HomePageV3State extends State<HomePageV3> {
                           Text(
                             address.label,
                             style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w800,
+                              color: AppThemeV3.textPrimary,
                             ),
                           ),
                           if (address.isDefault) ...[
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 12),
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
+                                horizontal: 10,
+                                vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: AppThemeV3.accent,
-                                borderRadius: BorderRadius.circular(4),
+                                gradient: LinearGradient(
+                                  colors: [
+                                    AppThemeV3.accent,
+                                    AppThemeV3.accent.withOpacity(0.8),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppThemeV3.accent.withOpacity(0.3),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
                               ),
                               child: Text(
-                                'Default',
+                                'DEFAULT',
                                 style: AppThemeV3.textTheme.bodySmall?.copyWith(
                                   color: Colors.white,
                                   fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1,
                                 ),
                               ),
                             ),
                           ],
                         ],
                       ),
+                      const SizedBox(height: 4),
                       Text(
                         address.fullAddress,
                         style: AppThemeV3.textTheme.bodyMedium?.copyWith(
                           color: AppThemeV3.textSecondary,
+                          fontWeight: FontWeight.w500,
                         ),
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
@@ -361,113 +586,110 @@ class _HomePageV3State extends State<HomePageV3> {
               ],
             ),
           )).toList(),
-        ),
-      ],
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildUpcomingOrdersSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Upcoming Orders',
-          style: AppThemeV3.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppThemeV3.surface,
+            AppThemeV3.surface.withOpacity(0.95),
+          ],
         ),
-        const SizedBox(height: 12),
-        
-        // Next order card
-        GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const UpcomingOrdersPageV3()),
-            );
-          },
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppThemeV3.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppThemeV3.border),
-              boxShadow: AppThemeV3.cardShadow,
-            ),
-            child: Row(
-              children: [
-                // Meal image placeholder
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    color: AppThemeV3.accent.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    _nextOrder['mealType'] == 'Breakfast' 
-                        ? Icons.breakfast_dining
-                        : _nextOrder['mealType'] == 'Lunch'
-                            ? Icons.lunch_dining
-                            : Icons.dinner_dining,
-                    color: AppThemeV3.accent,
-                    size: 30,
-                  ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppThemeV3.accent.withOpacity(0.2),
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppThemeV3.accent,
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                
-                const SizedBox(width: 16),
-                
-                // Order details
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _nextOrder['mealType'],
-                        style: AppThemeV3.textTheme.bodyMedium?.copyWith(
-                          color: AppThemeV3.textSecondary,
-                        ),
-                      ),
-                      Text(
-                        _nextOrder['deliveryTime'],
-                        style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
+                child: Icon(
+                  Icons.schedule,
+                  color: Colors.white,
+                  size: 20,
                 ),
-                
-                // Nutrition info
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '${_nextOrder['calories']} Cal',
-                      style: AppThemeV3.textTheme.bodySmall?.copyWith(
-                        color: AppThemeV3.textSecondary,
-                      ),
-                    ),
-                    Text(
-                      '${_nextOrder['protein']}g Protein',
-                      style: AppThemeV3.textTheme.bodySmall?.copyWith(
-                        color: AppThemeV3.textSecondary,
-                      ),
-                    ),
-                    Text(
-                      _nextOrder['type'],
-                      style: AppThemeV3.textTheme.bodySmall?.copyWith(
-                        color: AppThemeV3.accent,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Upcoming Orders',
+                style: AppThemeV3.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          
+          // Next order card
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const UpcomingOrdersPageV3()),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppThemeV3.accent.withOpacity(0.05),
+                    AppThemeV3.accent.withOpacity(0.02),
                   ],
                 ),
-              ],
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: AppThemeV3.accent.withOpacity(0.3),
+                  width: 2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppThemeV3.accent.withOpacity(0.15),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Text(
+                'Next order: ${_nextOrder['mealType']} - ${_nextOrder['deliveryTime']}',
+                style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: AppThemeV3.textPrimary,
+                ),
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

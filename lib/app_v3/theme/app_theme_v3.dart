@@ -18,11 +18,41 @@ class AppThemeV3 {
   static const Color warning = Color(0xFFF59E0B);           // Warning amber
   static const Color error = Color(0xFFEF4444);             // Error red
 
-  // Enhanced shadows
+  // Safe font getter with fallback to system fonts
+  static TextStyle _safeGoogleFont(String fontFamily, {
+    required double fontSize,
+    FontWeight? fontWeight,
+    Color? color,
+    double? letterSpacing,
+    double? height,
+  }) {
+    try {
+      return GoogleFonts.getFont(
+        fontFamily,
+        fontSize: fontSize,
+        fontWeight: fontWeight,
+        color: color,
+        letterSpacing: letterSpacing,
+        height: height,
+      );
+    } catch (e) {
+      // Fallback to system font if Google Fonts fails
+      return TextStyle(
+        fontFamily: 'Inter', // System fallback
+        fontSize: fontSize,
+        fontWeight: fontWeight,
+        color: color,
+        letterSpacing: letterSpacing,
+        height: height,
+      );
+    }
+  }
+
+  // Enhanced shadows for bold styling - smaller and darker
   static List<BoxShadow> get cardShadow => [
     BoxShadow(
-      color: Colors.black.withValues(alpha: 0.1),
-      blurRadius: 8,
+      color: Colors.black.withValues(alpha: 0.15),
+      blurRadius: 6,
       offset: const Offset(0, 2),
       spreadRadius: 0,
     ),
@@ -30,92 +60,194 @@ class AppThemeV3 {
 
   static List<BoxShadow> get elevatedShadow => [
     BoxShadow(
-      color: Colors.black.withValues(alpha: 0.15),
-      blurRadius: 12,
-      offset: const Offset(0, 4),
+      color: Colors.black.withValues(alpha: 0.20),
+      blurRadius: 8,
+      offset: const Offset(0, 3),
       spreadRadius: 0,
     ),
   ];
 
-  // Text styles
+  static List<BoxShadow> get boldShadow => [
+    BoxShadow(
+      color: accent.withOpacity(0.4),
+      blurRadius: 8,
+      offset: const Offset(0, 4),
+      spreadRadius: 1,
+    ),
+  ];
+
+  // Gradient definitions for bold styling
+  static LinearGradient get primaryGradient => LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      accent,
+      accent.withOpacity(0.8),
+    ],
+  );
+
+  static LinearGradient get surfaceGradient => LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      surface,
+      surface.withOpacity(0.95),
+    ],
+  );
+
+  static LinearGradient get backgroundGradient => LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [
+      background,
+      background.withOpacity(0.95),
+    ],
+  );
+
+  // Text styles with enhanced bold fonts and safe fallbacks
   static TextTheme get textTheme => TextTheme(
-    displayLarge: GoogleFonts.inter(
+    displayLarge: _safeGoogleFont(
+      'inter',
       fontSize: 32,
-      fontWeight: FontWeight.w700,
+      fontWeight: FontWeight.w900,
+      color: textPrimary,
+      letterSpacing: -0.8,
+    ),
+    displayMedium: _safeGoogleFont(
+      'inter',
+      fontSize: 28,
+      fontWeight: FontWeight.w800,
       color: textPrimary,
       letterSpacing: -0.5,
     ),
-    displayMedium: GoogleFonts.inter(
-      fontSize: 28,
-      fontWeight: FontWeight.w600,
-      color: textPrimary,
-      letterSpacing: -0.25,
-    ),
-    displaySmall: GoogleFonts.inter(
+    displaySmall: _safeGoogleFont(
+      'inter',
       fontSize: 24,
-      fontWeight: FontWeight.w600,
+      fontWeight: FontWeight.w800,
       color: textPrimary,
+      letterSpacing: -0.3,
     ),
-    headlineLarge: GoogleFonts.inter(
+    headlineLarge: _safeGoogleFont(
+      'inter',
       fontSize: 22,
+      fontWeight: FontWeight.w800,
+      color: textPrimary,
+      letterSpacing: -0.2,
+    ),
+    headlineMedium: _safeGoogleFont(
+      'inter',
+      fontSize: 20,
+      fontWeight: FontWeight.w700,
+      color: textPrimary,
+      letterSpacing: -0.1,
+    ),
+    headlineSmall: _safeGoogleFont(
+      'inter',
+      fontSize: 18,
+      fontWeight: FontWeight.w700,
+      color: textPrimary,
+    ),
+    titleLarge: _safeGoogleFont(
+      'inter',
+      fontSize: 16,
+      fontWeight: FontWeight.w700,
+      color: textPrimary,
+    ),
+    titleMedium: _safeGoogleFont(
+      'inter',
+      fontSize: 14,
       fontWeight: FontWeight.w600,
       color: textPrimary,
     ),
-    headlineMedium: GoogleFonts.inter(
-      fontSize: 20,
-      fontWeight: FontWeight.w500,
+    titleSmall: _safeGoogleFont(
+      'inter',
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
       color: textPrimary,
     ),
-    headlineSmall: GoogleFonts.inter(
-      fontSize: 18,
-      fontWeight: FontWeight.w500,
-      color: textPrimary,
-    ),
-    titleLarge: GoogleFonts.inter(
+    bodyLarge: _safeGoogleFont(
+      'inter',
       fontSize: 16,
       fontWeight: FontWeight.w500,
       color: textPrimary,
     ),
-    titleMedium: GoogleFonts.inter(
+    bodyMedium: _safeGoogleFont(
+      'inter',
       fontSize: 14,
       fontWeight: FontWeight.w500,
       color: textPrimary,
     ),
-    titleSmall: GoogleFonts.inter(
+    bodySmall: _safeGoogleFont(
+      'inter',
       fontSize: 12,
       fontWeight: FontWeight.w500,
-      color: textPrimary,
-    ),
-    bodyLarge: GoogleFonts.inter(
-      fontSize: 16,
-      fontWeight: FontWeight.w400,
-      color: textPrimary,
-    ),
-    bodyMedium: GoogleFonts.inter(
-      fontSize: 14,
-      fontWeight: FontWeight.w400,
-      color: textPrimary,
-    ),
-    bodySmall: GoogleFonts.inter(
-      fontSize: 12,
-      fontWeight: FontWeight.w400,
       color: textSecondary,
     ),
-    labelLarge: GoogleFonts.inter(
+    labelLarge: _safeGoogleFont(
+      'inter',
       fontSize: 14,
       fontWeight: FontWeight.w500,
       color: textPrimary,
     ),
-    labelMedium: GoogleFonts.inter(
+    labelMedium: _safeGoogleFont(
+      'inter',
       fontSize: 12,
       fontWeight: FontWeight.w500,
       color: textPrimary,
     ),
-    labelSmall: GoogleFonts.inter(
+    labelSmall: _safeGoogleFont(
+      'inter',
       fontSize: 10,
       fontWeight: FontWeight.w500,
       color: textSecondary,
     ),
+  );
+
+  // Bold styling utilities
+  static BoxDecoration get boldCardDecoration => BoxDecoration(
+    gradient: surfaceGradient,
+    borderRadius: BorderRadius.circular(20),
+    border: Border.all(
+      color: accent.withOpacity(0.2),
+      width: 2,
+    ),
+    boxShadow: elevatedShadow,
+  );
+
+  static BoxDecoration get boldButtonDecoration => BoxDecoration(
+    gradient: primaryGradient,
+    borderRadius: BorderRadius.circular(16),
+    boxShadow: [
+      BoxShadow(
+        color: accent.withOpacity(0.5),
+        blurRadius: 6,
+        offset: const Offset(0, 2),
+      ),
+    ],
+  );
+
+  static BoxDecoration get boldIconDecoration => BoxDecoration(
+    color: accent.withOpacity(0.1),
+    borderRadius: BorderRadius.circular(12),
+    boxShadow: [
+      BoxShadow(
+        color: accent.withOpacity(0.3),
+        blurRadius: 4,
+        offset: const Offset(0, 1),
+      ),
+    ],
+  );
+
+  static BoxDecoration get boldHeaderDecoration => BoxDecoration(
+    gradient: surfaceGradient,
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.25),
+        blurRadius: 8,
+        offset: const Offset(0, 2),
+        spreadRadius: 0,
+      ),
+    ],
   );
 
   static ThemeData get lightTheme => ThemeData(
@@ -150,38 +282,44 @@ class AppThemeV3 {
     textTheme: textTheme,
     appBarTheme: AppBarTheme(
       backgroundColor: surface,
-      elevation: 0,
-      scrolledUnderElevation: 1,
-      titleTextStyle: textTheme.headlineMedium,
-      iconTheme: const IconThemeData(color: textPrimary),
+      elevation: 8,
+      shadowColor: Colors.black.withOpacity(0.1),
+      scrolledUnderElevation: 8,
+      titleTextStyle: textTheme.headlineMedium?.copyWith(
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.5,
+      ),
+      iconTheme: IconThemeData(color: accent),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: accent,
         foregroundColor: Colors.white,
-        elevation: 0,
-        shadowColor: Colors.transparent,
+        elevation: 8,
+        shadowColor: accent.withOpacity(0.4),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
         textStyle: GoogleFonts.inter(
           fontSize: 16,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.5,
         ),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: accent,
-        side: const BorderSide(color: accent, width: 1.5),
+        side: BorderSide(color: accent, width: 2),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
         textStyle: GoogleFonts.inter(
           fontSize: 16,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.5,
         ),
       ),
     ),
@@ -189,34 +327,40 @@ class AppThemeV3 {
       filled: true,
       fillColor: surface,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: border),
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: border, width: 2),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: border),
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: border, width: 2),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: accent, width: 2),
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: accent, width: 3),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: error),
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: error, width: 2),
       ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       hintStyle: GoogleFonts.inter(
         color: textSecondary,
         fontSize: 16,
+        fontWeight: FontWeight.w500,
+      ),
+      labelStyle: GoogleFonts.inter(
+        color: accent,
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
       ),
     ),
     cardTheme: CardThemeData(
       color: surface,
-      elevation: 0,
-      shadowColor: Colors.transparent,
+      elevation: 8,
+      shadowColor: Colors.black.withOpacity(0.08),
       shape: RoundedRectangleBorder(
-        borderRadius: const BorderRadius.all(Radius.circular(16)),
-        side: BorderSide(color: border, width: 1),
+        borderRadius: const BorderRadius.all(Radius.circular(20)),
+        side: BorderSide(color: accent.withOpacity(0.2), width: 2),
       ),
     ),
   );

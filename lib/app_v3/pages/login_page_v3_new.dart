@@ -3,8 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../theme/app_theme_v3.dart';
-import '../services/connectivity_service_v3.dart';
-import '../services/offline_auth_service_v3.dart';
 import 'signup_page_v3.dart';
 import 'home_page_v3.dart';
 import 'welcome_page_v3.dart';
@@ -47,9 +45,23 @@ class _LoginPageV3State extends State<LoginPageV3> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: AppThemeV3.accent),
-          onPressed: () => _handleBackNavigation(),
+        leading: Container(
+          margin: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: AppThemeV3.accent.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: AppThemeV3.accent.withOpacity(0.2),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: IconButton(
+            icon: Icon(Icons.arrow_back, color: AppThemeV3.accent),
+            onPressed: () => _handleBackNavigation(),
+          ),
         ),
       ),
       body: Container(
@@ -73,8 +85,31 @@ class _LoginPageV3State extends State<LoginPageV3> {
                 children: [
                   const SizedBox(height: 20),
                   
-                  // Clean tab header without any box outline
+                  // Tab-like header with enhanced styling
                   Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          AppThemeV3.surface,
+                          AppThemeV3.surface.withOpacity(0.95),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppThemeV3.accent.withOpacity(0.2),
+                        width: 2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -90,7 +125,13 @@ class _LoginPageV3State extends State<LoginPageV3> {
                               ],
                             ),
                             borderRadius: BorderRadius.circular(12),
-                            boxShadow: AppThemeV3.boldShadow,
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppThemeV3.accent.withOpacity(0.4),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
                           ),
                           child: Text(
                             'Sign In',
@@ -278,32 +319,6 @@ class _LoginPageV3State extends State<LoginPageV3> {
                     ),
                   ),
                   
-                  const SizedBox(height: 16),
-                  
-                  // Demo Account Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _isLoading ? null : _signInWithDemoAccount,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppThemeV3.accent,
-                        side: BorderSide(color: AppThemeV3.accent.withOpacity(0.5)),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      icon: const Icon(Icons.person_outline, size: 24),
-                      label: Text(
-                        'Try Demo Account',
-                        style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: AppThemeV3.accent,
-                        ),
-                      ),
-                    ),
-                  ),
-                  
                   const SizedBox(height: 24),
                   
                   // Forgot password
@@ -331,49 +346,11 @@ class _LoginPageV3State extends State<LoginPageV3> {
 
     setState(() => _isLoading = true);
 
-    // Check internet connectivity first
-    final hasConnection = await ConnectivityServiceV3.hasInternetConnection();
-    if (!hasConnection) {
-      if (mounted) {
-        // Try offline authentication first
-        final offlineSuccess = await OfflineAuthServiceV3.signInOffline(
-          _emailController.text.trim(),
-          _passwordController.text,
-        );
-        
-        if (offlineSuccess) {
-          setState(() => _isLoading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Signed in offline! Some features may be limited.'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomePageV3()),
-          );
-          return;
-        } else {
-          setState(() => _isLoading = false);
-          _showNetworkErrorDialog();
-          return;
-        }
-      }
-    }
-
     try {
       print('Attempting to sign in with email: ${_emailController.text.trim()}');
-      
-      // Add timeout to catch network issues faster
       final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
-      ).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw Exception('Connection timeout. Please check your internet connection and try again.');
-        },
       );
 
       print('Sign in successful. User: ${credential.user?.email}');
@@ -403,21 +380,12 @@ class _LoginPageV3State extends State<LoginPageV3> {
                 ),
                 TextButton(
                   onPressed: () async {
-                    try {
-                      await credential.user!.sendEmailVerification();
-                      if (mounted) {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Verification email sent')),
-                        );
-                      }
-                    } catch (e) {
-                      if (mounted) {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Failed to send verification email. Please check your connection.')),
-                        );
-                      }
+                    await credential.user!.sendEmailVerification();
+                    if (mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Verification email sent')),
+                      );
                     }
                   },
                   child: const Text('Resend Verification'),
@@ -430,57 +398,17 @@ class _LoginPageV3State extends State<LoginPageV3> {
     } catch (e) {
       print('Sign in error: $e');
       if (mounted) {
-        // Try offline authentication as fallback
-        final offlineSuccess = await OfflineAuthServiceV3.signInOffline(
-          _emailController.text.trim(),
-          _passwordController.text,
-        );
-        
-        if (offlineSuccess) {
-          setState(() => _isLoading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Signed in offline! Some features may be limited.'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomePageV3()),
-          );
-          return;
-        }
-        
         String errorMessage = 'Failed to sign in';
-        
-        if (e.toString().contains('network-request-failed') || 
-            e.toString().contains('timeout') ||
-            e.toString().contains('Failed host lookup') ||
-            e.toString().contains('Connection timeout')) {
-          errorMessage = 'Network error. Please check your internet connection and try again.';
-        } else if (e.toString().contains('user-not-found')) {
+        if (e.toString().contains('user-not-found')) {
           errorMessage = 'No account found with this email';
-        } else if (e.toString().contains('wrong-password') || e.toString().contains('invalid-credential')) {
-          errorMessage = 'Incorrect email or password';
+        } else if (e.toString().contains('wrong-password')) {
+          errorMessage = 'Incorrect password';
         } else if (e.toString().contains('invalid-email')) {
           errorMessage = 'Invalid email address';
-        } else if (e.toString().contains('too-many-requests')) {
-          errorMessage = 'Too many failed attempts. Please try again later.';
-        } else if (e.toString().contains('user-disabled')) {
-          errorMessage = 'This account has been disabled. Please contact support.';
         }
         
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            duration: const Duration(seconds: 4),
-            action: errorMessage.contains('Network error') 
-              ? SnackBarAction(
-                  label: 'Retry',
-                  onPressed: () => _signInWithEmail(),
-                )
-              : null,
-          ),
+          SnackBar(content: Text(errorMessage)),
         );
       }
     } finally {
@@ -494,12 +422,7 @@ class _LoginPageV3State extends State<LoginPageV3> {
     setState(() => _isLoading = true);
 
     try {
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn().timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw Exception('Google sign in timeout. Please check your internet connection.');
-        },
-      );
+      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
 
       if (googleUser == null) {
         setState(() => _isLoading = false);
@@ -513,12 +436,7 @@ class _LoginPageV3State extends State<LoginPageV3> {
         idToken: googleAuth.idToken,
       );
 
-      await FirebaseAuth.instance.signInWithCredential(credential).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw Exception('Firebase authentication timeout. Please check your internet connection.');
-        },
-      );
+      await FirebaseAuth.instance.signInWithCredential(credential);
 
       if (mounted) {
         // Navigate to home page
@@ -528,31 +446,9 @@ class _LoginPageV3State extends State<LoginPageV3> {
         );
       }
     } catch (e) {
-      print('Google sign in error: $e');
       if (mounted) {
-        String errorMessage = 'Failed to sign in with Google';
-        
-        if (e.toString().contains('network-request-failed') || 
-            e.toString().contains('timeout') ||
-            e.toString().contains('Failed host lookup')) {
-          errorMessage = 'Network error. Please check your internet connection and try again.';
-        } else if (e.toString().contains('sign_in_canceled')) {
-          errorMessage = 'Sign in was cancelled';
-        } else if (e.toString().contains('sign_in_failed')) {
-          errorMessage = 'Google sign in failed. Please try again.';
-        }
-        
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            duration: const Duration(seconds: 4),
-            action: errorMessage.contains('Network error') 
-              ? SnackBarAction(
-                  label: 'Retry',
-                  onPressed: () => _signInWithGoogle(),
-                )
-              : null,
-          ),
+          const SnackBar(content: Text('Failed to sign in with Google')),
         );
       }
     } finally {
@@ -600,84 +496,6 @@ class _LoginPageV3State extends State<LoginPageV3> {
     }
   }
 
-  Future<void> _signInWithDemoAccount() async {
-    setState(() => _isLoading = true);
-
-    try {
-      // Try to sign in with a demo account
-      // If it doesn't exist, create it
-      const demoEmail = 'demo@freshpunk.com';
-      const demoPassword = 'demo123456';
-
-      try {
-        final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
-          email: demoEmail,
-          password: demoPassword,
-        );
-
-        if (mounted) {
-          if (credential.user != null) {
-            // Navigate to home page
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const HomePageV3()),
-            );
-          }
-        }
-      } catch (signInError) {
-        // If sign in fails, try to create the demo account
-        if (signInError.toString().contains('user-not-found')) {
-          try {
-            final newCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-              email: demoEmail,
-              password: demoPassword,
-            );
-
-            // Mark the email as verified for demo purposes
-            await newCredential.user?.sendEmailVerification();
-            
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Demo account created! You can now explore the app.'),
-                  duration: Duration(seconds: 3),
-                ),
-              );
-              
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const HomePageV3()),
-              );
-            }
-          } catch (createError) {
-            throw signInError; // Re-throw the original error
-          }
-        } else {
-          throw signInError;
-        }
-      }
-    } catch (e) {
-      print('Demo account error: $e');
-      if (mounted) {
-        String errorMessage = 'Failed to sign in with demo account';
-        
-        if (e.toString().contains('network-request-failed') || 
-            e.toString().contains('timeout') ||
-            e.toString().contains('Failed host lookup')) {
-          errorMessage = 'Network error. The demo account requires an internet connection.';
-        }
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMessage)),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
   Future<void> _forgotPassword() async {
     if (_emailController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -703,41 +521,5 @@ class _LoginPageV3State extends State<LoginPageV3> {
         );
       }
     }
-  }
-
-  void _showNetworkErrorDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Connection Problem'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(ConnectivityServiceV3.getNetworkErrorMessage()),
-            const SizedBox(height: 16),
-            const Text(
-              'Offline Demo Accounts:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(OfflineAuthServiceV3.getOfflineAccountsInfo()),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _signInWithEmail();
-            },
-            child: const Text('Try Again'),
-          ),
-        ],
-      ),
-    );
   }
 }

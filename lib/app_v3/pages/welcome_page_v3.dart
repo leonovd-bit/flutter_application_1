@@ -1,10 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme_v3.dart';
 import 'signup_page_v3.dart';
 import 'menu_page_v3.dart';
 
-class WelcomePageV3 extends StatelessWidget {
+class WelcomePageV3 extends StatefulWidget {
   const WelcomePageV3({super.key});
+
+  @override
+  State<WelcomePageV3> createState() => _WelcomePageV3State();
+}
+
+class _WelcomePageV3State extends State<WelcomePageV3> {
+  @override
+  void initState() {
+    super.initState();
+    _markWelcomeSeen();
+  }
+
+  Future<void> _markWelcomeSeen() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('has_seen_welcome', true);
+  }
 
   @override
   Widget build(BuildContext context) {

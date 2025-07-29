@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
 import 'menu_page_v3.dart';
 import 'payment_page_v3.dart';
+import 'delivery_schedule_page_v3.dart';
 
 class MealSchedulePageV3 extends StatefulWidget {
-  final MealPlanModelV3 mealPlan;
-  final Map<String, Map<String, dynamic>> weeklySchedule;
+  final MealPlanModelV3? mealPlan;
+  final Map<String, Map<String, dynamic>>? weeklySchedule;
+  final String? initialScheduleName;
   
   const MealSchedulePageV3({
     super.key,
-    required this.mealPlan,
-    required this.weeklySchedule,
+    this.mealPlan,
+    this.weeklySchedule,
+    this.initialScheduleName,
   });
 
   @override
@@ -19,43 +24,113 @@ class MealSchedulePageV3 extends StatefulWidget {
 }
 
 class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
-  String _selectedSchedule = 'Schedule 1';
-  String _selectedDay = 'Monday';
+  String? _selectedSchedule;
   String _selectedMealType = 'Breakfast';
+  List<String> _availableSchedules = [];
+  
+  // Current schedule data
+  MealPlanModelV3? _currentMealPlan;
+  Map<String, Map<String, dynamic>> _currentWeeklySchedule = {};
+  List<String> _currentMealTypes = [];
   
   // Track selected meals for each day and meal type
   Map<String, Map<String, MealModelV3?>> _selectedMeals = {};
   
-  final List<String> _daysOfWeek = [
-    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
-  ];
+  // Get configured days from the current weekly schedule
+  List<String> get _configuredDays => _currentWeeklySchedule.keys.toList()..sort();
 
   @override
   void initState() {
     super.initState();
-    _initializeSelectedMeals();
-    _selectedMealType = _getAvailableMealTypes().first;
+    _loadAvailableSchedules();
+    
+    // Initialize with provided data if available
+    if (widget.mealPlan != null && widget.weeklySchedule != null) {
+      _currentMealPlan = widget.mealPlan;
+      _currentWeeklySchedule = widget.weeklySchedule!;
+      _currentMealTypes = _getAvailableMealTypes();
+      _selectedSchedule = widget.initialScheduleName;
+      
+      _initializeSelectedMeals();
+      if (_currentMealTypes.isNotEmpty) {
+        _selectedMealType = _currentMealTypes.first;
+      }
+    }
+  }
+
+  Future<void> _loadAvailableSchedules() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedSchedules = prefs.getStringList('saved_schedules') ?? [];
+    setState(() {
+      _availableSchedules = savedSchedules;
+      if (_selectedSchedule == null && _availableSchedules.isNotEmpty) {
+        _selectedSchedule = _availableSchedules.first;
+        _loadScheduleData(_selectedSchedule!);
+      }
+    });
+  }
+
+  Future<void> _loadScheduleData(String scheduleName) async {
+    final prefs = await SharedPreferences.getInstance();
+    final scheduleJson = prefs.getString('delivery_schedule_$scheduleName');
+    
+    if (scheduleJson != null) {
+      final scheduleData = json.decode(scheduleJson);
+      
+      // Find the meal plan
+      final mealPlanId = scheduleData['mealPlanId'] as String;
+      final availablePlans = MealPlanModelV3.getAvailablePlans();
+      _currentMealPlan = availablePlans.firstWhere((plan) => plan.id == mealPlanId);
+      
+      // Load meal types
+      _currentMealTypes = List<String>.from(scheduleData['selectedMealTypes']);
+      
+      // Parse weekly schedule
+      _currentWeeklySchedule = {};
+      final weeklyScheduleData = scheduleData['weeklySchedule'] as Map<String, dynamic>;
+      for (String day in weeklyScheduleData.keys) {
+        _currentWeeklySchedule[day] = {};
+        final dayData = weeklyScheduleData[day] as Map<String, dynamic>;
+        for (String mealType in dayData.keys) {
+          _currentWeeklySchedule[day]![mealType] = {
+            'time': dayData[mealType]['time'],
+            'address': dayData[mealType]['address'],
+            'enabled': true,
+          };
+        }
+      }
+      
+      _initializeSelectedMeals();
+      if (_currentMealTypes.isNotEmpty) {
+        _selectedMealType = _currentMealTypes.first;
+      }
+      
+      setState(() {});
+    }
   }
 
   void _initializeSelectedMeals() {
-    for (String day in _daysOfWeek) {
+    _selectedMeals.clear();
+    for (String day in _configuredDays) {
       _selectedMeals[day] = {};
-      for (String mealType in _getAvailableMealTypes()) {
+      for (String mealType in _currentMealTypes) {
         _selectedMeals[day]![mealType] = null;
       }
     }
   }
 
   List<String> _getAvailableMealTypes() {
-    switch (widget.mealPlan.mealsPerDay) {
+    if (_currentMealPlan == null) return [];
+    
+    switch (_currentMealPlan!.mealsPerDay) {
       case 1:
-        return ['Breakfast']; // Could be configurable to any meal
+        return _currentMealTypes.isNotEmpty ? _currentMealTypes : ['Breakfast'];
       case 2:
-        return ['Breakfast', 'Lunch'];
+        return _currentMealTypes.isNotEmpty ? _currentMealTypes : ['Breakfast', 'Lunch'];
       case 3:
-        return ['Breakfast', 'Lunch', 'Dinner'];
+        return _currentMealTypes.isNotEmpty ? _currentMealTypes : ['Breakfast', 'Lunch', 'Dinner'];
       default:
-        return ['Breakfast'];
+        return _currentMealTypes.isNotEmpty ? _currentMealTypes : ['Breakfast'];
     }
   }
 
@@ -94,16 +169,30 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
                       hintText: 'Select Schedule',
                       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
-                    items: ['Schedule 1', 'Schedule 2', 'Add Another Schedule']
-                        .map((schedule) => DropdownMenuItem(
-                              value: schedule,
-                              child: Text(schedule),
-                            ))
-                        .toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedSchedule = value!;
-                      });
+                    items: [
+                      ..._availableSchedules.map((schedule) => DropdownMenuItem(
+                        value: schedule,
+                        child: Text(schedule),
+                      )),
+                      const DropdownMenuItem(
+                        value: 'add_another',
+                        child: Text('Add Another Schedule'),
+                      ),
+                    ],
+                    onChanged: (value) async {
+                      if (value == 'add_another') {
+                        Navigator.push(
+                          context, 
+                          MaterialPageRoute(
+                            builder: (context) => const DeliverySchedulePageV3(),
+                          ),
+                        );
+                      } else if (value != null) {
+                        setState(() {
+                          _selectedSchedule = value;
+                        });
+                        await _loadScheduleData(value);
+                      }
                     },
                   ),
                 ),
@@ -135,31 +224,49 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Days of week for current meal type
+                  // Show configured days for current meal type
                   Text(
                     'Select meals for $_selectedMealType',
                     style: AppThemeV3.textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  
+                  // Show configured days info
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppThemeV3.accent.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppThemeV3.accent.withOpacity(0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Configured days: ${_configuredDays.join(', ')}',
+                          style: TextStyle(
+                            color: AppThemeV3.accent,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Select meals for each day below:',
+                          style: TextStyle(
+                            color: AppThemeV3.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  
                   const SizedBox(height: 16),
                   
-                  // Days grid
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      childAspectRatio: 3,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                    ),
-                    itemCount: _daysOfWeek.length,
-                    itemBuilder: (context, index) {
-                      final day = _daysOfWeek[index];
-                      return _buildDayCard(day);
-                    },
-                  ),
+                  // Configured days list for meal selection
+                  ..._configuredDays.map((day) => _buildDayMealSelector(day)),
                   
                   const SizedBox(height: 32),
                   
@@ -181,30 +288,17 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () => _randomlySelectMealsForDay(_selectedDay),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: AppThemeV3.accent,
-                                  side: const BorderSide(color: AppThemeV3.accent),
-                                ),
-                                child: const Text('Random Day'),
-                              ),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () => _randomlySelectMealsForMealType(_selectedMealType),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppThemeV3.accent,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () => _randomlySelectMealsForWeek(),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: AppThemeV3.accent,
-                                  side: const BorderSide(color: AppThemeV3.accent),
-                                ),
-                                child: const Text('Random Week'),
-                              ),
-                            ),
-                          ],
+                            child: Text('Random $_selectedMealType Meals for All Days'),
+                          ),
                         ),
                       ],
                     ),
@@ -305,71 +399,10 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
     );
   }
 
-  Widget _buildDayCard(String day) {
-    final meal = _selectedMeals[day]![_selectedMealType];
-    final hasSchedule = widget.weeklySchedule[day]?[_selectedMealType]?['time'] != null;
-    
-    return GestureDetector(
-      onTap: hasSchedule ? () => _selectMealForDay(day) : null,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: meal != null 
-              ? AppThemeV3.accent.withOpacity(0.1)
-              : hasSchedule 
-                  ? AppThemeV3.surface 
-                  : AppThemeV3.surfaceElevated,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: meal != null 
-                ? AppThemeV3.accent 
-                : hasSchedule 
-                    ? AppThemeV3.border 
-                    : AppThemeV3.borderLight,
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: Text(
-                day.substring(0, 3), // Mon, Tue, etc.
-                style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: hasSchedule ? AppThemeV3.textPrimary : AppThemeV3.textSecondary,
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            if (meal != null)
-              Icon(
-                Icons.check_circle,
-                color: AppThemeV3.accent,
-                size: 16,
-              )
-            else if (hasSchedule)
-              Icon(
-                Icons.restaurant_menu,
-                color: AppThemeV3.textSecondary,
-                size: 16,
-              )
-            else
-              Icon(
-                Icons.block,
-                color: AppThemeV3.textSecondary,
-                size: 16,
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
   List<Widget> _buildSelectedMealsList() {
     List<Widget> widgets = [];
     
-    for (String day in _daysOfWeek) {
+    for (String day in _configuredDays) {
       final meal = _selectedMeals[day]![_selectedMealType];
       if (meal != null) {
         widgets.add(
@@ -418,9 +451,9 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
 
   bool _isWeekComplete() {
     // Check if all required meal slots are filled
-    for (String day in _daysOfWeek) {
+    for (String day in _configuredDays) {
       for (String mealType in _getAvailableMealTypes()) {
-        final hasSchedule = widget.weeklySchedule[day]?[mealType]?['time'] != null;
+        final hasSchedule = _currentWeeklySchedule[day]?[mealType]?['time'] != null;
         final hasMeal = _selectedMeals[day]![mealType] != null;
         
         if (hasSchedule && !hasMeal) {
@@ -450,28 +483,6 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
     setState(() {
       _selectedMeals[day]![_selectedMealType] = null;
     });
-  }
-
-  void _randomlySelectMealsForDay(String day) {
-    final meals = _getSampleMealsForType(_selectedMealType);
-    if (meals.isNotEmpty) {
-      setState(() {
-        _selectedMeals[day]![_selectedMealType] = meals.first;
-      });
-    }
-  }
-
-  void _randomlySelectMealsForWeek() {
-    final meals = _getSampleMealsForType(_selectedMealType);
-    
-    for (String day in _daysOfWeek) {
-      final hasSchedule = widget.weeklySchedule[day]?[_selectedMealType]?['time'] != null;
-      if (hasSchedule && meals.isNotEmpty) {
-        setState(() {
-          _selectedMeals[day]![_selectedMealType] = meals[day.hashCode % meals.length];
-        });
-      }
-    }
   }
 
   List<MealModelV3> _getSampleMealsForType(String mealType) {
@@ -550,11 +561,156 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
       context,
       MaterialPageRoute(
         builder: (context) => PaymentPageV3(
-          mealPlan: widget.mealPlan,
-          weeklySchedule: widget.weeklySchedule,
+          mealPlan: _currentMealPlan!,
+          weeklySchedule: _currentWeeklySchedule,
           selectedMeals: _selectedMeals,
         ),
       ),
     );
   }
+
+  Widget _buildDayMealSelector(String day) {
+    final selectedMeal = _selectedMeals[day]?[_selectedMealType];
+    final scheduleInfo = _currentWeeklySchedule[day]?[_selectedMealType];
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppThemeV3.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppThemeV3.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                day,
+                style: AppThemeV3.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (scheduleInfo != null) ...[
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'Time: ${(scheduleInfo['time'] as TimeOfDay?)?.format(context) ?? 'Not set'}',
+                      style: AppThemeV3.textTheme.bodySmall?.copyWith(
+                        color: AppThemeV3.textSecondary,
+                      ),
+                    ),
+                    Text(
+                      'Address: ${scheduleInfo['address'] ?? 'Not set'}',
+                      style: AppThemeV3.textTheme.bodySmall?.copyWith(
+                        color: AppThemeV3.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 12),
+          
+          // Meal selection for this day
+          if (selectedMeal != null) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppThemeV3.accent.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppThemeV3.accent.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.asset(
+                      selectedMeal.imageUrl,
+                      width: 60,
+                      height: 60,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          selectedMeal.name,
+                          style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          selectedMeal.description,
+                          style: AppThemeV3.textTheme.bodySmall?.copyWith(
+                            color: AppThemeV3.textSecondary,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => _clearMealForDay(day),
+                    icon: const Icon(Icons.close, color: Colors.red),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            OutlinedButton(
+              onPressed: () => _selectMealForDay(day),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppThemeV3.accent,
+                side: const BorderSide(color: AppThemeV3.accent),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.add),
+                  const SizedBox(width: 8),
+                  Text('Select $_selectedMealType'),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _clearMealForDay(String day) {
+    setState(() {
+      _selectedMeals[day]![_selectedMealType] = null;
+    });
+  }
+
+  void _randomlySelectMealsForMealType(String mealType) {
+    final availableMeals = _getSampleMealsForType(mealType);
+    if (availableMeals.isEmpty) return;
+
+    setState(() {
+      for (String day in _configuredDays) {
+        final randomIndex = DateTime.now().millisecondsSinceEpoch % availableMeals.length;
+        final randomMeal = availableMeals[randomIndex];
+        _selectedMeals[day]![mealType] = randomMeal;
+        // Add small delay to get different random selections
+        Future.delayed(const Duration(milliseconds: 10));
+      }
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Random $mealType meals selected for all configured days!')),
+    );
+  }
+
 }

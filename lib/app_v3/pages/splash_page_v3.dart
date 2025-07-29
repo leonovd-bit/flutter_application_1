@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme_v3.dart';
 import 'welcome_page_v3.dart';
+import 'home_page_v3.dart';
+import 'login_page_v3.dart';
 
 class SplashPageV3 extends StatefulWidget {
   const SplashPageV3({super.key});
@@ -51,12 +54,24 @@ class _SplashPageV3State extends State<SplashPageV3> with SingleTickerProviderSt
     // Check if user is already logged in
     final user = FirebaseAuth.instance.currentUser;
     if (user != null && user.emailVerified) {
-      // Navigate to home page (will create later)
+      // User is already logged in, go directly to home page
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const WelcomePageV3()),
+        MaterialPageRoute(builder: (context) => const HomePageV3()),
+      );
+      return;
+    }
+
+    // Check if user has seen welcome before (returning user)
+    final prefs = await SharedPreferences.getInstance();
+    final hasSeenWelcome = prefs.getBool('has_seen_welcome') ?? false;
+    
+    if (hasSeenWelcome) {
+      // Returning user who isn't logged in - go straight to login
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const LoginPageV3()),
       );
     } else {
-      // Navigate to welcome page
+      // First time user - show welcome page
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (context) => const WelcomePageV3()),
       );
