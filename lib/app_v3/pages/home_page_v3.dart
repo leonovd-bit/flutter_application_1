@@ -87,14 +87,16 @@ class _HomePageV3State extends State<HomePageV3> {
         children: [
           // Main content
           SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 100, 24, 24),
+            padding: const EdgeInsets.fromLTRB(24, 80, 24, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const SizedBox(height: 40), // Add more space at top
+                
                 // Circle of Health
                 _buildCircleOfHealth(),
                 
-                const SizedBox(height: 32),
+                const SizedBox(height: 48), // More space after circle
                 
                 // Addresses Section
                 _buildAddressesSection(),
@@ -349,7 +351,7 @@ class _HomePageV3State extends State<HomePageV3> {
                 
                 // Curved text at bottom
                 Positioned(
-                  bottom: 15,
+                  bottom: 10,
                   left: 0,
                   right: 0,
                   child: _buildCurvedText(),
@@ -364,13 +366,14 @@ class _HomePageV3State extends State<HomePageV3> {
 
   Widget _buildCurvedText() {
     return SizedBox(
-      height: 50,
+      height: 60,
       child: CustomPaint(
         painter: CurvedTextPainter(
           text: '${_todayStats['calories']} Cal • ${_todayStats['protein']}g Protein • $_mostEatenMealType',
           textStyle: AppThemeV3.textTheme.bodySmall?.copyWith(
             color: AppThemeV3.textSecondary,
             fontWeight: FontWeight.w500,
+            fontSize: 11,
           ) ?? const TextStyle(),
         ),
         child: Container(),
@@ -772,8 +775,8 @@ class CurvedTextPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2 - 10;
+    final center = Offset(size.width / 2, size.height / 2 - 20);
+    final radius = size.width / 2 - 20; // Smaller radius to fit better in circle
     
     final textPainter = TextPainter(
       textDirection: TextDirection.ltr,
@@ -781,7 +784,9 @@ class CurvedTextPainter extends CustomPainter {
     
     // Split text and draw each character along the curve
     final characters = text.split('');
-    final angleStep = math.pi / characters.length;
+    final totalAngle = math.pi * 0.8; // Curve spans 80% of half circle
+    final startAngle = math.pi * 0.6; // Start at 60% of pi
+    final angleStep = totalAngle / (characters.length - 1);
     
     for (int i = 0; i < characters.length; i++) {
       textPainter.text = TextSpan(
@@ -790,7 +795,7 @@ class CurvedTextPainter extends CustomPainter {
       );
       textPainter.layout();
       
-      final angle = math.pi + angleStep * i;
+      final angle = startAngle + angleStep * i;
       final x = center.dx + radius * math.cos(angle) - textPainter.width / 2;
       final y = center.dy + radius * math.sin(angle) - textPainter.height / 2;
       
