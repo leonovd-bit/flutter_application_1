@@ -65,19 +65,16 @@ class _AddressPageV3State extends State<AddressPageV3> {
           _savedAddresses = fromFs;
           _loading = false;
         });
-        // ignore: avoid_print
-        print('[AddressPage] Loaded ${_savedAddresses.length} addresses from Firestore');
+  debugPrint('[AddressPage] Loaded ${_savedAddresses.length} addresses from Firestore');
         return;
       } catch (e) {
-        // fall through to local
-        // ignore: avoid_print
-        print('[AddressPage] Firestore load failed, falling back to local. Error: $e');
+  // fall through to local
+  debugPrint('[AddressPage] Firestore load failed, falling back to local. Error: $e');
       }
     }
     await _loadUserCreatedAddresses();
     if (mounted) setState(() => _loading = false);
-    // ignore: avoid_print
-    print('[AddressPage] Loaded ${_savedAddresses.length} addresses from local');
+  debugPrint('[AddressPage] Loaded ${_savedAddresses.length} addresses from local');
   }
   
   Future<void> _loadUserCreatedAddresses() async {
@@ -101,7 +98,7 @@ class _AddressPageV3State extends State<AddressPageV3> {
           isDefault: addressData['isDefault'] ?? false,
         ));
       } catch (e) {
-        print('Error parsing address: $e');
+        debugPrint('Error parsing address: $e');
       }
     }
     
@@ -333,7 +330,7 @@ class _AddressPageV3State extends State<AddressPageV3> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: AppThemeV3.accent.withOpacity(0.1),
+                    color: AppThemeV3.accent.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
@@ -476,12 +473,10 @@ class _AddressPageV3State extends State<AddressPageV3> {
     // Save to Firestore when signed in
     if (uid != 'local') {
       try {
-        await FirestoreServiceV3.saveAddress(newAddress);
-        // ignore: avoid_print
-        print('[AddressPage] Saved address to Firestore: ${newAddress.id}');
+  await FirestoreServiceV3.saveAddress(newAddress);
+  debugPrint('[AddressPage] Saved address to Firestore: ${newAddress.id}');
       } catch (e) {
-        // ignore: avoid_print
-        print('[AddressPage] Firestore save failed: $e');
+  debugPrint('[AddressPage] Firestore save failed: $e');
       }
     }
 
@@ -555,13 +550,11 @@ class _AddressPageV3State extends State<AddressPageV3> {
     if (uid != null) {
       try {
         await FirestoreServiceV3.deleteUserAddress(uid, address.id);
-        // ignore: avoid_print
-        print('[AddressPage] Deleted address in Firestore: ${address.id}');
+  debugPrint('[AddressPage] Deleted address in Firestore: ${address.id}');
       } catch (_) {}
     }
     await _removeAddressFromPrefs(address.id);
-    // ignore: avoid_print
-    print('[AddressPage] Deleted address locally: ${address.id}');
+  debugPrint('[AddressPage] Deleted address locally: ${address.id}');
     setState(() {
       _savedAddresses.removeWhere((a) => a.id == address.id);
     });

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../theme/app_theme_v3.dart';
@@ -72,7 +73,7 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
           'address': '${addressData['streetAddress']}${addressData['apartment'].isEmpty ? '' : ', ${addressData['apartment']}'}, ${addressData['city']}, ${addressData['state']} ${addressData['zipCode']}',
         });
       } catch (e) {
-        print('Error parsing address: $e');
+        debugPrint('Error parsing address: $e');
       }
     }
     
@@ -321,7 +322,7 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: isSelected ? AppThemeV3.accent.withOpacity(0.1) : AppThemeV3.surface,
+          color: isSelected ? AppThemeV3.accent.withValues(alpha: 0.1) : AppThemeV3.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected ? AppThemeV3.accent : AppThemeV3.border,
@@ -330,8 +331,8 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
           boxShadow: [
             BoxShadow(
               color: isSelected 
-                  ? AppThemeV3.accent.withOpacity(0.2) 
-                  : Colors.black.withOpacity(0.05),
+                  ? AppThemeV3.accent.withValues(alpha: 0.2) 
+                  : Colors.black.withValues(alpha: 0.05),
               blurRadius: isSelected ? 12 : 8,
               offset: const Offset(0, 4),
               spreadRadius: isSelected ? 2 : 0,
@@ -348,15 +349,15 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: isSelected 
-                      ? [AppThemeV3.accent, AppThemeV3.accent.withOpacity(0.8)]
-                      : [AppThemeV3.surfaceElevated, AppThemeV3.surfaceElevated.withOpacity(0.9)],
+                      ? [AppThemeV3.accent, AppThemeV3.accent.withValues(alpha: 0.8)]
+                      : [AppThemeV3.surfaceElevated, AppThemeV3.surfaceElevated.withValues(alpha: 0.9)],
                 ),
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
                     color: isSelected 
-                        ? AppThemeV3.accent.withOpacity(0.3) 
-                        : Colors.black.withOpacity(0.1),
+                        ? AppThemeV3.accent.withValues(alpha: 0.3) 
+                        : Colors.black.withValues(alpha: 0.1),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -458,7 +459,7 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: AppThemeV3.border.withOpacity(0.3)),
+              borderSide: BorderSide(color: AppThemeV3.border.withValues(alpha: 0.3)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -505,12 +506,12 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
               color: isSelected ? AppThemeV3.accent : AppThemeV3.surface,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: isSelected ? AppThemeV3.accent : AppThemeV3.border.withOpacity(0.3),
+                color: isSelected ? AppThemeV3.accent : AppThemeV3.border.withValues(alpha: 0.3),
                 width: 2,
               ),
               boxShadow: isSelected ? [
                 BoxShadow(
-                  color: AppThemeV3.accent.withOpacity(0.2),
+                  color: AppThemeV3.accent.withValues(alpha: 0.2),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -579,9 +580,8 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppThemeV3.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppThemeV3.border.withOpacity(0.3)),
+  border: Border.all(color: AppThemeV3.border.withValues(alpha: 0.3)),
+  borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -626,18 +626,18 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
                   duration: const Duration(milliseconds: 200),
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   decoration: BoxDecoration(
-                    color: isSelected 
-                        ? AppThemeV3.accent 
-                        : isConfigured 
-                            ? AppThemeV3.accent.withOpacity(0.1)
-                            : AppThemeV3.background,
+          color: isSelected 
+            ? AppThemeV3.accent 
+            : isConfigured 
+              ? AppThemeV3.accent.withValues(alpha: 0.1)
+              : AppThemeV3.background,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: isSelected 
-                          ? AppThemeV3.accent 
-                          : isConfigured 
-                              ? AppThemeV3.accent.withOpacity(0.3)
-                              : AppThemeV3.border,
+            color: isSelected 
+              ? AppThemeV3.accent 
+              : isConfigured 
+                ? AppThemeV3.accent.withValues(alpha: 0.3)
+                : AppThemeV3.border,
                       width: 2,
                     ),
                   ),
@@ -679,7 +679,7 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
       decoration: BoxDecoration(
         color: AppThemeV3.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppThemeV3.accent.withOpacity(0.3)),
+  border: Border.all(color: AppThemeV3.accent.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -786,7 +786,7 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
             decoration: BoxDecoration(
               color: AppThemeV3.background,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppThemeV3.border.withOpacity(0.3)),
+              border: Border.all(color: AppThemeV3.border.withValues(alpha: 0.3)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -835,7 +835,7 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
       decoration: BoxDecoration(
         color: AppThemeV3.background,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppThemeV3.border.withOpacity(0.3)),
+  border: Border.all(color: AppThemeV3.border.withValues(alpha: 0.3)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
@@ -935,7 +935,7 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
       decoration: BoxDecoration(
         color: AppThemeV3.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppThemeV3.border.withOpacity(0.3)),
+  border: Border.all(color: AppThemeV3.border.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1003,9 +1003,9 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
     
     // Debug logging if enabled
     if (_debugMode) {
-      print('DEBUG: Meal count - Saved: $savedMealSlots, Temp: $tempConfiguredCount, Total: $totalConfiguredCount');
-      print('DEBUG: Temp times: $_tempTimes');
-      print('DEBUG: Selected meal types: $_selectedMealTypes');
+      debugPrint('DEBUG: Meal count - Saved: $savedMealSlots, Temp: $tempConfiguredCount, Total: $totalConfiguredCount');
+      debugPrint('DEBUG: Temp times: $_tempTimes');
+      debugPrint('DEBUG: Selected meal types: $_selectedMealTypes');
     }
     
     final canContinue = totalConfiguredCount > 0 && _scheduleName.isNotEmpty;
@@ -1019,9 +1019,9 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
             padding: const EdgeInsets.all(16),
             margin: const EdgeInsets.only(bottom: 16),
             decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.1),
+              color: Colors.green.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.green.withOpacity(0.3)),
+              border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [
@@ -1089,7 +1089,7 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
-                side: BorderSide(color: AppThemeV3.accent.withOpacity(0.6)),
+                side: BorderSide(color: AppThemeV3.accent.withValues(alpha: 0.6)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1166,7 +1166,7 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
         configuredDaysCount: 7 - _unconfiguredDays.length,
       );
     } catch (e) {
-      print('Error saving meal plan selection: $e');
+      debugPrint('Error saving meal plan selection: $e');
     }
   }
 
@@ -1198,7 +1198,7 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
                   });
                 }
               : null,
-          selectedColor: AppThemeV3.accent.withOpacity(0.2),
+          selectedColor: AppThemeV3.accent.withValues(alpha: 0.2),
           checkmarkColor: AppThemeV3.accent,
           labelStyle: TextStyle(
             color: isSelected ? AppThemeV3.accent : AppThemeV3.textPrimary,
@@ -1219,17 +1219,17 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
           end: Alignment.bottomRight,
           colors: [
             AppThemeV3.surface,
-            AppThemeV3.surface.withOpacity(0.95),
+            AppThemeV3.surface.withValues(alpha: 0.95),
           ],
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: AppThemeV3.accent.withOpacity(0.2),
+          color: AppThemeV3.accent.withValues(alpha: 0.2),
           width: 2,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 16,
             offset: const Offset(0, 4),
             spreadRadius: 2,
@@ -1247,7 +1247,7 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppThemeV3.accent.withOpacity(0.1),
+                      color: AppThemeV3.accent.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
@@ -1273,7 +1273,7 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
                 decoration: BoxDecoration(
                   color: _showDayCustomization 
                       ? AppThemeV3.accent 
-                      : AppThemeV3.accent.withOpacity(0.1),
+                      : AppThemeV3.accent.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: AppThemeV3.accent,
@@ -1323,8 +1323,8 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
                   boxShadow: [
                     BoxShadow(
                       color: isSelected 
-                          ? AppThemeV3.accent.withOpacity(0.3)
-                          : Colors.black.withOpacity(0.05),
+                          ? AppThemeV3.accent.withValues(alpha: 0.3)
+                          : Colors.black.withValues(alpha: 0.05),
                       blurRadius: isSelected ? 8 : 4,
                       offset: const Offset(0, 2),
                     ),
@@ -1369,15 +1369,15 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
                       }
                     });
                   },
-                  selectedColor: AppThemeV3.accent.withOpacity(0.2),
+                  selectedColor: AppThemeV3.accent.withValues(alpha: 0.2),
                   backgroundColor: isConfigured 
-                      ? AppThemeV3.accent.withOpacity(0.1) 
+                      ? AppThemeV3.accent.withValues(alpha: 0.1) 
                       : AppThemeV3.background,
                   checkmarkColor: AppThemeV3.accent,
                   side: BorderSide(
                     color: isSelected 
                         ? AppThemeV3.accent 
-                        : (isConfigured ? AppThemeV3.accent.withOpacity(0.3) : AppThemeV3.border),
+                        : (isConfigured ? AppThemeV3.accent.withValues(alpha: 0.3) : AppThemeV3.border),
                     width: isSelected ? 2 : 1,
                   ),
                   labelStyle: TextStyle(
@@ -1624,9 +1624,9 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppThemeV3.accent.withOpacity(0.1),
+                  color: AppThemeV3.accent.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppThemeV3.accent.withOpacity(0.3)),
+                  border: Border.all(color: AppThemeV3.accent.withValues(alpha: 0.3)),
                 ),
                 child: Column(
                   children: [
@@ -1881,13 +1881,13 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
     final currentAddress = _tempAddresses[_selectedMealTypeTab];
     
     // Debug information
-    print('DEBUG: === APPLYING CONFIGURATION ===');
-    print('DEBUG: Selected meal type: $_selectedMealTypeTab');
-    print('DEBUG: Current time: $currentTime');
-    print('DEBUG: Current address: $currentAddress');
-    print('DEBUG: Selected days for customization: $_selectedDaysForCustomization');
-    print('DEBUG: All selected meal types: $_selectedMealTypes');
-    print('DEBUG: Current weekly schedule before: $_weeklySchedule');
+  debugPrint('DEBUG: === APPLYING CONFIGURATION ===');
+  debugPrint('DEBUG: Selected meal type: $_selectedMealTypeTab');
+  debugPrint('DEBUG: Current time: $currentTime');
+  debugPrint('DEBUG: Current address: $currentAddress');
+  debugPrint('DEBUG: Selected days for customization: $_selectedDaysForCustomization');
+  debugPrint('DEBUG: All selected meal types: $_selectedMealTypes');
+  debugPrint('DEBUG: Current weekly schedule before: $_weeklySchedule');
     
     if (currentTime == null || currentAddress == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1919,11 +1919,11 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
         // Initialize day structure if it doesn't exist
         if (!_weeklySchedule.containsKey(day)) {
           _weeklySchedule[day] = {};
-          print('DEBUG: Created new day entry for $day');
+          debugPrint('DEBUG: Created new day entry for $day');
         }
         if (!_weeklySchedule[day]!.containsKey(_selectedMealTypeTab)) {
           _weeklySchedule[day]![_selectedMealTypeTab] = {};
-          print('DEBUG: Created new meal type entry for $day $_selectedMealTypeTab');
+          debugPrint('DEBUG: Created new meal type entry for $day $_selectedMealTypeTab');
         }
         
         // Apply configuration ONLY to the selected meal type
@@ -1932,18 +1932,18 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
         _weeklySchedule[day]![_selectedMealTypeTab]!['time'] = timeString;
         _weeklySchedule[day]![_selectedMealTypeTab]!['address'] = currentAddress;
         
-        print('DEBUG: Applied to $day $_selectedMealTypeTab - time: $timeString, address: $currentAddress');
+  debugPrint('DEBUG: Applied to $day $_selectedMealTypeTab - time: $timeString, address: $currentAddress');
         
         // Remove from unconfigured days if it now has at least one meal type configured
         if (_isDayPartiallyConfigured(day)) {
           _unconfiguredDays.remove(day);
-          print('DEBUG: $day now has meal types configured');
+          debugPrint('DEBUG: $day now has meal types configured');
         } else {
-          print('DEBUG: $day still has no meal types configured');
+          debugPrint('DEBUG: $day still has no meal types configured');
         }
       }
       
-      print('DEBUG: Current weekly schedule after: $_weeklySchedule');
+  debugPrint('DEBUG: Current weekly schedule after: $_weeklySchedule');
       
       // Clear temporary data for current meal type only after successful save
   _tempTimes.remove(_selectedMealTypeTab);
@@ -2217,7 +2217,7 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: AppThemeV3.accent.withOpacity(0.1),
+            color: AppThemeV3.accent.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -2585,23 +2585,23 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
     // Convert to the expected format for MealSchedulePageV3
     Map<String, Map<String, dynamic>> weeklySchedule = {};
     
-    print('DeliverySchedulePage: Converting schedule for ${_weeklySchedule.keys.length} days');
-    print('DeliverySchedulePage: Selected meal types: ${_selectedMealTypes.join(", ")}');
+  debugPrint('DeliverySchedulePage: Converting schedule for ${_weeklySchedule.keys.length} days');
+  debugPrint('DeliverySchedulePage: Selected meal types: ${_selectedMealTypes.join(", ")}');
     
     for (String day in _weeklySchedule.keys) {
       weeklySchedule[day] = {};
-      print('DeliverySchedulePage: Processing day $day with meal types: ${_weeklySchedule[day]?.keys.join(", ")}');
+  debugPrint('DeliverySchedulePage: Processing day $day with meal types: ${_weeklySchedule[day]?.keys.join(", ")}');
       
       for (String mealType in _selectedMealTypes) {
         final mealConfig = _weeklySchedule[day]?[mealType];
-        print('DeliverySchedulePage: $day $mealType config: $mealConfig');
+  debugPrint('DeliverySchedulePage: $day $mealType config: $mealConfig');
         if (mealConfig != null) {
           weeklySchedule[day]![mealType] = {
             'time': mealConfig['time'],
             'address': mealConfig['address'],
             'enabled': true,
           };
-          print('DeliverySchedulePage: Added $day $mealType - time: ${mealConfig['time']}, address: ${mealConfig['address']}');
+          debugPrint('DeliverySchedulePage: Added $day $mealType - time: ${mealConfig['time']}, address: ${mealConfig['address']}');
         }
       }
     }
@@ -2686,17 +2686,17 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
           end: Alignment.bottomRight,
           colors: [
             AppThemeV3.surface,
-            AppThemeV3.surface.withOpacity(0.95),
+            AppThemeV3.surface.withValues(alpha: 0.95),
           ],
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: AppThemeV3.accent.withOpacity(0.2),
+          color: AppThemeV3.accent.withValues(alpha: 0.2),
           width: 2,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 16,
             offset: const Offset(0, 4),
             spreadRadius: 2,
@@ -2786,7 +2786,7 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -2803,7 +2803,7 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: mealColor.withOpacity(0.1),
+                      color: mealColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
@@ -2827,7 +2827,7 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: AppThemeV3.accent.withOpacity(0.2),
+                      color: AppThemeV3.accent.withValues(alpha: 0.2),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -2930,9 +2930,9 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: AppThemeV3.accent.withOpacity(0.1),
+                color: AppThemeV3.accent.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppThemeV3.accent.withOpacity(0.3)),
+                border: Border.all(color: AppThemeV3.accent.withValues(alpha: 0.3)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -3016,7 +3016,7 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
                               }
                             });
                           },
-                          selectedColor: AppThemeV3.accent.withOpacity(0.2),
+                          selectedColor: AppThemeV3.accent.withValues(alpha: 0.2),
                           checkmarkColor: AppThemeV3.accent,
                         );
                       }).toList(),
@@ -3063,9 +3063,9 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
       });
       
       await prefs.setString('meal_times_config', json.encode(timeConfig));
-      print('Time configuration saved: $timeConfig'); // Debug logging
+  debugPrint('Time configuration saved: $timeConfig'); // Debug logging
     } catch (e) {
-      print('Error saving time configuration: $e');
+  debugPrint('Error saving time configuration: $e');
     }
   }
 

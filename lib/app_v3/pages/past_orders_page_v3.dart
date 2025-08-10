@@ -324,12 +324,12 @@ class _PastOrdersPageV3State extends State<PastOrdersPageV3> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: order.status == OrderStatus.cancelled 
-            ? Border.all(color: AppThemeV3.primaryGreen.withOpacity(0.3), width: 2)
+    border: order.status == OrderStatus.cancelled 
+      ? Border.all(color: AppThemeV3.primaryGreen.withValues(alpha: 0.3), width: 2)
             : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+      color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -343,7 +343,7 @@ class _PastOrdersPageV3State extends State<PastOrdersPageV3> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: AppThemeV3.primaryGreen.withOpacity(0.1),
+                color: AppThemeV3.primaryGreen.withValues(alpha: 0.1),
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(16),
                   topRight: Radius.circular(16),
@@ -404,7 +404,7 @@ class _PastOrdersPageV3State extends State<PastOrdersPageV3> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: _getStatusColor(order.status).withOpacity(0.1),
+                    color: _getStatusColor(order.status).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/meal_model_v3.dart';
 import '../services/firestore_service_v3.dart';
 import '../theme/app_theme_v3.dart';
@@ -44,6 +45,13 @@ class _PlanSubscriptionPageV3State extends State<PlanSubscriptionPageV3> {
     try {
       await FirestoreServiceV3.setActiveMealPlan(uid, plan);
       await FirestoreServiceV3.updateActiveSubscriptionPlan(uid, plan);
+      // Persist local fallbacks for display
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('selected_meal_plan_id', plan.id);
+        await prefs.setString('selected_meal_plan_name', plan.name);
+        await prefs.setString('selected_meal_plan_display_name', plan.displayName);
+      } catch (_) {}
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Meal plan updated')),

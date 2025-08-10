@@ -48,11 +48,11 @@ class _LoginPageV3State extends State<LoginPageV3> {
         leading: Container(
           margin: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: AppThemeV3.accent.withOpacity(0.1),
+            color: AppThemeV3.accent.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: AppThemeV3.accent.withOpacity(0.2),
+                color: AppThemeV3.accent.withValues(alpha: 0.2),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -71,7 +71,7 @@ class _LoginPageV3State extends State<LoginPageV3> {
             end: Alignment.bottomCenter,
             colors: [
               AppThemeV3.background,
-              AppThemeV3.background.withOpacity(0.95),
+              AppThemeV3.background.withValues(alpha: 0.95),
             ],
           ),
         ),
@@ -93,17 +93,17 @@ class _LoginPageV3State extends State<LoginPageV3> {
                         end: Alignment.bottomRight,
                         colors: [
                           AppThemeV3.surface,
-                          AppThemeV3.surface.withOpacity(0.95),
+                          AppThemeV3.surface.withValues(alpha: 0.95),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: AppThemeV3.accent.withOpacity(0.2),
+                        color: AppThemeV3.accent.withValues(alpha: 0.2),
                         width: 2,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
+                          color: Colors.black.withValues(alpha: 0.08),
                           blurRadius: 16,
                           offset: const Offset(0, 4),
                           spreadRadius: 2,
@@ -121,13 +121,13 @@ class _LoginPageV3State extends State<LoginPageV3> {
                               end: Alignment.bottomRight,
                               colors: [
                                 AppThemeV3.accent,
-                                AppThemeV3.accent.withOpacity(0.8),
+                                AppThemeV3.accent.withValues(alpha: 0.8),
                               ],
                             ),
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: [
                               BoxShadow(
-                                color: AppThemeV3.accent.withOpacity(0.4),
+                                color: AppThemeV3.accent.withValues(alpha: 0.4),
                                 blurRadius: 12,
                                 offset: const Offset(0, 4),
                               ),
@@ -276,7 +276,7 @@ class _LoginPageV3State extends State<LoginPageV3> {
                       onPressed: _isLoading ? null : _signInWithGoogle,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppThemeV3.textPrimary,
-                        side: BorderSide(color: AppThemeV3.accent.withOpacity(0.3)),
+                        side: BorderSide(color: AppThemeV3.accent.withValues(alpha: 0.3)),
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -347,18 +347,18 @@ class _LoginPageV3State extends State<LoginPageV3> {
     setState(() => _isLoading = true);
 
     try {
-      print('Attempting to sign in with email: ${_emailController.text.trim()}');
+  debugPrint('Attempting to sign in with email: ${_emailController.text.trim()}');
       final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
 
-      print('Sign in successful. User: ${credential.user?.email}');
-      print('Email verified: ${credential.user?.emailVerified}');
+  debugPrint('Sign in successful. User: ${credential.user?.email}');
+  debugPrint('Email verified: ${credential.user?.emailVerified}');
 
       if (credential.user != null && credential.user!.emailVerified) {
         if (mounted) {
-          print('Navigating to home page');
+          debugPrint('Navigating to home page');
           // Navigate to home page
           Navigator.pushReplacement(
             context,
@@ -367,7 +367,7 @@ class _LoginPageV3State extends State<LoginPageV3> {
         }
       } else {
         if (mounted) {
-          print('Email not verified, showing verification dialog');
+          debugPrint('Email not verified, showing verification dialog');
           showDialog(
             context: context,
             builder: (context) => AlertDialog(
@@ -396,7 +396,7 @@ class _LoginPageV3State extends State<LoginPageV3> {
         }
       }
     } catch (e) {
-      print('Sign in error: $e');
+  debugPrint('Sign in error: $e');
       if (mounted) {
         String errorMessage = 'Failed to sign in';
         if (e.toString().contains('user-not-found')) {

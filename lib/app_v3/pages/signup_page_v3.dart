@@ -583,9 +583,9 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
+                      color: Colors.blue.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                      border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       children: [
@@ -693,28 +693,28 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
         authMethod: 'email',
       );
 
-      // Test Firebase connectivity first
-      print('Testing Firebase connectivity...'); // Debug
-      final currentUser = FirebaseAuth.instance.currentUser;
-      print('Current Firebase user: $currentUser'); // Debug
+  // Test Firebase connectivity first
+  debugPrint('Testing Firebase connectivity...'); // Debug
+  final currentUser = FirebaseAuth.instance.currentUser;
+  debugPrint('Current Firebase user: $currentUser'); // Debug
       
-      print('Starting Firebase sign-up process...'); // Debug
-      print('Email: ${_emailController.text.trim()}'); // Debug
+  debugPrint('Starting Firebase sign-up process...'); // Debug
+  debugPrint('Email: ${_emailController.text.trim()}'); // Debug
       
       final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
 
-      print('User created successfully: ${credential.user?.uid}'); // Debug
+  debugPrint('User created successfully: ${credential.user?.uid}'); // Debug
 
       // Update user profile
       await credential.user?.updateDisplayName(_nameController.text.trim());
-      print('Display name updated'); // Debug
+  debugPrint('Display name updated'); // Debug
 
       // Send email verification
       await credential.user?.sendEmailVerification();
-      print('Email verification sent'); // Debug
+  debugPrint('Email verification sent'); // Debug
 
       // Update progress to email verification step
       await ProgressManager.saveCurrentStep(OnboardingStep.emailVerification);
@@ -737,7 +737,7 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
         );
       }
     } on FirebaseAuthException catch (e) {
-      print('Firebase Auth Exception: ${e.code} - ${e.message}'); // Debug
+      debugPrint('Firebase Auth Exception: ${e.code} - ${e.message}'); // Debug
       String message = 'An error occurred';
       if (e.code == 'weak-password') {
         message = 'The password provided is too weak.';
@@ -763,8 +763,8 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
         );
       }
     } catch (e) {
-      print('General Exception: $e'); // Debug
-      print('Exception type: ${e.runtimeType}'); // Debug
+      debugPrint('General Exception: $e'); // Debug
+      debugPrint('Exception type: ${e.runtimeType}'); // Debug
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -788,30 +788,30 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
       // Save signup step progress
       await ProgressManager.saveCurrentStep(OnboardingStep.signup);
       
-      print('Starting Google sign-in process...'); // Debug
+  debugPrint('Starting Google sign-in process...'); // Debug
       
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-      print('Google user: $googleUser'); // Debug
+  final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+  debugPrint('Google user: $googleUser'); // Debug
       
       if (googleUser == null) {
-        print('Google sign-in was cancelled by user'); // Debug
+        debugPrint('Google sign-in was cancelled by user'); // Debug
         setState(() => _isLoading = false);
         return;
       }
 
-      print('Getting Google authentication...'); // Debug
+  debugPrint('Getting Google authentication...'); // Debug
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      print('Access token: ${googleAuth.accessToken != null ? "Present" : "Missing"}'); // Debug
-      print('ID token: ${googleAuth.idToken != null ? "Present" : "Missing"}'); // Debug
+  debugPrint('Access token: ${googleAuth.accessToken != null ? "Present" : "Missing"}'); // Debug
+  debugPrint('ID token: ${googleAuth.idToken != null ? "Present" : "Missing"}'); // Debug
       
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      print('Signing in with Firebase...'); // Debug
+  debugPrint('Signing in with Firebase...'); // Debug
       final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
-      print('Firebase sign-in successful: ${userCredential.user?.uid}'); // Debug
+  debugPrint('Firebase sign-in successful: ${userCredential.user?.uid}'); // Debug
 
       // Save progress with Google auth data
       await ProgressManager.saveSignupProgress(
@@ -832,7 +832,7 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
         );
       }
     } on FirebaseAuthException catch (e) {
-      print('Firebase Auth Exception in Google sign-in: ${e.code} - ${e.message}'); // Debug
+      debugPrint('Firebase Auth Exception in Google sign-in: ${e.code} - ${e.message}'); // Debug
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -843,8 +843,8 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
         );
       }
     } catch (e) {
-      print('General Exception in Google sign-in: $e'); // Debug
-      print('Exception type: ${e.runtimeType}'); // Debug
+      debugPrint('General Exception in Google sign-in: $e'); // Debug
+      debugPrint('Exception type: ${e.runtimeType}'); // Debug
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

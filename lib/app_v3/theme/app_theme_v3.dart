@@ -266,7 +266,7 @@ class AppThemeV3 {
     useMaterial3: true,
     brightness: Brightness.light,
     primarySwatch: MaterialColor(
-      accent.value,
+      accent.toARGB32(),
       <int, Color>{
         50: const Color(0xFFE8F5E8),
         100: const Color(0xFFC8E6C8),

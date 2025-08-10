@@ -202,7 +202,7 @@ class _DailyPageState extends State<_DailyPage> {
               border: Border.all(color: Colors.grey.shade200),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.03),
+                  color: Colors.black.withValues(alpha: 0.03),
                   blurRadius: 8,
                   offset: const Offset(0, 3),
                 ),
@@ -265,10 +265,10 @@ class _MealChip extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
+    Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: AppThemeV3.primaryGreen.withOpacity(0.08),
+      color: AppThemeV3.primaryGreen.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(icon, color: AppThemeV3.primaryGreen),

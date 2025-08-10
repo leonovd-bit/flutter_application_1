@@ -125,10 +125,10 @@ class _ChangePasswordPageV3State extends State<ChangePasswordPageV3> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppThemeV3.accent.withOpacity(0.1),
+                  color: AppThemeV3.accent.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: AppThemeV3.accent.withOpacity(0.3),
+                    color: AppThemeV3.accent.withValues(alpha: 0.3),
                   ),
                 ),
                 child: Row(
@@ -285,17 +285,17 @@ class _ChangePasswordPageV3State extends State<ChangePasswordPageV3> {
           end: Alignment.bottomRight,
           colors: [
             AppThemeV3.surface,
-            AppThemeV3.surface.withOpacity(0.95),
+            AppThemeV3.surface.withValues(alpha: 0.95),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppThemeV3.accent.withOpacity(0.2),
+          color: AppThemeV3.accent.withValues(alpha: 0.2),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -330,10 +330,10 @@ class _ChangePasswordPageV3State extends State<ChangePasswordPageV3> {
   }
 
   Widget _buildPasswordRequirements() {
-    return Container(
+  return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppThemeV3.surface.withOpacity(0.3),
+    color: AppThemeV3.surface.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: AppThemeV3.border,

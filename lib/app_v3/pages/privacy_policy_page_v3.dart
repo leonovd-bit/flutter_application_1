@@ -62,10 +62,10 @@ class PrivacyPolicyPageV3 extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppThemeV3.accent.withOpacity(0.1),
+  color: AppThemeV3.accent.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: AppThemeV3.accent.withOpacity(0.3),
+          color: AppThemeV3.accent.withValues(alpha: 0.3),
         ),
       ),
       child: Row(
@@ -97,12 +97,12 @@ class PrivacyPolicyPageV3 extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [
             AppThemeV3.surface,
-            AppThemeV3.surface.withOpacity(0.95),
+                AppThemeV3.surface.withValues(alpha: 0.95),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppThemeV3.accent.withOpacity(0.2),
+          color: AppThemeV3.accent.withValues(alpha: 0.2),
           width: 1,
         ),
       ),
@@ -270,7 +270,7 @@ class PrivacyPolicyPageV3 extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [
             AppThemeV3.surface,
-            AppThemeV3.surface.withOpacity(0.95),
+            AppThemeV3.surface.withValues(alpha: 0.95),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
@@ -279,7 +279,7 @@ class PrivacyPolicyPageV3 extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -316,10 +316,10 @@ class PrivacyPolicyPageV3 extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppThemeV3.accent.withOpacity(0.05),
+        color: AppThemeV3.accent.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: AppThemeV3.accent.withOpacity(0.2),
+          color: AppThemeV3.accent.withValues(alpha: 0.2),
         ),
       ),
       child: Column(
@@ -349,7 +349,7 @@ class PrivacyPolicyPageV3 extends StatelessWidget {
             margin: const EdgeInsets.only(top: 8, right: 12),
             width: 6,
             height: 6,
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: AppThemeV3.accent,
               shape: BoxShape.circle,
             ),
@@ -377,13 +377,13 @@ class PrivacyPolicyPageV3 extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppThemeV3.accent.withOpacity(0.1),
-            AppThemeV3.accent.withOpacity(0.05),
+            AppThemeV3.accent.withValues(alpha: 0.1),
+            AppThemeV3.accent.withValues(alpha: 0.05),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppThemeV3.accent.withOpacity(0.3),
+          color: AppThemeV3.accent.withValues(alpha: 0.3),
           width: 2,
         ),
       ),
@@ -434,7 +434,7 @@ class PrivacyPolicyPageV3 extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppThemeV3.accent.withOpacity(0.2),
+              color: AppThemeV3.accent.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
@@ -479,12 +479,12 @@ class PrivacyPolicyPageV3 extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [
             AppThemeV3.surface,
-            AppThemeV3.surface.withOpacity(0.95),
+            AppThemeV3.surface.withValues(alpha: 0.95),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppThemeV3.accent.withOpacity(0.2),
+          color: AppThemeV3.accent.withValues(alpha: 0.2),
           width: 1,
         ),
       ),
@@ -557,11 +557,11 @@ class PrivacyPolicyPageV3 extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: AppThemeV3.accent.withOpacity(0.2),
+            color: AppThemeV3.accent.withValues(alpha: 0.2),
           ),
           boxShadow: [
             BoxShadow(
-              color: AppThemeV3.accent.withOpacity(0.1),
+              color: AppThemeV3.accent.withValues(alpha: 0.1),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),

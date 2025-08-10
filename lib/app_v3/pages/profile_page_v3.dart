@@ -47,7 +47,7 @@ class _ProfilePageV3State extends State<ProfilePageV3> {
       _currentUser = FirebaseAuth.instance.currentUser;
       if (_currentUser != null) {
         _userProfile = await FirestoreServiceV3.getUserProfile(_currentUser!.uid);
-        
+        if (!mounted) return;
         setState(() {
           _nameController.text = _userProfile?['fullName'] ?? _currentUser!.displayName ?? '';
           _emailController.text = _currentUser!.email ?? '';
@@ -58,7 +58,9 @@ class _ProfilePageV3State extends State<ProfilePageV3> {
         });
       }
     } catch (e) {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
       _showSnackBar('Error loading profile: $e');
     }
   }
@@ -84,10 +86,11 @@ class _ProfilePageV3State extends State<ProfilePageV3> {
         // profileData['profileImageUrl'] = uploadedImageUrl;
       }
 
-      await FirestoreServiceV3.updateUserProfile(_currentUser!.uid, profileData);
+  await FirestoreServiceV3.updateUserProfile(_currentUser!.uid, profileData);
 
-      _showSnackBar('Profile updated successfully');
-      Navigator.pop(context);
+  if (!mounted) return;
+  _showSnackBar('Profile updated successfully');
+  Navigator.pop(context);
     } catch (e) {
       _showSnackBar('Error updating profile: $e');
     } finally {
@@ -148,11 +151,12 @@ class _ProfilePageV3State extends State<ProfilePageV3> {
       // Re-authenticate
       final cred = EmailAuthProvider.credential(email: user.email ?? '', password: passController.text);
       await user.reauthenticateWithCredential(cred);
-      await user.updateEmail(emailController.text.trim());
-      await user.sendEmailVerification();
+      // Use verifyBeforeUpdateEmail so the email only changes after the user clicks the link
+      await user.verifyBeforeUpdateEmail(emailController.text.trim());
       if (mounted) {
-        setState(() => _emailController.text = user.email ?? emailController.text.trim());
-        _showSnackBar('Email updated. Please verify your new address.');
+        // Do not set the email controller to the new email yet; backend updates after verification
+        setState(() => _emailController.text = user.email ?? _emailController.text);
+        _showSnackBar('Verification sent. Check your new email to confirm the change.');
       }
     } catch (e) {
       _showSnackBar('Failed to update email: $e');
@@ -245,7 +249,7 @@ class _ProfilePageV3State extends State<ProfilePageV3> {
                   children: [
                     CircleAvatar(
                       radius: 60,
-                      backgroundColor: AppThemeV3.accent.withOpacity(0.1),
+                      backgroundColor: AppThemeV3.accent.withValues(alpha: 0.1),
                       backgroundImage: _selectedImage != null
                           ? FileImage(_selectedImage!)
                           : _profileImageUrl != null
@@ -255,7 +259,7 @@ class _ProfilePageV3State extends State<ProfilePageV3> {
                           ? Icon(
                               Icons.person,
                               size: 60,
-                              color: AppThemeV3.accent.withOpacity(0.5),
+                              color: AppThemeV3.accent.withValues(alpha: 0.5),
                             )
                           : null,
                     ),
@@ -271,7 +275,7 @@ class _ProfilePageV3State extends State<ProfilePageV3> {
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.2),
+                                color: Colors.black.withValues(alpha: 0.2),
                                 blurRadius: 8,
                                 offset: const Offset(0, 2),
                               ),
@@ -384,17 +388,17 @@ class _ProfilePageV3State extends State<ProfilePageV3> {
           end: Alignment.bottomRight,
           colors: [
             AppThemeV3.surface,
-            AppThemeV3.surface.withOpacity(0.95),
+            AppThemeV3.surface.withValues(alpha: 0.95),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppThemeV3.accent.withOpacity(0.2),
+          color: AppThemeV3.accent.withValues(alpha: 0.2),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -435,17 +439,17 @@ class _ProfilePageV3State extends State<ProfilePageV3> {
           end: Alignment.bottomRight,
           colors: [
             AppThemeV3.surface,
-            AppThemeV3.surface.withOpacity(0.95),
+            AppThemeV3.surface.withValues(alpha: 0.95),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppThemeV3.accent.withOpacity(0.2),
+          color: AppThemeV3.accent.withValues(alpha: 0.2),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

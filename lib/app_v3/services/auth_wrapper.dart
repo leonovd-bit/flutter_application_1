@@ -6,6 +6,7 @@ import '../pages/login_page_v3.dart';
 import '../pages/delivery_schedule_page_v4.dart';
 import '../pages/meal_schedule_page_v3_fixed.dart';
 import 'progress_manager.dart';
+import 'firestore_service_v3.dart';
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
@@ -30,8 +31,41 @@ class _AuthWrapperState extends State<AuthWrapper> {
       final user = FirebaseAuth.instance.currentUser;
       
       if (user != null && user.emailVerified) {
+        // Ensure a user profile document exists (idempotent upsert)
+        try {
+          await FirestoreServiceV3.updateUserProfile(user.uid, {
+            'id': user.uid,
+            'email': user.email ?? '',
+            if (user.displayName != null && user.displayName!.trim().isNotEmpty)
+              'fullName': user.displayName,
+          });
+        } catch (_) {}
         // User is signed in and verified, check if they completed setup
         final prefs = await SharedPreferences.getInstance();
+
+        // Proactively cache the user's current plan locally for UI fallbacks
+        try {
+          // 1) Try denormalized fields from user profile
+          final profile = await FirestoreServiceV3.getUserProfile(user.uid);
+          final profilePlanName = (profile?['currentPlanName'] ?? '').toString().trim();
+          final profilePlanId = (profile?['currentMealPlanId'] ?? '').toString().trim();
+          if (profilePlanName.isNotEmpty) {
+            await prefs.setString('selected_meal_plan_display_name', profilePlanName);
+          }
+          if (profilePlanId.isNotEmpty) {
+            await prefs.setString('selected_meal_plan_id', profilePlanId);
+          }
+
+          // 2) If still missing a display name, resolve via service helper
+          if ((prefs.getString('selected_meal_plan_display_name') ?? '').trim().isEmpty) {
+            final resolved = await FirestoreServiceV3.getDisplayPlanName(user.uid);
+            if (resolved != null && resolved.trim().isNotEmpty) {
+              await prefs.setString('selected_meal_plan_display_name', resolved.trim());
+            }
+          }
+        } catch (_) {
+          // Best-effort only; UI has additional fallbacks
+        }
         final setupCompleted = prefs.getBool('setup_completed') ?? false;
         final savedSchedules = prefs.getStringList('saved_schedules') ?? const [];
         _hasSavedSchedules = savedSchedules.isNotEmpty;
@@ -40,14 +74,14 @@ class _AuthWrapperState extends State<AuthWrapper> {
         if (!setupCompleted) {
           // If user has an existing schedule, keep it and allow them to continue without wiping data.
           if (_hasSavedSchedules) {
-            print('User has incomplete setup but existing schedules found; preserving progress and skipping clear.');
+            debugPrint('User has incomplete setup but existing schedules found; preserving progress and skipping clear.');
           } else {
             // No schedules to resume; safe to clear onboarding-only progress
-            print('User has incomplete setup and no existing schedules; clearing onboarding progress.');
+            debugPrint('User has incomplete setup and no existing schedules; clearing onboarding progress.');
             await ProgressManager.clearOnboardingProgress();
           }
         } else {
-          print('User has completed setup, staying signed in');
+          debugPrint('User has completed setup, staying signed in');
         }
       }
       else {
@@ -56,14 +90,18 @@ class _AuthWrapperState extends State<AuthWrapper> {
         _setupCompletedLocal = prefs.getBool('setup_completed') ?? false;
       }
       
-      setState(() {
-        _isInitialized = true;
-      });
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+        });
+      }
     } catch (e) {
-      print('Error initializing auth: $e');
-      setState(() {
-        _isInitialized = true;
-      });
+      debugPrint('Error initializing auth: $e');
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+        });
+      }
     }
   }
 
@@ -72,7 +110,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
       final prefs = await SharedPreferences.getInstance();
       return prefs.getBool('setup_completed') ?? false;
     } catch (e) {
-      print('Error checking setup completion: $e');
+  debugPrint('Error checking setup completion: $e');
       return false;
     }
   }
@@ -99,7 +137,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         }
         
         if (snapshot.hasData && snapshot.data != null) {
-          print('User authenticated: ${snapshot.data!.uid}');
+          debugPrint('User authenticated: ${snapshot.data!.uid}');
           
           // Check if setup is completed
           return FutureBuilder<bool>(
@@ -120,10 +158,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
               } else {
                 // If there's any saved schedule, jump straight to meal scheduling to continue.
                 if (_hasSavedSchedules) {
-                  print('Setup incomplete but schedules exist; directing to meal schedule.');
+                  debugPrint('Setup incomplete but schedules exist; directing to meal schedule.');
                   return const MealSchedulePageV3();
                 }
-                print('Setup incomplete, directing to delivery schedule page');
+                debugPrint('Setup incomplete, directing to delivery schedule page');
                 return const DeliverySchedulePageV4();
               }
             },
@@ -131,10 +169,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
         } else {
           // If onboarding was completed previously, resume directly to Home (offline-friendly)
           if (_setupCompletedLocal) {
-            print('No authenticated user but setup completed; resuming to Home');
+            debugPrint('No authenticated user but setup completed; resuming to Home');
             return const HomePageV3();
           }
-          print('No authenticated user, showing login page');
+          debugPrint('No authenticated user, showing login page');
           return const LoginPageV3();
         }
       },
@@ -150,9 +188,9 @@ class AuthHelper {
       await prefs.setBool('force_sign_out', true);
       await FirebaseAuth.instance.signOut();
       await prefs.clear();
-      print('Force sign out completed');
+  debugPrint('Force sign out completed');
     } catch (e) {
-      print('Error during force sign out: $e');
+  debugPrint('Error during force sign out: $e');
     }
   }
 }

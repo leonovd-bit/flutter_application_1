@@ -59,7 +59,7 @@ class _LoginPageV3State extends State<LoginPageV3> {
             end: Alignment.bottomCenter,
             colors: [
               AppThemeV3.background,
-              AppThemeV3.background.withOpacity(0.95),
+              AppThemeV3.background.withValues(alpha: 0.95),
             ],
           ),
         ),
@@ -86,7 +86,7 @@ class _LoginPageV3State extends State<LoginPageV3> {
                               end: Alignment.bottomRight,
                               colors: [
                                 AppThemeV3.accent,
-                                AppThemeV3.accent.withOpacity(0.8),
+                                AppThemeV3.accent.withValues(alpha: 0.8),
                               ],
                             ),
                             borderRadius: BorderRadius.circular(12),
@@ -235,7 +235,7 @@ class _LoginPageV3State extends State<LoginPageV3> {
                       onPressed: _isLoading ? null : _signInWithGoogle,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppThemeV3.textPrimary,
-                        side: BorderSide(color: AppThemeV3.accent.withOpacity(0.3)),
+                        side: BorderSide(color: AppThemeV3.accent.withValues(alpha: 0.3)),
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -287,7 +287,7 @@ class _LoginPageV3State extends State<LoginPageV3> {
                       onPressed: _isLoading ? null : _signInWithDemoAccount,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppThemeV3.accent,
-                        side: BorderSide(color: AppThemeV3.accent.withOpacity(0.5)),
+                        side: BorderSide(color: AppThemeV3.accent.withValues(alpha: 0.5)),
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -363,7 +363,7 @@ class _LoginPageV3State extends State<LoginPageV3> {
     }
 
     try {
-      print('Attempting to sign in with email: ${_emailController.text.trim()}');
+  debugPrint('Attempting to sign in with email: ${_emailController.text.trim()}');
       
       // Add timeout to catch network issues faster
       final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
@@ -376,12 +376,12 @@ class _LoginPageV3State extends State<LoginPageV3> {
         },
       );
 
-      print('Sign in successful. User: ${credential.user?.email}');
-      print('Email verified: ${credential.user?.emailVerified}');
+  debugPrint('Sign in successful. User: ${credential.user?.email}');
+  debugPrint('Email verified: ${credential.user?.emailVerified}');
 
       if (credential.user != null && credential.user!.emailVerified) {
         if (mounted) {
-          print('Navigating to home page');
+          debugPrint('Navigating to home page');
           // Navigate to home page
           Navigator.pushReplacement(
             context,
@@ -390,7 +390,7 @@ class _LoginPageV3State extends State<LoginPageV3> {
         }
       } else {
         if (mounted) {
-          print('Email not verified, showing verification dialog');
+          debugPrint('Email not verified, showing verification dialog');
           showDialog(
             context: context,
             builder: (context) => AlertDialog(
@@ -428,7 +428,7 @@ class _LoginPageV3State extends State<LoginPageV3> {
         }
       }
     } catch (e) {
-      print('Sign in error: $e');
+      debugPrint('Sign in error: $e');
       if (mounted) {
         // Try offline authentication as fallback
         final offlineSuccess = await OfflineAuthServiceV3.signInOffline(
@@ -528,7 +528,7 @@ class _LoginPageV3State extends State<LoginPageV3> {
         );
       }
     } catch (e) {
-      print('Google sign in error: $e');
+  debugPrint('Google sign in error: $e');
       if (mounted) {
         String errorMessage = 'Failed to sign in with Google';
         
@@ -657,7 +657,7 @@ class _LoginPageV3State extends State<LoginPageV3> {
         }
       }
     } catch (e) {
-      print('Demo account error: $e');
+  debugPrint('Demo account error: $e');
       if (mounted) {
         String errorMessage = 'Failed to sign in with demo account';
         

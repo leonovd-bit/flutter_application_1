@@ -94,11 +94,11 @@ class _EmailVerificationPageV3State extends State<EmailVerificationPageV3> {
               const SizedBox(height: 40),
               
               // Email verification icon
-              Container(
+        Container(
                 width: 120,
                 height: 120,
                 decoration: BoxDecoration(
-                  color: AppThemeV3.accent.withOpacity(0.1),
+          color: AppThemeV3.accent.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(60),
                 ),
                 child: Icon(

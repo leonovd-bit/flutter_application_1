@@ -91,8 +91,7 @@ class _DeliverySchedulePageV4State extends State<DeliverySchedulePageV4> {
             );
           }
         } catch (_) {
-          // ignore: avoid_print
-          print('[DeliverySchedule] Could not resolve plan from subscription');
+          debugPrint('[DeliverySchedule] Could not resolve plan from subscription');
         }
       }
 
@@ -104,6 +103,15 @@ class _DeliverySchedulePageV4State extends State<DeliverySchedulePageV4> {
           _selectedMealTypes.addAll(_mealOptions);
         }
       });
+      // Persist local plan info for display fallbacks across the app
+      try {
+        if (plan != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('selected_meal_plan_id', plan.id);
+          await prefs.setString('selected_meal_plan_name', plan.name);
+          await prefs.setString('selected_meal_plan_display_name', plan.displayName);
+        }
+      } catch (_) {}
     } catch (_) {
       // Keep silent; plan UI will display a neutral summary without prompting.
     }
@@ -144,8 +152,7 @@ class _DeliverySchedulePageV4State extends State<DeliverySchedulePageV4> {
             _savedAddresses = deduped;
           });
         }
-        // ignore: avoid_print
-        print('[DeliverySchedule] Loaded ${_savedAddresses.length} addresses from local (not signed in)');
+  debugPrint('[DeliverySchedule] Loaded ${_savedAddresses.length} addresses from local (not signed in)');
       } catch (_) {
         // No local addresses available
       }
@@ -183,11 +190,9 @@ class _DeliverySchedulePageV4State extends State<DeliverySchedulePageV4> {
               _savedAddresses = mapped;
             });
           }
-          // ignore: avoid_print
-          print('[DeliverySchedule] Loaded ${_savedAddresses.length} addresses from Firestore (mapped from models)');
+          debugPrint('[DeliverySchedule] Loaded ${_savedAddresses.length} addresses from Firestore (mapped from models)');
         } catch (e2) {
-          // ignore: avoid_print
-          print('[DeliverySchedule] Model fetch failed after empty pairs, falling back to local. Error: $e2');
+          debugPrint('[DeliverySchedule] Model fetch failed after empty pairs, falling back to local. Error: $e2');
           throw e2; // fall into the catch to use local
         }
       } else {
@@ -196,8 +201,7 @@ class _DeliverySchedulePageV4State extends State<DeliverySchedulePageV4> {
             _savedAddresses = deduped;
           });
         }
-        // ignore: avoid_print
-        print('[DeliverySchedule] Loaded ${_savedAddresses.length} addresses from Firestore (pairs)');
+  debugPrint('[DeliverySchedule] Loaded ${_savedAddresses.length} addresses from Firestore (pairs)');
       }
     } catch (e) {
       // Firestore may be blocked by security rules; fall back to local addresses.
@@ -232,8 +236,7 @@ class _DeliverySchedulePageV4State extends State<DeliverySchedulePageV4> {
             _savedAddresses = deduped;
           });
         }
-        // ignore: avoid_print
-        print('[DeliverySchedule] Loaded ${_savedAddresses.length} addresses from local (fallback). Error: $e');
+  debugPrint('[DeliverySchedule] Loaded ${_savedAddresses.length} addresses from local (fallback). Error: $e');
       } catch (_) {
         // Keep silent; no local addresses available.
       }
@@ -1168,11 +1171,9 @@ class _DeliverySchedulePageV4State extends State<DeliverySchedulePageV4> {
         'weeklySchedule': serializable,
       };
       await prefs.setString('delivery_schedule_$name', json.encode(data));
-      // ignore: avoid_print
-      print('[DeliverySchedule] Saved schedule "$name" locally with ${serializable.length} days');
+  debugPrint('[DeliverySchedule] Saved schedule "$name" locally with ${serializable.length} days');
     } catch (e) {
-      // ignore: avoid_print
-      print('[DeliverySchedule] Failed to save schedule locally: $e');
+  debugPrint('[DeliverySchedule] Failed to save schedule locally: $e');
     }
   }
 

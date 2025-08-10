@@ -57,10 +57,10 @@ class TermsOfServicePageV3 extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppThemeV3.accent.withOpacity(0.1),
+        color: AppThemeV3.accent.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: AppThemeV3.accent.withOpacity(0.3),
+          color: AppThemeV3.accent.withValues(alpha: 0.3),
         ),
       ),
       child: Row(
@@ -92,12 +92,12 @@ class TermsOfServicePageV3 extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [
             AppThemeV3.surface,
-            AppThemeV3.surface.withOpacity(0.95),
+            AppThemeV3.surface.withValues(alpha: 0.95),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppThemeV3.accent.withOpacity(0.2),
+          color: AppThemeV3.accent.withValues(alpha: 0.2),
           width: 1,
         ),
       ),
@@ -231,7 +231,7 @@ class TermsOfServicePageV3 extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [
             AppThemeV3.surface,
-            AppThemeV3.surface.withOpacity(0.95),
+            AppThemeV3.surface.withValues(alpha: 0.95),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
@@ -240,7 +240,7 @@ class TermsOfServicePageV3 extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -310,13 +310,13 @@ class TermsOfServicePageV3 extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppThemeV3.accent.withOpacity(0.1),
-            AppThemeV3.accent.withOpacity(0.05),
+            AppThemeV3.accent.withValues(alpha: 0.1),
+            AppThemeV3.accent.withValues(alpha: 0.05),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppThemeV3.accent.withOpacity(0.3),
+          color: AppThemeV3.accent.withValues(alpha: 0.3),
           width: 2,
         ),
       ),
@@ -389,11 +389,11 @@ class TermsOfServicePageV3 extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: AppThemeV3.accent.withOpacity(0.2),
+            color: AppThemeV3.accent.withValues(alpha: 0.2),
           ),
           boxShadow: [
             BoxShadow(
-              color: AppThemeV3.accent.withOpacity(0.1),
+              color: AppThemeV3.accent.withValues(alpha: 0.1),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),

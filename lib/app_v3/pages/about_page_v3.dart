@@ -68,13 +68,13 @@ class AboutPageV3 extends StatelessWidget {
               end: Alignment.bottomRight,
               colors: [
                 AppThemeV3.accent,
-                AppThemeV3.accent.withOpacity(0.8),
+                AppThemeV3.accent.withValues(alpha: 0.8),
               ],
             ),
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: AppThemeV3.accent.withOpacity(0.3),
+                color: AppThemeV3.accent.withValues(alpha: 0.3),
                 blurRadius: 16,
                 offset: const Offset(0, 8),
               ),
@@ -115,17 +115,17 @@ class AboutPageV3 extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [
             AppThemeV3.surface,
-            AppThemeV3.surface.withOpacity(0.95),
+            AppThemeV3.surface.withValues(alpha: 0.95),
           ],
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: AppThemeV3.accent.withOpacity(0.2),
+          color: AppThemeV3.accent.withValues(alpha: 0.2),
           width: 2,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
@@ -213,17 +213,17 @@ class AboutPageV3 extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [
             AppThemeV3.surface,
-            AppThemeV3.surface.withOpacity(0.95),
+            AppThemeV3.surface.withValues(alpha: 0.95),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppThemeV3.accent.withOpacity(0.2),
+          color: AppThemeV3.accent.withValues(alpha: 0.2),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -234,7 +234,7 @@ class AboutPageV3 extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppThemeV3.accent.withOpacity(0.1),
+              color: AppThemeV3.accent.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
@@ -279,12 +279,12 @@ class AboutPageV3 extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [
             AppThemeV3.surface,
-            AppThemeV3.surface.withOpacity(0.95),
+            AppThemeV3.surface.withValues(alpha: 0.95),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppThemeV3.accent.withOpacity(0.2),
+          color: AppThemeV3.accent.withValues(alpha: 0.2),
           width: 1,
         ),
       ),
@@ -382,13 +382,13 @@ class AboutPageV3 extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              AppThemeV3.accent.withOpacity(0.1),
-              AppThemeV3.accent.withOpacity(0.05),
+              AppThemeV3.accent.withValues(alpha: 0.1),
+              AppThemeV3.accent.withValues(alpha: 0.05),
             ],
           ),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: AppThemeV3.accent.withOpacity(0.3),
+            color: AppThemeV3.accent.withValues(alpha: 0.3),
             width: 1,
           ),
         ),
@@ -417,7 +417,7 @@ class AboutPageV3 extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppThemeV3.surface.withOpacity(0.3),
+  color: AppThemeV3.surface.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: AppThemeV3.border,

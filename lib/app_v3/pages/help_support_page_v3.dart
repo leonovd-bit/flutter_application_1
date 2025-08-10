@@ -102,17 +102,17 @@ class HelpSupportPageV3 extends StatelessWidget {
             end: Alignment.bottomRight,
             colors: [
               AppThemeV3.surface,
-              AppThemeV3.surface.withOpacity(0.95),
+              AppThemeV3.surface.withValues(alpha: 0.95),
             ],
           ),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: AppThemeV3.accent.withOpacity(0.2),
+            color: AppThemeV3.accent.withValues(alpha: 0.2),
             width: 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -196,12 +196,12 @@ class HelpSupportPageV3 extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [
             AppThemeV3.surface,
-            AppThemeV3.surface.withOpacity(0.95),
+            AppThemeV3.surface.withValues(alpha: 0.95),
           ],
         ),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: AppThemeV3.accent.withOpacity(0.2),
+          color: AppThemeV3.accent.withValues(alpha: 0.2),
           width: 1,
         ),
       ),
@@ -229,20 +229,20 @@ class HelpSupportPageV3 extends StatelessWidget {
   }
 
   Widget _buildContactSupport(BuildContext context) {
-    return Container(
+  return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+    gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppThemeV3.accent.withOpacity(0.1),
-            AppThemeV3.accent.withOpacity(0.05),
+      AppThemeV3.accent.withValues(alpha: 0.1),
+      AppThemeV3.accent.withValues(alpha: 0.05),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppThemeV3.accent.withOpacity(0.3),
+      color: AppThemeV3.accent.withValues(alpha: 0.3),
           width: 2,
         ),
       ),
@@ -334,12 +334,12 @@ class HelpSupportPageV3 extends StatelessWidget {
               end: Alignment.bottomRight,
               colors: [
                 AppThemeV3.surface,
-                AppThemeV3.surface.withOpacity(0.95),
+                AppThemeV3.surface.withValues(alpha: 0.95),
               ],
             ),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: AppThemeV3.accent.withOpacity(0.2),
+              color: AppThemeV3.accent.withValues(alpha: 0.2),
               width: 1,
             ),
           ),

@@ -85,7 +85,7 @@ class _HomePageV3State extends State<HomePageV3> {
         });
       }
     } catch (e) {
-      print('Error loading meal plan: $e');
+      debugPrint('Error loading meal plan: $e');
     }
   }
 
@@ -135,9 +135,8 @@ class _HomePageV3State extends State<HomePageV3> {
           _isLoadingAddresses = false;
         });
       }
-      // Log for debugging
-      // ignore: avoid_print
-      print('Error loading addresses: $e');
+  // Log for debugging
+  debugPrint('Error loading addresses: $e');
     }
   }
 
@@ -239,12 +238,12 @@ class _HomePageV3State extends State<HomePageV3> {
             end: Alignment.bottomCenter,
             colors: [
               AppThemeV3.surface,
-              AppThemeV3.surface.withOpacity(0.95),
+              AppThemeV3.surface.withValues(alpha: 0.95),
             ],
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.15),
+              color: Colors.black.withValues(alpha: 0.15),
               blurRadius: 16,
               offset: const Offset(0, 4),
               spreadRadius: 2,
@@ -257,11 +256,11 @@ class _HomePageV3State extends State<HomePageV3> {
             // Map icon
             Container(
               decoration: BoxDecoration(
-                color: AppThemeV3.accent.withOpacity(0.1),
+                color: AppThemeV3.accent.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: AppThemeV3.accent.withOpacity(0.2),
+                    color: AppThemeV3.accent.withValues(alpha: 0.2),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -290,11 +289,11 @@ class _HomePageV3State extends State<HomePageV3> {
             // Settings icon
             Container(
               decoration: BoxDecoration(
-                color: AppThemeV3.accent.withOpacity(0.1),
+                color: AppThemeV3.accent.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: AppThemeV3.accent.withOpacity(0.2),
+                    color: AppThemeV3.accent.withValues(alpha: 0.2),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -332,15 +331,15 @@ class _HomePageV3State extends State<HomePageV3> {
           gradient: RadialGradient(
             center: Alignment.center,
             radius: 0.8,
-            colors: [
-              AppThemeV3.accent.withOpacity(0.05),
-              AppThemeV3.accent.withOpacity(0.01),
-              Colors.transparent,
-            ],
+              colors: [
+                AppThemeV3.accent.withValues(alpha: 0.05),
+                AppThemeV3.accent.withValues(alpha: 0.01),
+                Colors.transparent,
+              ],
           ),
           boxShadow: [
             BoxShadow(
-              color: AppThemeV3.accent.withOpacity(0.3),
+              color: AppThemeV3.accent.withValues(alpha: 0.3),
               blurRadius: 20,
               offset: const Offset(0, 8),
               spreadRadius: 5,
@@ -385,17 +384,17 @@ class _HomePageV3State extends State<HomePageV3> {
           end: Alignment.bottomRight,
           colors: [
             AppThemeV3.surface,
-            AppThemeV3.surface.withOpacity(0.95),
+            AppThemeV3.surface.withValues(alpha: 0.95),
           ],
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: AppThemeV3.accent.withOpacity(0.2),
+          color: AppThemeV3.accent.withValues(alpha: 0.2),
           width: 2,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 16,
             offset: const Offset(0, 4),
             spreadRadius: 2,
@@ -438,13 +437,13 @@ class _HomePageV3State extends State<HomePageV3> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      AppThemeV3.accent.withOpacity(0.1),
-                      AppThemeV3.accent.withOpacity(0.05),
+                      AppThemeV3.accent.withValues(alpha: 0.1),
+                      AppThemeV3.accent.withValues(alpha: 0.05),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: AppThemeV3.accent.withOpacity(0.3),
+                    color: AppThemeV3.accent.withValues(alpha: 0.3),
                     width: 1,
                   ),
                 ),
@@ -488,9 +487,9 @@ class _HomePageV3State extends State<HomePageV3> {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppThemeV3.accent.withOpacity(0.05),
+                color: AppThemeV3.accent.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppThemeV3.accent.withOpacity(0.2)),
+                border: Border.all(color: AppThemeV3.accent.withValues(alpha: 0.2)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -533,18 +532,18 @@ class _HomePageV3State extends State<HomePageV3> {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  AppThemeV3.accent.withOpacity(0.05),
-                  AppThemeV3.accent.withOpacity(0.02),
+                  AppThemeV3.accent.withValues(alpha: 0.05),
+                  AppThemeV3.accent.withValues(alpha: 0.02),
                 ],
               ),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: AppThemeV3.accent.withOpacity(0.3),
+                color: AppThemeV3.accent.withValues(alpha: 0.3),
                 width: 2,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: AppThemeV3.accent.withOpacity(0.1),
+                  color: AppThemeV3.accent.withValues(alpha: 0.1),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
@@ -559,7 +558,7 @@ class _HomePageV3State extends State<HomePageV3> {
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
-                        color: AppThemeV3.accent.withOpacity(0.3),
+                        color: AppThemeV3.accent.withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -598,13 +597,13 @@ class _HomePageV3State extends State<HomePageV3> {
                                 gradient: LinearGradient(
                                   colors: [
                                     AppThemeV3.accent,
-                                    AppThemeV3.accent.withOpacity(0.8),
+                                    AppThemeV3.accent.withValues(alpha: 0.8),
                                   ],
                                 ),
                                 borderRadius: BorderRadius.circular(12),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: AppThemeV3.accent.withOpacity(0.3),
+                                    color: AppThemeV3.accent.withValues(alpha: 0.3),
                                     blurRadius: 4,
                                     offset: const Offset(0, 2),
                                   ),
@@ -655,17 +654,17 @@ class _HomePageV3State extends State<HomePageV3> {
           end: Alignment.bottomRight,
           colors: [
             AppThemeV3.surface,
-            AppThemeV3.surface.withOpacity(0.95),
+            AppThemeV3.surface.withValues(alpha: 0.95),
           ],
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: AppThemeV3.accent.withOpacity(0.2),
+          color: AppThemeV3.accent.withValues(alpha: 0.2),
           width: 2,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 16,
             offset: const Offset(0, 4),
             spreadRadius: 2,
@@ -716,18 +715,18 @@ class _HomePageV3State extends State<HomePageV3> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    AppThemeV3.accent.withOpacity(0.05),
-                    AppThemeV3.accent.withOpacity(0.02),
+                    AppThemeV3.accent.withValues(alpha: 0.05),
+                    AppThemeV3.accent.withValues(alpha: 0.02),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: AppThemeV3.accent.withOpacity(0.3),
+                  color: AppThemeV3.accent.withValues(alpha: 0.3),
                   width: 2,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: AppThemeV3.accent.withOpacity(0.15),
+                    color: AppThemeV3.accent.withValues(alpha: 0.15),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -758,14 +757,14 @@ class _HomePageV3State extends State<HomePageV3> {
                                     img,
                                     fit: BoxFit.cover,
                                     errorBuilder: (ctx, err, st) => Container(
-                                      color: AppThemeV3.accent.withOpacity(0.1),
+                                      color: AppThemeV3.accent.withValues(alpha: 0.1),
                                       alignment: Alignment.center,
                                       child: Icon(Icons.fastfood, color: AppThemeV3.accent),
                                     ),
                                   );
                                 }
                                 return Container(
-                                  color: AppThemeV3.accent.withOpacity(0.1),
+                                  color: AppThemeV3.accent.withValues(alpha: 0.1),
                                   alignment: Alignment.center,
                                   child: Icon(Icons.fastfood, color: AppThemeV3.accent),
                                 );
@@ -881,17 +880,17 @@ class _HomePageV3State extends State<HomePageV3> {
           end: Alignment.bottomRight,
           colors: [
             AppThemeV3.surface,
-            AppThemeV3.surface.withOpacity(0.95),
+            AppThemeV3.surface.withValues(alpha: 0.95),
           ],
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: AppThemeV3.accent.withOpacity(0.2),
+          color: AppThemeV3.accent.withValues(alpha: 0.2),
           width: 2,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 16,
             offset: const Offset(0, 4),
             spreadRadius: 2,
@@ -953,7 +952,7 @@ class _HomePageV3State extends State<HomePageV3> {
                           width: 50,
                           height: 50,
                           decoration: BoxDecoration(
-                            color: AppThemeV3.accent.withOpacity(0.1),
+                            color: AppThemeV3.accent.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Icon(

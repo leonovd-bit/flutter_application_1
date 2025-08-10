@@ -218,7 +218,29 @@ class FirestoreServiceV3 {
           .get();
 
       final docs = querySnapshot.docs;
-      if (docs.isEmpty) return null;
+      if (docs.isEmpty) {
+        // Fallback: resolve from active subscription if no meal plan docs exist yet
+        try {
+          final sub = await getActiveSubscription(userId);
+          final subPlanId = (sub?['mealPlanId'] ?? '').toString().trim();
+          final subPlanName = (sub?['planName'] ?? '').toString().trim();
+          if (subPlanId.isNotEmpty || subPlanName.isNotEmpty) {
+            final available = MealPlanModelV3.getAvailablePlans();
+            final plan = available.firstWhere(
+              (p) => p.id == subPlanId,
+              orElse: () {
+                final lname = subPlanName.toLowerCase();
+                return available.firstWhere(
+                  (p) => p.displayName.toLowerCase() == lname || p.name.toLowerCase() == lname,
+                  orElse: () => available.first,
+                );
+              },
+            );
+            return plan;
+          }
+        } catch (_) {}
+        return null;
+      }
 
       // Prefer the most recent active plan; else the most recent plan
       final active = docs.firstWhere(
@@ -272,6 +294,15 @@ class FirestoreServiceV3 {
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
       await batch.commit();
+
+      // Denormalize the active plan onto the user profile for quick lookups
+      await _firestore.collection(_usersCollection).doc(userId).set({
+        'currentMealPlanId': plan.id,
+        'currentPlanName': plan.displayName.isNotEmpty ? plan.displayName : plan.name,
+        'currentMealsPerDay': plan.mealsPerDay,
+        'currentPricePerMeal': plan.pricePerMeal,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
     } catch (e) {
       throw Exception('Failed to set active meal plan: $e');
     }

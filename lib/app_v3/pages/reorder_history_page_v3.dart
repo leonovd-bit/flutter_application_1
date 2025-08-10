@@ -122,18 +122,18 @@ class _ReorderHistoryPageV3State extends State<ReorderHistoryPageV3> {
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+    gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
             AppThemeV3.primaryGreen,
-            AppThemeV3.primaryGreen.withOpacity(0.8),
+      AppThemeV3.primaryGreen.withValues(alpha: 0.8),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: AppThemeV3.primaryGreen.withOpacity(0.3),
+      color: AppThemeV3.primaryGreen.withValues(alpha: 0.3),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -147,7 +147,7 @@ class _ReorderHistoryPageV3State extends State<ReorderHistoryPageV3> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
@@ -211,10 +211,10 @@ class _ReorderHistoryPageV3State extends State<ReorderHistoryPageV3> {
   }
 
   Widget _buildStatItem(String label, String value, IconData icon) {
-    return Container(
+  return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+    color: Colors.white.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -348,7 +348,7 @@ class _ReorderHistoryPageV3State extends State<ReorderHistoryPageV3> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -364,7 +364,7 @@ class _ReorderHistoryPageV3State extends State<ReorderHistoryPageV3> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppThemeV3.primaryGreen.withOpacity(0.1),
+                    color: AppThemeV3.primaryGreen.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(

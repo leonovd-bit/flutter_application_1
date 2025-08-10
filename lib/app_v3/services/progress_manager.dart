@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:convert';
 
 enum OnboardingStep {
@@ -23,7 +24,7 @@ class ProgressManager {
       await prefs.setString(_currentStepKey, step.name);
       await prefs.setInt('step_timestamp', DateTime.now().millisecondsSinceEpoch);
     } catch (e) {
-      print('Error saving current step: $e');
+      debugPrint('Error saving current step: $e');
     }
   }
 
@@ -39,7 +40,7 @@ class ProgressManager {
         orElse: () => OnboardingStep.welcome,
       );
     } catch (e) {
-      print('Error getting current step: $e');
+      debugPrint('Error getting current step: $e');
       return null;
     }
   }
@@ -65,7 +66,7 @@ class ProgressManager {
       
       await prefs.setString(_signupDataKey, json.encode(signupData));
     } catch (e) {
-      print('Error saving signup progress: $e');
+      debugPrint('Error saving signup progress: $e');
     }
   }
 
@@ -78,7 +79,7 @@ class ProgressManager {
       
       return json.decode(dataString) as Map<String, dynamic>;
     } catch (e) {
-      print('Error getting signup progress: $e');
+      debugPrint('Error getting signup progress: $e');
       return null;
     }
   }
@@ -106,7 +107,7 @@ class ProgressManager {
       
       await prefs.setString(_scheduleDataKey, json.encode(scheduleData));
     } catch (e) {
-      print('Error saving schedule progress: $e');
+      debugPrint('Error saving schedule progress: $e');
     }
   }
 
@@ -119,7 +120,7 @@ class ProgressManager {
       
       return json.decode(dataString) as Map<String, dynamic>;
     } catch (e) {
-      print('Error getting schedule progress: $e');
+      debugPrint('Error getting schedule progress: $e');
       return null;
     }
   }
@@ -134,7 +135,7 @@ class ProgressManager {
       await prefs.remove(_paymentDataKey);
       await prefs.remove('step_timestamp');
     } catch (e) {
-      print('Error clearing onboarding progress: $e');
+      debugPrint('Error clearing onboarding progress: $e');
     }
   }
 
@@ -150,7 +151,7 @@ class ProgressManager {
       
       return timestamp < thirtyMinutesAgo;
     } catch (e) {
-      print('Error checking if onboarding was interrupted: $e');
+      debugPrint('Error checking if onboarding was interrupted: $e');
       return false;
     }
   }
@@ -179,7 +180,7 @@ class ProgressManager {
       
       return stepIndex / totalSteps;
     } catch (e) {
-      print('Error calculating completion percentage: $e');
+      debugPrint('Error calculating completion percentage: $e');
       return 0.0;
     }
   }
