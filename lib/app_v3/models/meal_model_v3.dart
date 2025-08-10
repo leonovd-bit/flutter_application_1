@@ -22,6 +22,9 @@ class MealModelV3 {
   final String mealType; // breakfast, lunch, dinner
   final double price;
 
+  // Getter for compatibility with interactive menu
+  String get type => mealType;
+
   MealModelV3({
     required this.id,
     required this.name,
@@ -81,6 +84,151 @@ class MealModelV3 {
       icon: Icons.fastfood, // Default icon since IconData can't be serialized
     );
   }
+
+  static List<MealModelV3> getSampleMeals() {
+    return [
+      // Breakfast meals
+      MealModelV3(
+        id: 'b1',
+        name: 'Avocado Toast & Eggs',
+        description: 'Whole grain toast topped with fresh avocado and scrambled eggs',
+        calories: 420,
+        protein: 18,
+        carbs: 35,
+        fat: 24,
+        ingredients: ['Whole grain bread', 'Avocado', 'Eggs', 'Cherry tomatoes', 'Feta cheese'],
+        allergens: ['Gluten', 'Eggs', 'Dairy'],
+        icon: Icons.breakfast_dining,
+        imageUrl: '',
+        mealType: 'breakfast',
+        price: 12.99,
+      ),
+      MealModelV3(
+        id: 'b2',
+        name: 'Greek Yogurt Bowl',
+        description: 'Creamy Greek yogurt with mixed berries and granola',
+        calories: 320,
+        protein: 20,
+        carbs: 42,
+        fat: 8,
+        ingredients: ['Greek yogurt', 'Mixed berries', 'Granola', 'Honey', 'Almonds'],
+        allergens: ['Dairy', 'Nuts'],
+        icon: Icons.breakfast_dining,
+        imageUrl: '',
+        mealType: 'breakfast',
+        price: 9.99,
+      ),
+      MealModelV3(
+        id: 'b3',
+        name: 'Protein Pancakes',
+        description: 'Fluffy protein-packed pancakes with fresh fruit',
+        calories: 380,
+        protein: 25,
+        carbs: 48,
+        fat: 8,
+        ingredients: ['Protein powder', 'Oat flour', 'Eggs', 'Bananas', 'Blueberries'],
+        allergens: ['Gluten', 'Eggs', 'Dairy'],
+        icon: Icons.breakfast_dining,
+        imageUrl: '',
+        mealType: 'breakfast',
+        price: 11.99,
+      ),
+
+      // Lunch meals
+      MealModelV3(
+        id: 'l1',
+        name: 'Quinoa Power Bowl',
+        description: 'Nutrient-rich quinoa with roasted vegetables and tahini dressing',
+        calories: 480,
+        protein: 16,
+        carbs: 62,
+        fat: 18,
+        ingredients: ['Quinoa', 'Roasted vegetables', 'Chickpeas', 'Tahini', 'Mixed greens'],
+        allergens: ['Sesame'],
+        icon: Icons.lunch_dining,
+        imageUrl: '',
+        mealType: 'lunch',
+        price: 14.99,
+      ),
+      MealModelV3(
+        id: 'l2',
+        name: 'Grilled Chicken Salad',
+        description: 'Fresh mixed greens with grilled chicken and balsamic vinaigrette',
+        calories: 380,
+        protein: 35,
+        carbs: 18,
+        fat: 20,
+        ingredients: ['Grilled chicken', 'Mixed greens', 'Cherry tomatoes', 'Cucumber', 'Feta cheese'],
+        allergens: ['Dairy'],
+        icon: Icons.lunch_dining,
+        imageUrl: '',
+        mealType: 'lunch',
+        price: 13.99,
+      ),
+      MealModelV3(
+        id: 'l3',
+        name: 'Mediterranean Wrap',
+        description: 'Whole wheat wrap filled with hummus, vegetables, and lean protein',
+        calories: 420,
+        protein: 22,
+        carbs: 45,
+        fat: 18,
+        ingredients: ['Whole wheat tortilla', 'Hummus', 'Grilled chicken', 'Vegetables', 'Olives'],
+        allergens: ['Gluten', 'Sesame'],
+        icon: Icons.lunch_dining,
+        imageUrl: '',
+        mealType: 'lunch',
+        price: 12.99,
+      ),
+
+      // Dinner meals
+      MealModelV3(
+        id: 'd1',
+        name: 'Salmon with Sweet Potato',
+        description: 'Grilled Atlantic salmon with roasted sweet potato and asparagus',
+        calories: 520,
+        protein: 42,
+        carbs: 35,
+        fat: 22,
+        ingredients: ['Atlantic salmon', 'Sweet potato', 'Asparagus', 'Lemon', 'Herbs'],
+        allergens: ['Fish'],
+        icon: Icons.dinner_dining,
+        imageUrl: '',
+        mealType: 'dinner',
+        price: 18.99,
+      ),
+      MealModelV3(
+        id: 'd2',
+        name: 'Lean Beef Stir Fry',
+        description: 'Tender beef strips with colorful vegetables over brown rice',
+        calories: 480,
+        protein: 35,
+        carbs: 45,
+        fat: 16,
+        ingredients: ['Lean beef', 'Brown rice', 'Bell peppers', 'Broccoli', 'Soy sauce'],
+        allergens: ['Soy'],
+        icon: Icons.dinner_dining,
+        imageUrl: '',
+        mealType: 'dinner',
+        price: 16.99,
+      ),
+      MealModelV3(
+        id: 'd3',
+        name: 'Vegetarian Lentil Curry',
+        description: 'Protein-rich lentil curry with basmati rice and naan',
+        calories: 450,
+        protein: 18,
+        carbs: 68,
+        fat: 12,
+        ingredients: ['Red lentils', 'Basmati rice', 'Coconut milk', 'Indian spices', 'Naan bread'],
+        allergens: ['Gluten'],
+        icon: Icons.dinner_dining,
+        imageUrl: '',
+        mealType: 'dinner',
+        price: 15.99,
+      ),
+    ];
+  }
 }
 
 class MealPlanModelV3 {
@@ -90,6 +238,7 @@ class MealPlanModelV3 {
   final String displayName;
   final int mealsPerDay;
   final double pricePerWeek;
+  final double pricePerMeal;
   final String description;
   final bool isActive;
   final DateTime? createdAt;
@@ -101,10 +250,15 @@ class MealPlanModelV3 {
     required this.displayName,
     required this.mealsPerDay,
     required this.pricePerWeek,
+  this.pricePerMeal = 13.0,
     required this.description,
     this.isActive = true,
     this.createdAt,
   });
+
+  // Computed pricing based on $/meal business rule
+  double get weeklyPrice => pricePerMeal * mealsPerDay * 7;
+  double get monthlyPrice => pricePerMeal * mealsPerDay * 30;
 
   static List<MealPlanModelV3> getAvailablePlans() {
     return [
@@ -113,7 +267,9 @@ class MealPlanModelV3 {
         name: 'nutritiousjr',
         displayName: 'NutritiousJr',
         mealsPerDay: 1,
-        pricePerWeek: 49.99,
+  // $13 per meal; weekly = 13 * 1 * 7 = 91; monthly (30 meals) = $390
+  pricePerWeek: 91.0,
+  pricePerMeal: 13.0,
         description: '1 nutritious meal per day',
       ),
       MealPlanModelV3(
@@ -121,7 +277,9 @@ class MealPlanModelV3 {
         name: 'dietknight',
         displayName: 'DietKnight',
         mealsPerDay: 2,
-        pricePerWeek: 89.99,
+  // $13 per meal; weekly = 13 * 2 * 7 = 182; monthly (60 meals) = $780
+  pricePerWeek: 182.0,
+  pricePerMeal: 13.0,
         description: '2 balanced meals per day',
       ),
       MealPlanModelV3(
@@ -129,7 +287,9 @@ class MealPlanModelV3 {
         name: 'leanfreak',
         displayName: 'LeanFreak',
         mealsPerDay: 3,
-        pricePerWeek: 129.99,
+  // $13 per meal; weekly = 13 * 3 * 7 = 273; monthly (90 meals) = $1170
+  pricePerWeek: 273.0,
+  pricePerMeal: 13.0,
         description: '3 complete meals per day',
       ),
     ];
@@ -143,6 +303,7 @@ class MealPlanModelV3 {
       'displayName': displayName,
       'mealsPerDay': mealsPerDay,
       'pricePerWeek': pricePerWeek,
+  'pricePerMeal': pricePerMeal,
       'description': description,
       'isActive': isActive,
       'createdAt': createdAt?.millisecondsSinceEpoch,
@@ -157,6 +318,7 @@ class MealPlanModelV3 {
       'displayName': displayName,
       'mealsPerDay': mealsPerDay,
       'pricePerWeek': pricePerWeek,
+  'pricePerMeal': pricePerMeal,
       'description': description,
       'isActive': isActive,
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp(),
@@ -172,6 +334,7 @@ class MealPlanModelV3 {
       displayName: data['displayName'] ?? '',
       mealsPerDay: data['mealsPerDay'] ?? 1,
       pricePerWeek: data['pricePerWeek']?.toDouble() ?? 0.0,
+  pricePerMeal: data['pricePerMeal']?.toDouble() ?? 13.0,
       description: data['description'] ?? '',
       isActive: data['isActive'] ?? true,
       createdAt: data['createdAt'] is Timestamp 
@@ -190,6 +353,7 @@ class MealPlanModelV3 {
       displayName: json['displayName'] ?? '',
       mealsPerDay: json['mealsPerDay'] ?? 1,
       pricePerWeek: json['pricePerWeek']?.toDouble() ?? 0.0,
+  pricePerMeal: json['pricePerMeal']?.toDouble() ?? 13.0,
       description: json['description'] ?? '',
       isActive: json['isActive'] ?? true,
       createdAt: json['createdAt'] != null 
@@ -405,13 +569,65 @@ class OrderModelV3 {
   }
 
   factory OrderModelV3.fromJson(Map<String, dynamic> data) {
+    // Build meals list with fallbacks for legacy payloads that store only mealName/mealNames
+    List<MealModelV3> mealsList = (data['meals'] as List<dynamic>? ?? [])
+        .map((mealData) => MealModelV3.fromJson(mealData))
+        .toList();
+
+    if (mealsList.isEmpty) {
+      final dynamic singleName = data['mealName'];
+      final dynamic nameList = data['mealNames'];
+      final String mealType = (data['mealType'] ?? 'breakfast').toString();
+
+      if (singleName is String && singleName.trim().isNotEmpty) {
+        mealsList = [
+          MealModelV3(
+            id: 'legacy-0',
+            name: singleName.trim(),
+            description: '',
+            calories: 0,
+            protein: 0,
+            carbs: 0,
+            fat: 0,
+            ingredients: const [],
+            allergens: const [],
+            icon: Icons.fastfood,
+            imageUrl: '',
+            mealType: mealType,
+            price: (data['price'] is num) ? (data['price'] as num).toDouble() : 0.0,
+          ),
+        ];
+      } else if (nameList is List) {
+        mealsList = nameList
+            .whereType<String>()
+            .where((n) => n.trim().isNotEmpty)
+            .toList()
+            .asMap()
+            .entries
+            .map((e) => MealModelV3(
+                  id: 'legacy-${e.key}',
+                  name: e.value.trim(),
+                  description: '',
+                  calories: 0,
+                  protein: 0,
+                  carbs: 0,
+                  fat: 0,
+                  ingredients: const [],
+                  allergens: const [],
+                  icon: Icons.fastfood,
+                  imageUrl: '',
+                  mealType: mealType,
+                  price: 0.0,
+                ))
+            .toList();
+      }
+    }
+
     return OrderModelV3(
       id: data['id'] ?? '',
       userId: data['userId'] ?? '',
       mealPlanType: _parseMealPlanType(data['mealPlanType']),
-      meals: (data['meals'] as List<dynamic>? ?? [])
-          .map((mealData) => MealModelV3.fromJson(mealData))
-          .toList(),
+      meals: mealsList,
       deliveryAddress: data['deliveryAddress'] ?? '',
       orderDate: DateTime.fromMillisecondsSinceEpoch(data['orderDate'] ?? 0),
       deliveryDate: DateTime.fromMillisecondsSinceEpoch(data['deliveryDate'] ?? 0),
@@ -427,13 +643,66 @@ class OrderModelV3 {
 
   factory OrderModelV3.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+
+    // Build meals list with fallbacks for legacy payloads that store only mealName/mealNames
+    List<MealModelV3> mealsList = (data['meals'] as List<dynamic>? ?? [])
+        .map((mealData) => MealModelV3.fromJson(mealData))
+        .toList();
+
+    if (mealsList.isEmpty) {
+      final dynamic singleName = data['mealName'];
+      final dynamic nameList = data['mealNames'];
+      final String mealType = (data['mealType'] ?? 'breakfast').toString();
+
+      if (singleName is String && singleName.trim().isNotEmpty) {
+        mealsList = [
+          MealModelV3(
+            id: 'legacy-0',
+            name: singleName.trim(),
+            description: '',
+            calories: 0,
+            protein: 0,
+            carbs: 0,
+            fat: 0,
+            ingredients: const [],
+            allergens: const [],
+            icon: Icons.fastfood,
+            imageUrl: '',
+            mealType: mealType,
+            price: (data['price'] is num) ? (data['price'] as num).toDouble() : 0.0,
+          ),
+        ];
+      } else if (nameList is List) {
+        mealsList = nameList
+            .whereType<String>()
+            .where((n) => n.trim().isNotEmpty)
+            .toList()
+            .asMap()
+            .entries
+            .map((e) => MealModelV3(
+                  id: 'legacy-${e.key}',
+                  name: e.value.trim(),
+                  description: '',
+                  calories: 0,
+                  protein: 0,
+                  carbs: 0,
+                  fat: 0,
+                  ingredients: const [],
+                  allergens: const [],
+                  icon: Icons.fastfood,
+                  imageUrl: '',
+                  mealType: mealType,
+                  price: 0.0,
+                ))
+            .toList();
+      }
+    }
+
     return OrderModelV3(
       id: doc.id,
       userId: data['userId'] ?? '',
       mealPlanType: _parseMealPlanType(data['mealPlanType']),
-      meals: (data['meals'] as List<dynamic>? ?? [])
-          .map((mealData) => MealModelV3.fromJson(mealData))
-          .toList(),
+      meals: mealsList,
       deliveryAddress: data['deliveryAddress'] ?? '',
       orderDate: DateTime.fromMillisecondsSinceEpoch(data['orderDate'] ?? 0),
       deliveryDate: DateTime.fromMillisecondsSinceEpoch(data['deliveryDate'] ?? 0),

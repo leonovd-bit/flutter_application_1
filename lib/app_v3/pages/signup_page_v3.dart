@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../theme/app_theme_v3.dart';
+import '../services/progress_manager.dart';
 import 'email_verification_page_v3.dart';
 import 'login_page_v3.dart';
 import 'delivery_schedule_page_v3.dart';
@@ -42,6 +43,20 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
     _nameController.addListener(() => setState(() {}));
     _passwordController.addListener(() => setState(() {}));
     _confirmPasswordController.addListener(() => setState(() {}));
+    
+    // Load any existing signup progress
+    _loadExistingProgress();
+  }
+
+  Future<void> _loadExistingProgress() async {
+    final signupData = await ProgressManager.getSignupProgress();
+    if (signupData != null) {
+      setState(() {
+        _emailController.text = signupData['email'] ?? '';
+        _phoneController.text = signupData['phone'] ?? '';
+        _nameController.text = signupData['name'] ?? '';
+      });
+    }
   }
 
   @override
@@ -669,16 +684,47 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
     setState(() => _isLoading = true);
 
     try {
+      // Save signup step progress
+      await ProgressManager.saveCurrentStep(OnboardingStep.signup);
+      await ProgressManager.saveSignupProgress(
+        email: _emailController.text.trim(),
+        phone: _phoneController.text.trim(),
+        name: _nameController.text.trim(),
+        authMethod: 'email',
+      );
+
+      // Test Firebase connectivity first
+      print('Testing Firebase connectivity...'); // Debug
+      final currentUser = FirebaseAuth.instance.currentUser;
+      print('Current Firebase user: $currentUser'); // Debug
+      
+      print('Starting Firebase sign-up process...'); // Debug
+      print('Email: ${_emailController.text.trim()}'); // Debug
+      
       final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
 
+      print('User created successfully: ${credential.user?.uid}'); // Debug
+
       // Update user profile
       await credential.user?.updateDisplayName(_nameController.text.trim());
+      print('Display name updated'); // Debug
 
       // Send email verification
       await credential.user?.sendEmailVerification();
+      print('Email verification sent'); // Debug
+
+      // Update progress to email verification step
+      await ProgressManager.saveCurrentStep(OnboardingStep.emailVerification);
+      await ProgressManager.saveSignupProgress(
+        email: _emailController.text.trim(),
+        phone: _phoneController.text.trim(),
+        name: _nameController.text.trim(),
+        authMethod: 'email',
+        isEmailVerified: false,
+      );
 
       if (mounted) {
         Navigator.pushReplacement(
@@ -691,16 +737,41 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
         );
       }
     } on FirebaseAuthException catch (e) {
+      print('Firebase Auth Exception: ${e.code} - ${e.message}'); // Debug
       String message = 'An error occurred';
       if (e.code == 'weak-password') {
         message = 'The password provided is too weak.';
       } else if (e.code == 'email-already-in-use') {
         message = 'The account already exists for that email.';
+      } else if (e.code == 'invalid-email') {
+        message = 'The email address is not valid.';
+      } else if (e.code == 'operation-not-allowed') {
+        message = 'Email/password accounts are not enabled in Firebase Console.';
+      } else if (e.code == 'network-request-failed') {
+        message = 'Network error. Please check your internet connection.';
+      } else {
+        message = 'Firebase Error: ${e.code} - ${e.message}';
       }
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 8),
+          ),
+        );
+      }
+    } catch (e) {
+      print('General Exception: $e'); // Debug
+      print('Exception type: ${e.runtimeType}'); // Debug
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Unexpected error: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 8),
+          ),
         );
       }
     } finally {
@@ -714,19 +785,44 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
     setState(() => _isLoading = true);
 
     try {
+      // Save signup step progress
+      await ProgressManager.saveCurrentStep(OnboardingStep.signup);
+      
+      print('Starting Google sign-in process...'); // Debug
+      
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      print('Google user: $googleUser'); // Debug
+      
       if (googleUser == null) {
+        print('Google sign-in was cancelled by user'); // Debug
         setState(() => _isLoading = false);
         return;
       }
 
+      print('Getting Google authentication...'); // Debug
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      print('Access token: ${googleAuth.accessToken != null ? "Present" : "Missing"}'); // Debug
+      print('ID token: ${googleAuth.idToken != null ? "Present" : "Missing"}'); // Debug
+      
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      await FirebaseAuth.instance.signInWithCredential(credential);
+      print('Signing in with Firebase...'); // Debug
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+      print('Firebase sign-in successful: ${userCredential.user?.uid}'); // Debug
+
+      // Save progress with Google auth data
+      await ProgressManager.saveSignupProgress(
+        email: userCredential.user?.email,
+        name: userCredential.user?.displayName,
+        authMethod: 'google',
+        isEmailVerified: userCredential.user?.emailVerified ?? false,
+      );
+
+      // Move to delivery schedule step
+      await ProgressManager.saveCurrentStep(OnboardingStep.deliverySchedule);
 
       if (mounted) {
         // Navigate to delivery schedule
@@ -735,10 +831,27 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
           MaterialPageRoute(builder: (context) => const DeliverySchedulePageV3()),
         );
       }
-    } catch (e) {
+    } on FirebaseAuthException catch (e) {
+      print('Firebase Auth Exception in Google sign-in: ${e.code} - ${e.message}'); // Debug
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to sign up with Google')),
+          SnackBar(
+            content: Text('Firebase Error: ${e.code} - ${e.message}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 8),
+          ),
+        );
+      }
+    } catch (e) {
+      print('General Exception in Google sign-in: $e'); // Debug
+      print('Exception type: ${e.runtimeType}'); // Debug
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Google sign-in failed: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 8),
+          ),
         );
       }
     } finally {

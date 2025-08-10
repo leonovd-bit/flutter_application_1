@@ -15,6 +15,7 @@ class EmailVerificationPageV3 extends StatefulWidget {
 
 class _EmailVerificationPageV3State extends State<EmailVerificationPageV3> {
   Timer? _timer;
+  Timer? _resendTimer;
   bool _isLoading = false;
   bool _canResendEmail = false;
   int _resendCooldown = 60;
@@ -46,7 +47,7 @@ class _EmailVerificationPageV3State extends State<EmailVerificationPageV3> {
   }
 
   void _startResendCooldown() {
-    Timer.periodic(const Duration(seconds: 1), (timer) {
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) {
         timer.cancel();
         return;
@@ -68,6 +69,7 @@ class _EmailVerificationPageV3State extends State<EmailVerificationPageV3> {
   @override
   void dispose() {
     _timer?.cancel();
+    _resendTimer?.cancel();
     super.dispose();
   }
 

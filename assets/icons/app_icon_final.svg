@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background with rounded corners -->
+  <rect width="1024" height="1024" fill="#ffffff" rx="150"/>
+  
+  <!-- Fork (left side) -->
+  <g transform="translate(120,250)">
+    <!-- Fork tines -->
+    <rect x="20" y="0" width="12" height="300" fill="#4a4a4a" rx="6"/>
+    <rect x="40" y="0" width="12" height="300" fill="#4a4a4a" rx="6"/>
+    <rect x="60" y="0" width="12" height="300" fill="#4a4a4a" rx="6"/>
+    <!-- Fork handle -->
+    <rect x="15" y="285" width="62" height="35" fill="#4a4a4a" rx="17"/>
+  </g>
+  
+  <!-- Knife (right side) -->
+  <g transform="translate(830,250)">
+    <!-- Knife handle -->
+    <rect x="20" y="0" width="18" height="320" fill="#4a4a4a" rx="9"/>
+    <!-- Knife blade -->
+    <path d="M15 0 L40 0 L35 40 L20 40 Z" fill="#c0c0c0"/>
+  </g>
+  
+  <!-- Main Plate Container -->
+  <g transform="translate(240,220)">
+    <!-- Outer plate border -->
+    <rect x="0" y="0" width="544" height="320" fill="#4a4a4a" rx="50" stroke="#4a4a4a" stroke-width="6"/>
+    <!-- Inner plate -->
+    <rect x="15" y="15" width="514" height="290" fill="#f8f8f8" rx="35"/>
+    
+    <!-- Left compartment (meat) -->
+    <rect x="30" y="30" width="240" height="260" fill="#ffffff" rx="25" stroke="#4a4a4a" stroke-width="3"/>
+    <!-- Meat/steak -->
+    <ellipse cx="150" cy="160" rx="100" ry="65" fill="#ff4444"/>
+    <!-- Meat highlight -->
+    <ellipse cx="165" cy="140" rx="22" ry="12" fill="#ffffff" opacity="0.7"/>
+    <!-- Meat marbling -->
+    <ellipse cx="130" cy="180" rx="15" ry="8" fill="#ffffff" opacity="0.3"/>
+    
+    <!-- Top right compartment (carrot) -->
+    <rect x="284" y="30" width="230" height="120" fill="#ffffff" rx="25" stroke="#4a4a4a" stroke-width="3"/>
+    <!-- Carrot body -->
+    <ellipse cx="399" cy="90" rx="55" ry="25" fill="#ff8800"/>
+    <!-- Carrot top (greens) -->
+    <g transform="translate(399,65)">
+      <path d="M0 0 L-8 -15 L-5 -20 L2 -5 Z" fill="#22aa22"/>
+      <path d="M5 0 L-3 -15 L0 -20 L7 -5 Z" fill="#22aa22"/>
+      <path d="M-5 0 L-13 -15 L-10 -20 L-3 -5 Z" fill="#22aa22"/>
+      <path d="M10 0 L2 -15 L5 -20 L12 -5 Z" fill="#22aa22"/>
+    </g>
+    <!-- Carrot texture lines -->
+    <path d="M355 90 L443 90" stroke="#ffffff" stroke-width="2" opacity="0.5"/>
+    <path d="M360 80 L438 80" stroke="#ffffff" stroke-width="1.5" opacity="0.4"/>
+    <path d="M360 100 L438 100" stroke="#ffffff" stroke-width="1.5" opacity="0.4"/>
+    
+    <!-- Bottom right compartment (leafy greens) -->
+    <rect x="284" y="170" width="230" height="120" fill="#ffffff" rx="25" stroke="#4a4a4a" stroke-width="3"/>
+    <!-- Leafy greens -->
+    <g transform="translate(350,200)">
+      <!-- Large leaf -->
+      <path d="M0 30 Q-15 15 -8 0 Q8 8 15 0 Q30 15 15 30 Q0 40 0 30 Z" fill="#22aa22"/>
+      <!-- Medium leaf -->
+      <path d="M25 30 Q10 15 17 0 Q35 8 40 0 Q55 15 40 30 Q25 40 25 30 Z" fill="#22aa22"/>
+      <!-- Small leaf -->
+      <path d="M50 30 Q35 15 42 0 Q60 8 65 0 Q80 15 65 30 Q50 40 50 30 Z" fill="#22aa22"/>
+      <!-- Leaf veins -->
+      <path d="M10 15 Q25 10 40 15 Q55 10 70 15" stroke="#44cc44" stroke-width="2" fill="none"/>
+      <path d="M5 25 Q40 20 75 25" stroke="#44cc44" stroke-width="1.5" fill="none"/>
+    </g>
+  </g>
+  
+  <!-- FreshPunk Text -->
+  <g transform="translate(150,650)">
+    <!-- Fresh (Green) - manually drawn letters for better compatibility -->
+    <g fill="#22aa22">
+      <!-- F -->
+      <rect x="0" y="0" width="15" height="100"/>
+      <rect x="0" y="0" width="70" height="15"/>
+      <rect x="0" y="42" width="55" height="15"/>
+      
+      <!-- r -->
+      <rect x="90" y="30" width="15" height="70"/>
+      <path d="M90 30 Q110 25 120 30 Q125 35 120 45 L105 45 Q100 40 100 35" fill="#22aa22"/>
+      
+      <!-- e -->
+      <ellipse cx="150" cy="65" rx="20" ry="35" fill="none" stroke="#22aa22" stroke-width="15"/>
+      <rect x="130" y="62" width="40" height="8"/>
+      
+      <!-- s -->
+      <path d="M190 45 Q210 30 230 45 Q235 55 225 65 Q215 70 205 75 Q195 85 210 95 Q230 100 240 85" 
+            fill="none" stroke="#22aa22" stroke-width="15" stroke-linecap="round"/>
+      
+      <!-- h -->
+      <rect x="260" y="0" width="15" height="100"/>
+      <rect x="275" y="40" width="15" height="60"/>
+      <path d="M275 40 Q285 30 300 40 Q305 45 305 60 L305 100 L290 100 L290 60" fill="#22aa22"/>
+    </g>
+    
+    <!-- Punk (Orange/Red) -->
+    <g fill="#ff4444" transform="translate(380,0)">
+      <!-- P -->
+      <rect x="0" y="0" width="15" height="100"/>
+      <path d="M0 0 L50 0 Q70 10 70 30 Q70 50 50 60 L0 60 Z" fill="#ff4444"/>
+      
+      <!-- u -->
+      <rect x="90" y="30" width="15" height="70"/>
+      <rect x="125" y="30" width="15" height="70"/>
+      <path d="M90 85 Q105 100 125 85" fill="#ff4444"/>
+      
+      <!-- n -->
+      <rect x="160" y="30" width="15" height="70"/>
+      <rect x="195" y="30" width="15" height="70"/>
+      <path d="M175 40 Q185 30 195 40" fill="#ff4444"/>
+      
+      <!-- k -->
+      <rect x="230" y="0" width="15" height="100"/>
+      <path d="M245 40 L275 30 L285 45 L255 55 L285 100 L270 100 L245 60 Z" fill="#ff4444"/>
+    </g>
+  </g>
+</svg>

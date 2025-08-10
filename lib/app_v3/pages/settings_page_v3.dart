@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme_v3.dart';
@@ -7,11 +8,16 @@ import 'welcome_page_v3.dart';
 import 'address_page_v3.dart';
 import 'profile_page_v3.dart';
 import 'payment_methods_page_v3.dart';
+import 'delivery_schedule_page_v4.dart';
+import 'meal_schedule_page_v3.dart';
+import 'plan_subscription_page_v3.dart';
+import '../services/firestore_service_v3.dart';
 import 'change_password_page_v3.dart';
 import 'help_support_page_v3.dart';
 import 'about_page_v3.dart';
 import 'terms_of_service_page_v3.dart';
 import 'privacy_policy_page_v3.dart';
+// Removed Circle of Health from Settings
 
 class SettingsPageV3 extends StatefulWidget {
   const SettingsPageV3({super.key});
@@ -22,6 +28,13 @@ class SettingsPageV3 extends StatefulWidget {
 
 class _SettingsPageV3State extends State<SettingsPageV3> {
   final LocalAuthentication _localAuth = LocalAuthentication();
+  final _auth = FirebaseAuth.instance;
+  String? _accountName;
+  String? _accountEmail;
+  // Summary extras
+  String? _planName;
+  double? _planMonthlyAmount;
+  DateTime? _nextBillingDate;
   
   bool _biometricEnabled = false;
   bool _pushNotifications = true;
@@ -39,9 +52,41 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
   Future<void> _loadSettings() async {
     // Load user settings from Firebase or local storage
     // For now, using default values
-    setState(() {
-      _isLoading = false;
-    });
+    final user = _auth.currentUser;
+    if (user == null) {
+      setState(() {
+        _accountName = null;
+        _accountEmail = null;
+        _isLoading = false;
+      });
+      return;
+    }
+
+    try {
+      // Fetch in sequence (fast enough); could be parallelized if needed
+      final profileName = user.displayName;
+      final profileEmail = user.email;
+
+      final subscription = await FirestoreServiceV3.getActiveSubscription(user.uid);
+      final mealPlan = await FirestoreServiceV3.getCurrentMealPlan(user.uid);
+  // Address summary removed from Settings; still fetchable elsewhere if needed
+
+      setState(() {
+        _accountName = profileName;
+        _accountEmail = profileEmail;
+        _planName = mealPlan?.displayName.isNotEmpty == true ? mealPlan!.displayName : mealPlan?.name;
+        _planMonthlyAmount = (subscription?['monthlyAmount'] as num?)?.toDouble();
+        final ts = subscription?['nextBillingDate'];
+        _nextBillingDate = ts is Timestamp ? ts.toDate() : ts is int ? DateTime.fromMillisecondsSinceEpoch(ts) : null;
+        _isLoading = false;
+      });
+    } catch (_) {
+      setState(() {
+        _accountName = user.displayName;
+        _accountEmail = user.email;
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _toggleBiometric(bool value) async {
@@ -176,6 +221,9 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          if (_accountEmail != null || _accountName != null)
+            _buildAccountSummary(),
+
           // Account Section
           _buildSectionHeader('Account'),
           _buildSettingsTile(
@@ -195,6 +243,30 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
             title: 'Payment Methods',
             subtitle: 'Manage cards and billing',
             onTap: () => _navigateToPayment(),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Orders & Schedules
+          _buildSectionHeader('Orders & Schedules'),
+          // Circle of Health removed from Settings per request
+          _buildSettingsTile(
+            icon: Icons.subscriptions_outlined,
+            title: 'Meal Plan Subscription',
+            subtitle: 'Change your meal plan',
+            onTap: _navigateToPlanSubscription,
+          ),
+          _buildSettingsTile(
+            icon: Icons.calendar_month_outlined,
+            title: 'Delivery Schedule',
+            subtitle: 'Create or edit your delivery schedule',
+            onTap: _navigateToDeliverySchedule,
+          ),
+          _buildSettingsTile(
+            icon: Icons.restaurant_menu_outlined,
+            title: 'Meal Schedule',
+            subtitle: 'Customize meals for each delivery',
+            onTap: _navigateToMealSchedule,
           ),
 
           const SizedBox(height: 24),
@@ -336,6 +408,87 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
     );
   }
 
+  Widget _buildAccountSummary() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppThemeV3.primaryGreen.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.account_circle, color: AppThemeV3.primaryGreen),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if ((_accountName ?? '').isNotEmpty)
+                      Text(
+                        _accountName!,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                      ),
+                    if ((_accountEmail ?? '').isNotEmpty)
+                      Text(
+                        _accountEmail!,
+                        style: TextStyle(color: Colors.grey[700]),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if ((_planName ?? '').isNotEmpty || _planMonthlyAmount != null)
+            Row(
+              children: [
+                const Icon(Icons.subscriptions_outlined, size: 18, color: Colors.black54),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                      (() {
+                        final parts = <String>[];
+                        if ((_planName ?? '').isNotEmpty) parts.add(_planName!);
+                        if (_planMonthlyAmount != null) {
+                          parts.add('\$${_planMonthlyAmount!.toStringAsFixed(2)} / mo');
+                        }
+                        return parts.join(' • ');
+                      })(),
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _navigateToMealSchedule,
+                  child: const Text('Manage'),
+                ),
+              ],
+            ),
+          if (_nextBillingDate != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 24.0, top: 2),
+              child: Text(
+                'Next billing: ${_formatDate(_nextBillingDate!)}',
+                style: TextStyle(color: Colors.grey[700], fontSize: 12),
+              ),
+            ),
+          // Address summary removed per request
+        ],
+      ),
+    );
+  }
+
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12, top: 8),
@@ -470,6 +623,37 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
       context,
       MaterialPageRoute(builder: (context) => const PaymentMethodsPageV3()),
     );
+  }
+
+  void _navigateToDeliverySchedule() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const DeliverySchedulePageV4()),
+    );
+  }
+
+  void _navigateToMealSchedule() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const MealSchedulePageV3()),
+    );
+  }
+
+  // Separate entry for changing the meal plan subscription (uses existing page)
+  void _navigateToPlanSubscription() {
+    Navigator.push(
+      context,
+  MaterialPageRoute(builder: (context) => const PlanSubscriptionPageV3()),
+    );
+  }
+
+  String _formatDate(DateTime dt) {
+    // Simple date formatting: Aug 9, 2025
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
 
   void _navigateToChangePassword() {

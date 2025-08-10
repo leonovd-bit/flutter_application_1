@@ -16,6 +16,7 @@ class _ProfilePageV3State extends State<ProfilePageV3> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _backupEmailController = TextEditingController();
   final _phoneController = TextEditingController();
   
   bool _isLoading = true;
@@ -36,6 +37,7 @@ class _ProfilePageV3State extends State<ProfilePageV3> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+  _backupEmailController.dispose();
     _phoneController.dispose();
     super.dispose();
   }
@@ -50,6 +52,7 @@ class _ProfilePageV3State extends State<ProfilePageV3> {
           _nameController.text = _userProfile?['fullName'] ?? _currentUser!.displayName ?? '';
           _emailController.text = _currentUser!.email ?? '';
           _phoneController.text = _userProfile?['phoneNumber'] ?? '';
+          _backupEmailController.text = (_userProfile?['backupEmail'] ?? '') as String;
           _profileImageUrl = _userProfile?['profileImageUrl'];
           _isLoading = false;
         });
@@ -73,6 +76,7 @@ class _ProfilePageV3State extends State<ProfilePageV3> {
       final profileData = {
         'fullName': _nameController.text.trim(),
         'phoneNumber': _phoneController.text.trim(),
+  'backupEmail': _backupEmailController.text.trim().isEmpty ? null : _backupEmailController.text.trim(),
       };
 
       if (_selectedImage != null) {
@@ -88,6 +92,70 @@ class _ProfilePageV3State extends State<ProfilePageV3> {
       _showSnackBar('Error updating profile: $e');
     } finally {
       setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _promptChangeEmail() async {
+    final emailController = TextEditingController(text: _currentUser?.email ?? '');
+    final passController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Change Email'),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: emailController,
+                  decoration: const InputDecoration(labelText: 'New Email'),
+                  keyboardType: TextInputType.emailAddress,
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Enter an email';
+                    final ok = RegExp(r'^.+@.+\..+').hasMatch(v.trim());
+                    return ok ? null : 'Enter a valid email';
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: passController,
+                  decoration: const InputDecoration(labelText: 'Current Password'),
+                  obscureText: true,
+                  validator: (v) => (v == null || v.isEmpty) ? 'Required' : null,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            TextButton(
+              onPressed: () {
+                if (formKey.currentState!.validate()) Navigator.pop(context, true);
+              },
+              child: const Text('Update'),
+            ),
+          ],
+        );
+      },
+    );
+    if (result != true) return;
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception('Not signed in');
+      // Re-authenticate
+      final cred = EmailAuthProvider.credential(email: user.email ?? '', password: passController.text);
+      await user.reauthenticateWithCredential(cred);
+      await user.updateEmail(emailController.text.trim());
+      await user.sendEmailVerification();
+      if (mounted) {
+        setState(() => _emailController.text = user.email ?? emailController.text.trim());
+        _showSnackBar('Email updated. Please verify your new address.');
+      }
+    } catch (e) {
+      _showSnackBar('Failed to update email: $e');
     }
   }
 
@@ -245,6 +313,30 @@ class _ProfilePageV3State extends State<ProfilePageV3> {
                 icon: Icons.email_outlined,
                 readOnly: true,
                 hint: 'Email cannot be changed',
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _promptChangeEmail,
+                  icon: const Icon(Icons.alternate_email),
+                  label: const Text('Change Email'),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Backup Email Field
+              _buildFormField(
+                controller: _backupEmailController,
+                label: 'Backup Email (optional)',
+                icon: Icons.mark_email_read_outlined,
+                keyboardType: TextInputType.emailAddress,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) return null;
+                  final ok = RegExp(r'^.+@.+\..+').hasMatch(value.trim());
+                  return ok ? null : 'Enter a valid email';
+                },
               ),
 
               const SizedBox(height: 20),

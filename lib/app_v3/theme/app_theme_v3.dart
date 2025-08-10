@@ -2,21 +2,34 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppThemeV3 {
-  // Color Palette for FreshPunk
-  static const Color primaryGreen = Color(0xFF10B981);       // Primary FreshPunk green
-  static const Color background = Color(0xFFF8F9FA);        // Light gray background
-  static const Color surface = Color(0xFFFFFFFF);           // Pure white
-  static const Color surfaceElevated = Color(0xFFF5F5F5);   // Slightly elevated surface
-  static const Color textPrimary = Color(0xFF1A1A1A);       // Dark text
-  static const Color textSecondary = Color(0xFF6B7280);     // Gray text
-  static const Color accent = Color(0xFF10B981);            // Fresh green accent
-  static const Color accentLight = Color(0xFF34D399);       // Lighter green
-  static const Color border = Color(0xFFE5E7EB);            // Light border
-  static const Color borderLight = Color(0xFFF3F4F6);       // Very light border
-  static const Color hover = Color(0xFFECFDF5);             // Light green hover
-  static const Color success = Color(0xFF10B981);           // Success green
-  static const Color warning = Color(0xFFF59E0B);           // Warning amber
-  static const Color error = Color(0xFFEF4444);             // Error red
+  // White and Green Color Scheme
+  static const Color primaryGreen = Color(0xFF4CAF50);       // Primary green
+  static const Color primaryDark = Color(0xFF388E3C);        // Darker green
+  static const Color primaryLight = Color(0xFF81C784);       // Lighter green
+  
+  // Background & Surface Colors
+  static const Color background = Color(0xFFFFFFFF);         // Pure white background
+  static const Color surface = Color(0xFFFFFFFF);            // Pure white cards
+  static const Color surfaceElevated = Color(0xFFF8F9FA);    // Very light gray elevated surface
+  static const Color surfaceDark = Color(0xFF2D2D2D);        // Dark surface for contrast
+  
+  // Text Colors
+  static const Color textPrimary = Color(0xFF212121);        // Dark text
+  static const Color textSecondary = Color(0xFF757575);      // Medium gray
+  static const Color textLight = Color(0xFFBDBDBD);          // Light gray
+  static const Color textOnDark = Color(0xFFFFFFFF);         // White on dark
+  
+  // UI Colors
+  static const Color accent = Color(0xFF4CAF50);             // Primary green accent
+  static const Color accentLight = Color(0xFF81C784);        // Light green
+  static const Color success = Color(0xFF4CAF50);            // Success green
+  static const Color warning = Color(0xFFFF9800);            // Warning orange
+  static const Color error = Color(0xFFF44336);              // Error red
+  
+  // Border & Divider Colors
+  static const Color border = Color(0xFFE0E0E0);             // Light border
+  static const Color borderLight = Color(0xFFF5F5F5);        // Very light border
+  static const Color hover = Color(0xFFE8F5E8);              // Light green hover
 
   // Safe font getter with fallback to system fonts
   static TextStyle _safeGoogleFont(String fontFamily, {
@@ -48,11 +61,11 @@ class AppThemeV3 {
     }
   }
 
-  // Enhanced shadows for bold styling - smaller and darker
+  // Enhanced shadows for clean styling
   static List<BoxShadow> get cardShadow => [
     BoxShadow(
-      color: Colors.black.withValues(alpha: 0.15),
-      blurRadius: 6,
+      color: Colors.black.withValues(alpha: 0.08),
+      blurRadius: 4,
       offset: const Offset(0, 2),
       spreadRadius: 0,
     ),
@@ -60,8 +73,8 @@ class AppThemeV3 {
 
   static List<BoxShadow> get elevatedShadow => [
     BoxShadow(
-      color: Colors.black.withValues(alpha: 0.20),
-      blurRadius: 8,
+      color: Colors.black.withValues(alpha: 0.12),
+      blurRadius: 6,
       offset: const Offset(0, 3),
       spreadRadius: 0,
     ),
@@ -69,20 +82,20 @@ class AppThemeV3 {
 
   static List<BoxShadow> get boldShadow => [
     BoxShadow(
-      color: accent.withOpacity(0.4),
-      blurRadius: 8,
-      offset: const Offset(0, 4),
-      spreadRadius: 1,
+      color: accent.withValues(alpha: 0.3),
+      blurRadius: 6,
+      offset: const Offset(0, 3),
+      spreadRadius: 0,
     ),
   ];
 
-  // Gradient definitions for bold styling
+  // Clean gradient definitions
   static LinearGradient get primaryGradient => LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
       accent,
-      accent.withOpacity(0.8),
+      primaryDark,
     ],
   );
 
@@ -90,8 +103,8 @@ class AppThemeV3 {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      surface,
-      surface.withOpacity(0.95),
+  surface,
+  surface.withValues(alpha: 0.95),
     ],
   );
 
@@ -99,70 +112,69 @@ class AppThemeV3 {
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
     colors: [
-      background,
-      background.withOpacity(0.95),
+  background,
+  background.withValues(alpha: 0.95),
     ],
   );
 
-  // Text styles with enhanced bold fonts and safe fallbacks
+  // Text styles with FreshPunk branding - Bold, friendly, and food-focused
   static TextTheme get textTheme => TextTheme(
     displayLarge: _safeGoogleFont(
-      'inter',
+      'Poppins',
       fontSize: 32,
       fontWeight: FontWeight.w900,
       color: textPrimary,
-      letterSpacing: -0.8,
-    ),
-    displayMedium: _safeGoogleFont(
-      'inter',
-      fontSize: 28,
-      fontWeight: FontWeight.w800,
-      color: textPrimary,
       letterSpacing: -0.5,
     ),
-    displaySmall: _safeGoogleFont(
-      'inter',
-      fontSize: 24,
+    displayMedium: _safeGoogleFont(
+      'Poppins',
+      fontSize: 28,
       fontWeight: FontWeight.w800,
       color: textPrimary,
       letterSpacing: -0.3,
     ),
-    headlineLarge: _safeGoogleFont(
-      'inter',
-      fontSize: 22,
-      fontWeight: FontWeight.w800,
+    displaySmall: _safeGoogleFont(
+      'Poppins',
+      fontSize: 24,
+      fontWeight: FontWeight.w700,
       color: textPrimary,
       letterSpacing: -0.2,
     ),
-    headlineMedium: _safeGoogleFont(
-      'inter',
-      fontSize: 20,
+    headlineLarge: _safeGoogleFont(
+      'Poppins',
+      fontSize: 22,
       fontWeight: FontWeight.w700,
       color: textPrimary,
       letterSpacing: -0.1,
     ),
+    headlineMedium: _safeGoogleFont(
+      'Poppins',
+      fontSize: 20,
+      fontWeight: FontWeight.w600,
+      color: textPrimary,
+    ),
     headlineSmall: _safeGoogleFont(
-      'inter',
+      'Poppins',
       fontSize: 18,
-      fontWeight: FontWeight.w700,
+      fontWeight: FontWeight.w600,
       color: textPrimary,
     ),
     titleLarge: _safeGoogleFont(
-      'inter',
-      fontSize: 16,
-      fontWeight: FontWeight.w700,
+      'Inter',
+      fontSize: 18,
+      fontWeight: FontWeight.w600,
       color: textPrimary,
     ),
     titleMedium: _safeGoogleFont(
-      'inter',
-      fontSize: 14,
-      fontWeight: FontWeight.w600,
+      'Inter',
+      fontSize: 16,
+      fontWeight: FontWeight.w500,
       color: textPrimary,
     ),
     titleSmall: _safeGoogleFont(
-      'inter',
-      fontSize: 12,
-      fontWeight: FontWeight.w600,
+      'Inter',
+      fontSize: 14,
+      fontWeight: FontWeight.w500,
       color: textPrimary,
     ),
     bodyLarge: _safeGoogleFont(
@@ -208,7 +220,7 @@ class AppThemeV3 {
     gradient: surfaceGradient,
     borderRadius: BorderRadius.circular(20),
     border: Border.all(
-      color: accent.withOpacity(0.2),
+      color: accent.withValues(alpha: 0.2),
       width: 2,
     ),
     boxShadow: elevatedShadow,
@@ -219,7 +231,7 @@ class AppThemeV3 {
     borderRadius: BorderRadius.circular(16),
     boxShadow: [
       BoxShadow(
-        color: accent.withOpacity(0.5),
+        color: accent.withValues(alpha: 0.5),
         blurRadius: 6,
         offset: const Offset(0, 2),
       ),
@@ -227,11 +239,11 @@ class AppThemeV3 {
   );
 
   static BoxDecoration get boldIconDecoration => BoxDecoration(
-    color: accent.withOpacity(0.1),
+  color: accent.withValues(alpha: 0.1),
     borderRadius: BorderRadius.circular(12),
     boxShadow: [
       BoxShadow(
-        color: accent.withOpacity(0.3),
+        color: accent.withValues(alpha: 0.3),
         blurRadius: 4,
         offset: const Offset(0, 1),
       ),
@@ -242,7 +254,7 @@ class AppThemeV3 {
     gradient: surfaceGradient,
     boxShadow: [
       BoxShadow(
-        color: Colors.black.withOpacity(0.25),
+        color: Colors.black.withValues(alpha: 0.25),
         blurRadius: 8,
         offset: const Offset(0, 2),
         spreadRadius: 0,
@@ -254,18 +266,18 @@ class AppThemeV3 {
     useMaterial3: true,
     brightness: Brightness.light,
     primarySwatch: MaterialColor(
-      accent.toARGB32(),
+      accent.value,
       <int, Color>{
-        50: const Color(0xFFECFDF5),
-        100: const Color(0xFFD1FAE5),
-        200: const Color(0xFFA7F3D0),
-        300: const Color(0xFF6EE7B7),
-        400: const Color(0xFF34D399),
+        50: const Color(0xFFE8F5E8),
+        100: const Color(0xFFC8E6C8),
+        200: const Color(0xFFA5D6A7),
+        300: const Color(0xFF81C784),
+        400: const Color(0xFF66BB6A),
         500: accent,
-        600: const Color(0xFF059669),
-        700: const Color(0xFF047857),
-        800: const Color(0xFF065F46),
-        900: const Color(0xFF064E3B),
+        600: const Color(0xFF43A047),
+        700: const Color(0xFF388E3C),
+        800: const Color(0xFF2E7D32),
+        900: const Color(0xFF1B5E20),
       },
     ),
     scaffoldBackgroundColor: background,
@@ -282,12 +294,11 @@ class AppThemeV3 {
     textTheme: textTheme,
     appBarTheme: AppBarTheme(
       backgroundColor: surface,
-      elevation: 8,
-      shadowColor: Colors.black.withOpacity(0.1),
-      scrolledUnderElevation: 8,
+      elevation: 2,
+  shadowColor: Colors.black.withValues(alpha: 0.1),
+      scrolledUnderElevation: 2,
       titleTextStyle: textTheme.headlineMedium?.copyWith(
-        fontWeight: FontWeight.w800,
-        letterSpacing: -0.5,
+        fontWeight: FontWeight.w600,
       ),
       iconTheme: IconThemeData(color: accent),
     ),
@@ -295,31 +306,29 @@ class AppThemeV3 {
       style: ElevatedButton.styleFrom(
         backgroundColor: accent,
         foregroundColor: Colors.white,
-        elevation: 8,
-        shadowColor: accent.withOpacity(0.4),
+        elevation: 2,
+  shadowColor: accent.withValues(alpha: 0.3),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
-        textStyle: GoogleFonts.inter(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        textStyle: const TextStyle(
           fontSize: 16,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.5,
+          fontWeight: FontWeight.w600,
         ),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: accent,
-        side: BorderSide(color: accent, width: 2),
+        side: BorderSide(color: accent, width: 1.5),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
-        textStyle: GoogleFonts.inter(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        textStyle: const TextStyle(
           fontSize: 16,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.5,
+          fontWeight: FontWeight.w600,
         ),
       ),
     ),
@@ -327,40 +336,40 @@ class AppThemeV3 {
       filled: true,
       fillColor: surface,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: border, width: 2),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: border, width: 1),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: border, width: 2),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: border, width: 1),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: accent, width: 3),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: accent, width: 2),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: error, width: 2),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: error, width: 1),
       ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-      hintStyle: GoogleFonts.inter(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      hintStyle: TextStyle(
         color: textSecondary,
         fontSize: 16,
-        fontWeight: FontWeight.w500,
+        fontWeight: FontWeight.w400,
       ),
-      labelStyle: GoogleFonts.inter(
+      labelStyle: TextStyle(
         color: accent,
         fontSize: 14,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w500,
       ),
     ),
     cardTheme: CardThemeData(
       color: surface,
-      elevation: 8,
-      shadowColor: Colors.black.withOpacity(0.08),
+      elevation: 2,
+  shadowColor: Colors.black.withValues(alpha: 0.08),
       shape: RoundedRectangleBorder(
-        borderRadius: const BorderRadius.all(Radius.circular(20)),
-        side: BorderSide(color: accent.withOpacity(0.2), width: 2),
+        borderRadius: const BorderRadius.all(Radius.circular(12)),
+        side: BorderSide(color: border, width: 0.5),
       ),
     ),
   );

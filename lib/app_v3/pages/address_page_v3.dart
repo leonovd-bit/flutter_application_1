@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/firestore_service_v3.dart';
 
 class AddressPageV3 extends StatefulWidget {
   const AddressPageV3({super.key});
@@ -36,6 +40,9 @@ class _AddressPageV3State extends State<AddressPageV3> {
   ];
   
   List<AddressModelV3> _savedAddresses = [];
+  bool _editMode = false;
+  String? _editingId;
+  bool _loading = false;
 
   @override
   void initState() {
@@ -44,29 +51,61 @@ class _AddressPageV3State extends State<AddressPageV3> {
   }
 
   void _loadSavedAddresses() {
-    // Mock saved addresses - in real app, load from Firebase
-    _savedAddresses = [
-      AddressModelV3(
-        id: '1',
-        userId: 'user1',
-        label: 'Home',
-        streetAddress: '123 Main Street',
-        apartment: 'Apt 4B',
-        city: 'New York City',
-        state: 'New York',
-        zipCode: '10001',
-        isDefault: true,
-      ),
-      AddressModelV3(
-        id: '2',
-        userId: 'user1',
-        label: 'Work',
-        streetAddress: '456 Broadway',
-        city: 'New York City',
-        state: 'New York',
-        zipCode: '10013',
-      ),
-    ];
+    // Prefer Firestore when available; fall back to SharedPreferences.
+    _loadAddressesPreferFirestore();
+  }
+  
+  Future<void> _loadAddressesPreferFirestore() async {
+    setState(() => _loading = true);
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      try {
+        final fromFs = await FirestoreServiceV3.getUserAddresses(uid);
+        setState(() {
+          _savedAddresses = fromFs;
+          _loading = false;
+        });
+        // ignore: avoid_print
+        print('[AddressPage] Loaded ${_savedAddresses.length} addresses from Firestore');
+        return;
+      } catch (e) {
+        // fall through to local
+        // ignore: avoid_print
+        print('[AddressPage] Firestore load failed, falling back to local. Error: $e');
+      }
+    }
+    await _loadUserCreatedAddresses();
+    if (mounted) setState(() => _loading = false);
+    // ignore: avoid_print
+    print('[AddressPage] Loaded ${_savedAddresses.length} addresses from local');
+  }
+  
+  Future<void> _loadUserCreatedAddresses() async {
+    // Load user-created addresses from SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    final addressList = prefs.getStringList('user_addresses') ?? [];
+    
+    _savedAddresses.clear();
+    for (String addressJson in addressList) {
+      try {
+        final addressData = json.decode(addressJson);
+        _savedAddresses.add(AddressModelV3(
+          id: addressData['id'],
+          userId: addressData['userId'],
+          label: addressData['label'],
+          streetAddress: addressData['streetAddress'],
+          apartment: addressData['apartment'],
+          city: addressData['city'],
+          state: addressData['state'],
+          zipCode: addressData['zipCode'],
+          isDefault: addressData['isDefault'] ?? false,
+        ));
+      } catch (e) {
+        print('Error parsing address: $e');
+      }
+    }
+    
+    setState(() {});
   }
 
   @override
@@ -95,12 +134,22 @@ class _AddressPageV3State extends State<AddressPageV3> {
             fontWeight: FontWeight.w600,
           ),
         ),
+        actions: [
+          if (_savedAddresses.isNotEmpty)
+            IconButton(
+              tooltip: _editMode ? 'Done' : 'Edit',
+              icon: Icon(_editMode ? Icons.check : Icons.edit),
+              onPressed: () => setState(() => _editMode = !_editMode),
+            ),
+        ],
       ),
-      body: SingleChildScrollView(
+  body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+    if (_loading) const LinearProgressIndicator(),
+    if (_loading) const SizedBox(height: 16),
             // Saved Addresses Section
             if (_savedAddresses.isNotEmpty) ...[
               Text(
@@ -274,7 +323,7 @@ class _AddressPageV3State extends State<AddressPageV3> {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () => _selectAddress(address),
+          onTap: _editMode ? null : () => _selectAddress(address),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -348,12 +397,27 @@ class _AddressPageV3State extends State<AddressPageV3> {
                   ),
                 ),
                 
-                // Select button
-                Icon(
-                  Icons.check_circle_outline,
-                  color: AppThemeV3.accent,
-                  size: 24,
-                ),
+                // Right-side actions
+                if (_editMode) ...[
+                  IconButton(
+                    tooltip: 'Edit',
+                    icon: const Icon(Icons.edit_location_alt),
+                    color: AppThemeV3.accent,
+                    onPressed: () => _editExistingAddress(address),
+                  ),
+                  IconButton(
+                    tooltip: 'Delete',
+                    icon: const Icon(Icons.delete_outline),
+                    color: Colors.redAccent,
+                    onPressed: () => _deleteAddress(address),
+                  ),
+                ] else ...[
+                  Icon(
+                    Icons.check_circle_outline,
+                    color: AppThemeV3.accent,
+                    size: 24,
+                  ),
+                ],
               ],
             ),
           ),
@@ -363,15 +427,20 @@ class _AddressPageV3State extends State<AddressPageV3> {
   }
 
   void _selectAddress(AddressModelV3 address) {
-    Navigator.pop(context, address.fullAddress);
+    // Return both a friendly label and the full address so callers can display the name
+    Navigator.pop(context, {
+      'label': address.label,
+      'fullAddress': address.fullAddress,
+    });
   }
 
-  void _saveNewAddress() {
+  Future<void> _saveNewAddress() async {
     if (!_formKey.currentState!.validate()) return;
-
-    final newAddress = AddressModelV3(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      userId: 'user1', // Replace with actual user ID
+  final uid = FirebaseAuth.instance.currentUser?.uid ?? 'local';
+  final addressId = _editingId ?? DateTime.now().millisecondsSinceEpoch.toString();
+  final newAddress = AddressModelV3(
+      id: addressId,
+      userId: uid,
       label: _labelController.text.trim(),
       streetAddress: _streetController.text.trim(),
       apartment: _apartmentController.text.trim(),
@@ -380,9 +449,49 @@ class _AddressPageV3State extends State<AddressPageV3> {
       zipCode: _zipController.text.trim(),
     );
 
-    // In real app, save to Firebase
+    // Save/update in SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    final addressList = prefs.getStringList('user_addresses') ?? [];
+    Map<String, dynamic> toMap(AddressModelV3 a) => {
+      'id': a.id,
+      'userId': a.userId,
+      'label': a.label,
+      'streetAddress': a.streetAddress,
+      'apartment': a.apartment,
+      'city': a.city,
+      'state': a.state,
+      'zipCode': a.zipCode,
+      'isDefault': a.isDefault,
+    };
+    final existingIndex = addressList.indexWhere((s) {
+      try { final d = json.decode(s); return d['id'] == newAddress.id; } catch (_) { return false; }
+    });
+    if (existingIndex >= 0) {
+      addressList[existingIndex] = json.encode(toMap(newAddress));
+    } else {
+      addressList.add(json.encode(toMap(newAddress)));
+    }
+    await prefs.setStringList('user_addresses', addressList);
+
+    // Save to Firestore when signed in
+    if (uid != 'local') {
+      try {
+        await FirestoreServiceV3.saveAddress(newAddress);
+        // ignore: avoid_print
+        print('[AddressPage] Saved address to Firestore: ${newAddress.id}');
+      } catch (e) {
+        // ignore: avoid_print
+        print('[AddressPage] Firestore save failed: $e');
+      }
+    }
+
     setState(() {
-      _savedAddresses.add(newAddress);
+      final idx = _savedAddresses.indexWhere((a) => a.id == newAddress.id);
+      if (idx >= 0) {
+        _savedAddresses[idx] = newAddress;
+      } else {
+        _savedAddresses.add(newAddress);
+      }
     });
 
     // Clear form
@@ -390,15 +499,88 @@ class _AddressPageV3State extends State<AddressPageV3> {
     _streetController.clear();
     _apartmentController.clear();
     _zipController.clear();
+    _editingId = null;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Address saved successfully'),
+      SnackBar(
+        content: Text(existingIndex >= 0 ? 'Address updated' : 'Address saved successfully'),
         backgroundColor: Colors.green,
       ),
     );
 
-    // Auto-select the new address
-    _selectAddress(newAddress);
+  // Auto-select the new address (return label and full address)
+  _selectAddress(newAddress);
+  await _loadAddressesPreferFirestore();
+  }
+
+  Future<void> _editExistingAddress(AddressModelV3 address) async {
+    // Pre-fill form with existing values and scroll to form
+    _labelController.text = address.label;
+    _streetController.text = address.streetAddress;
+    _apartmentController.text = address.apartment;
+    _selectedCity = address.city;
+    _selectedState = address.state;
+    _zipController.text = address.zipCode;
+    _editingId = address.id;
+
+    // Replace the saved entry upon save
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Address'),
+        content: const Text('Update the fields below and tap Save Address.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+        ],
+      ),
+    );
+    setState(() => _editMode = false);
+  }
+
+  Future<void> _deleteAddress(AddressModelV3 address) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Address'),
+        content: Text('Remove "${address.label}"?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      try {
+        await FirestoreServiceV3.deleteUserAddress(uid, address.id);
+        // ignore: avoid_print
+        print('[AddressPage] Deleted address in Firestore: ${address.id}');
+      } catch (_) {}
+    }
+    await _removeAddressFromPrefs(address.id);
+    // ignore: avoid_print
+    print('[AddressPage] Deleted address locally: ${address.id}');
+    setState(() {
+      _savedAddresses.removeWhere((a) => a.id == address.id);
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Address deleted')),
+    );
+  }
+
+  Future<void> _removeAddressFromPrefs(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    final addressList = prefs.getStringList('user_addresses') ?? [];
+    final updated = addressList.where((jsonStr) {
+      try {
+        final data = json.decode(jsonStr);
+        return data['id'] != id;
+      } catch (_) {
+        return true;
+      }
+    }).toList();
+    await prefs.setStringList('user_addresses', updated);
   }
 }

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
 import '../services/firestore_service_v3.dart';
+import '../services/notification_service_v3.dart';
+import 'interactive_menu_page_v3.dart';
 
 class UpcomingOrdersPageV3 extends StatefulWidget {
   const UpcomingOrdersPageV3({super.key});
@@ -10,14 +13,31 @@ class UpcomingOrdersPageV3 extends StatefulWidget {
   State<UpcomingOrdersPageV3> createState() => _UpcomingOrdersPageV3State();
 }
 
-class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> {
+class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with WidgetsBindingObserver {
   List<OrderModelV3> _upcomingOrders = [];
   bool _isLoading = true;
+  bool _showFullDesc = false; // toggles meal description expansion
+  // Single-order view; no status filters
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadUpcomingOrders();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Re-check upcoming order on resume to enforce auto-confirm window
+      _loadUpcomingOrders();
+    }
   }
 
   Future<void> _loadUpcomingOrders() async {
@@ -25,13 +45,38 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> {
       // Get current user ID
       final userId = FirestoreServiceV3.getCurrentUserId();
       if (userId != null) {
-        // Load upcoming orders from Firebase
-        final ordersData = await FirestoreServiceV3.getUpcomingOrders(userId);
-        final orders = ordersData.map((data) => OrderModelV3.fromJson(data)).toList();
-        setState(() {
-          _upcomingOrders = orders;
-          _isLoading = false;
-        });
+        // Load ONLY the next upcoming order from Firebase
+        final data = await FirestoreServiceV3.getNextUpcomingOrder(userId);
+        if (data != null) {
+          final order = OrderModelV3.fromJson(_normalizeOrderMap(data));
+          // Auto-confirm if within 15 minutes of delivery and not yet confirmed/cancelled/delivered
+          final autoConfirmed = await _autoConfirmIfDue(order);
+          if (autoConfirmed) {
+            // Reload to reflect the new status and avoid scheduling stale notifications
+            await _loadUpcomingOrders();
+            return;
+          }
+          setState(() {
+            _upcomingOrders = [order];
+            _isLoading = false;
+          });
+          // Schedule a one-hour-before notification just for this order
+          final when = order.estimatedDeliveryTime ?? order.deliveryDate;
+          final id = order.id.hashCode & 0x7fffffff;
+          final now = DateTime.now();
+          if (now.isBefore(when.subtract(const Duration(hours: 1)))) {
+            await NotificationServiceV3.instance.scheduleOneHourBefore(
+              id: id,
+              deliveryTime: when,
+              title: 'Upcoming delivery',
+              body: 'Confirm, replace, or cancel your ${_getMealPlanDisplayName(order.mealPlanType)} order.',
+              payload: order.id,
+            );
+          }
+        } else {
+          // No upcoming order found; show a mock order for now
+          _loadSampleOrders();
+        }
       } else {
         // User not logged in, use sample data
         _loadSampleOrders();
@@ -42,44 +87,60 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> {
     }
   }
 
+  // Returns true if an auto-confirm was performed
+  Future<bool> _autoConfirmIfDue(OrderModelV3 order) async {
+    final when = order.estimatedDeliveryTime ?? order.deliveryDate;
+    final now = DateTime.now();
+    final isWithinAutoConfirmWindow = now.isAfter(when.subtract(const Duration(minutes: 15)));
+    final isTerminal = order.status == OrderStatus.delivered || order.status == OrderStatus.cancelled;
+    if (!isTerminal && order.status != OrderStatus.confirmed && isWithinAutoConfirmWindow) {
+      try {
+        await FirestoreServiceV3.updateOrderStatus(orderId: order.id, status: OrderStatus.confirmed);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Order auto-confirmed')),
+          );
+        }
+        // Cancel any scheduled reminder for this order (if any)
+        await NotificationServiceV3.instance.cancel(order.id.hashCode & 0x7fffffff);
+        return true;
+      } catch (_) {
+        // If it fails, just continue without blocking
+        return false;
+      }
+    }
+    return false;
+  }
+
+  Map<String, dynamic> _normalizeOrderMap(Map<String, dynamic> data) {
+    final map = Map<String, dynamic>.from(data);
+    dynamic toMs(dynamic v) {
+      if (v is Timestamp) return v.millisecondsSinceEpoch;
+      if (v is DateTime) return v.millisecondsSinceEpoch;
+      return v;
+    }
+    map['orderDate'] = toMs(map['orderDate']);
+    map['deliveryDate'] = toMs(map['deliveryDate']);
+    map['estimatedDeliveryTime'] = toMs(map['estimatedDeliveryTime']);
+    return map;
+  }
+
   void _loadSampleOrders() {
+    // Ensure we include a meal so the header shows meal name & description
+    final sampleMeal = MealModelV3.getSampleMeals().first;
     setState(() {
       _upcomingOrders = [
         OrderModelV3(
-          id: 'order_1',
-          userId: 'user123',
+          id: 'mock_order_1',
+          userId: 'mock_user',
           mealPlanType: MealPlanType.nutritious,
-          meals: [],
-          deliveryAddress: 'Your Address',
-          orderDate: DateTime.now().subtract(const Duration(hours: 2)),
-          deliveryDate: DateTime.now().add(const Duration(hours: 4)),
-          status: OrderStatus.preparing,
-          totalAmount: 24.99,
-          estimatedDeliveryTime: DateTime.now().add(const Duration(hours: 4)),
-        ),
-        OrderModelV3(
-          id: 'order_2',
-          userId: 'user123',
-          mealPlanType: MealPlanType.leanFreak,
-          meals: [],
-          deliveryAddress: 'Your Address',
+          meals: [sampleMeal],
+          deliveryAddress: '123 Mock St, Springfield',
           orderDate: DateTime.now().subtract(const Duration(hours: 1)),
-          deliveryDate: DateTime.now().add(const Duration(days: 1, hours: 2)),
-          status: OrderStatus.confirmed,
-          totalAmount: 29.99,
-          estimatedDeliveryTime: DateTime.now().add(const Duration(days: 1, hours: 2)),
-        ),
-        OrderModelV3(
-          id: 'order_3',
-          userId: 'user123',
-          mealPlanType: MealPlanType.dietKnight,
-          meals: [],
-          deliveryAddress: 'Your Address',
-          orderDate: DateTime.now().subtract(const Duration(minutes: 30)),
-          deliveryDate: DateTime.now().add(const Duration(days: 2, hours: 1)),
-          status: OrderStatus.outForDelivery,
-          totalAmount: 27.99,
-          estimatedDeliveryTime: DateTime.now().add(const Duration(minutes: 30)),
+          deliveryDate: DateTime.now().add(const Duration(hours: 3)),
+          status: OrderStatus.preparing,
+          totalAmount: 13.00,
+          estimatedDeliveryTime: DateTime.now().add(const Duration(hours: 3)),
         ),
       ];
       _isLoading = false;
@@ -91,13 +152,7 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text(
-          'Upcoming Orders',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
-        ),
+        title: const Text('Upcoming Orders', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
@@ -106,27 +161,401 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> {
         ),
       ),
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppThemeV3.primaryGreen),
-              ),
-            )
-          : _upcomingOrders.isEmpty
-              ? _buildEmptyState()
-              : RefreshIndicator(
-                  onRefresh: _loadUpcomingOrders,
-                  color: AppThemeV3.primaryGreen,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _upcomingOrders.length,
-                    itemBuilder: (context, index) {
-                      final order = _upcomingOrders[index];
-                      return _buildOrderCard(order);
-                    },
-                  ),
-                ),
+          ? const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(AppThemeV3.primaryGreen)))
+          : _buildBody(),
     );
   }
+
+  Widget _buildBody() {
+    if (_upcomingOrders.isEmpty) {
+      return _buildEmptyState();
+    }
+
+    final nextOrder = _upcomingOrders.first;
+    return RefreshIndicator(
+      onRefresh: _loadUpcomingOrders,
+      color: AppThemeV3.primaryGreen,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        children: [
+          _buildNextOrderHeader(nextOrder),
+        ],
+      ),
+    );
+  }
+
+  // Top header showing the next order: meal image, name/desc, address/time, and actions
+  Widget _buildNextOrderHeader(OrderModelV3 order) {
+    final meal = order.meals.isNotEmpty ? order.meals.first : null;
+    final now = DateTime.now();
+    final when = order.estimatedDeliveryTime ?? order.deliveryDate;
+  final timeOnly = _formatTimeOnly(when);
+  final desc = meal?.description ?? 'Scheduled meal delivery';
+    final minutesToGo = when.difference(now).inMinutes;
+    final canModify = minutesToGo > 60 &&
+        order.status != OrderStatus.outForDelivery &&
+        order.status != OrderStatus.delivered &&
+        order.status != OrderStatus.cancelled;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ],
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top row with meal details and address/time box
+    Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Meal image/icon
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+      width: 60,
+      height: 60,
+                  color: Colors.grey.shade100,
+                  child: (meal != null && meal.imageUrl.isNotEmpty && meal.imageUrl.startsWith('http'))
+                      ? Image.network(meal.imageUrl, fit: BoxFit.cover)
+          : Icon(meal?.icon ?? Icons.fastfood, color: AppThemeV3.accent, size: 30),
+                ),
+              ),
+        const SizedBox(width: 10),
+              // Meal details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      meal?.name ?? _getMealPlanDisplayName(order.mealPlanType),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    _expandableDescription(desc),
+                    const SizedBox(height: 8),
+                    if (meal != null)
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _infoChip('${meal.calories} cal'),
+                            const SizedBox(width: 6),
+                            _infoChip('P ${meal.protein}g'),
+                            const SizedBox(width: 6),
+                            _infoChip('C ${meal.carbs}g'),
+                            const SizedBox(width: 6),
+                            _infoChip('F ${meal.fat}g'),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Address/time compact box
+              ConstrainedBox(
+    constraints: const BoxConstraints(maxWidth: 110),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.place, size: 14),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _addressDisplayName(order.deliveryAddress),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          const Icon(Icons.access_time, size: 14),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              timeOnly,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // Replace / Cancel
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: canModify ? () => _replaceMeal(order) : null,
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: AppThemeV3.primaryGreen),
+                    foregroundColor: AppThemeV3.primaryGreen,
+                  ),
+                  child: const Text('Replace'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: canModify ? () => _cancelOrder(order) : null,
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.red),
+                    foregroundColor: Colors.red,
+                  ),
+                  child: const Text('Cancel'),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          if (!canModify)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.lock_clock, size: 18, color: Colors.grey),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Modifications are disabled within 1 hour of delivery.',
+                      style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          if (order.status != OrderStatus.confirmed && minutesToGo > 15)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, size: 18, color: Colors.grey),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'If you don\'t confirm, your order will auto-confirm 15 minutes before delivery.',
+                      style: TextStyle(color: Colors.grey[700]),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          // Confirm button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: order.status == OrderStatus.confirmed ? null : () => _confirmOrder(order),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppThemeV3.primaryGreen,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(order.status == OrderStatus.confirmed ? 'Confirmed' : 'Confirm'),
+            ),
+          ),
+
+          if (order.status == OrderStatus.confirmed ||
+              order.status == OrderStatus.preparing ||
+              order.status == OrderStatus.outForDelivery)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: _buildTracker(order),
+            ),
+
+          if (order.status == OrderStatus.delivered)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: _buildReviewCta(order),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoChip(String text) {
+    return Container(
+  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+  child: Text(text, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+    );
+  }
+
+  // Expand/collapse description when tapping the ellipsis
+  Widget _expandableDescription(String desc) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final span = TextSpan(text: desc, style: TextStyle(color: Colors.grey[700], fontSize: 13));
+        final tp = TextPainter(
+          text: span,
+          maxLines: _showFullDesc ? null : 2,
+          textDirection: TextDirection.ltr,
+          ellipsis: _showFullDesc ? null : '…',
+        );
+        tp.layout(maxWidth: constraints.maxWidth);
+        final isOverflow = tp.didExceedMaxLines;
+
+        final textWidget = Text(
+          desc,
+          style: TextStyle(color: Colors.grey[700], fontSize: 13),
+          maxLines: _showFullDesc ? null : 2,
+          overflow: _showFullDesc ? TextOverflow.visible : TextOverflow.ellipsis,
+        );
+
+        if (!isOverflow) return textWidget;
+
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => setState(() => _showFullDesc = !_showFullDesc),
+          child: textWidget,
+        );
+      },
+    );
+  }
+
+  String _addressDisplayName(String fullAddress) {
+    final lower = fullAddress.toLowerCase();
+    if (lower.contains('home')) return 'Home';
+    if (lower.contains('work')) return 'Work';
+    if (lower.contains('office')) return 'Office';
+    return 'Address';
+  }
+
+  Widget _buildTracker(OrderModelV3 order) {
+    // Steps: Confirmed -> Ready -> Picked Up -> Out for Delivery -> Delivered
+    final steps = [
+      (label: 'Confirmed', icon: Icons.check_circle, reached: order.status.index >= OrderStatus.confirmed.index),
+      (label: 'Ready', icon: Icons.restaurant, reached: order.status.index >= OrderStatus.preparing.index),
+      (label: 'Picked Up', icon: Icons.shopping_bag, reached: order.status.index >= OrderStatus.outForDelivery.index),
+      (label: 'Out', icon: Icons.local_shipping, reached: order.status == OrderStatus.outForDelivery || order.status == OrderStatus.delivered),
+      (label: 'Delivered', icon: Icons.done_all, reached: order.status == OrderStatus.delivered),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Delivery Tracker', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        // Vertical tracker layout
+        Column(
+          children: [
+            for (int i = 0; i < steps.length; i++) ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Icon + vertical connector
+                  Column(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: steps[i].reached ? AppThemeV3.primaryGreen : Colors.grey.shade300,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(steps[i].icon, size: 20, color: Colors.white),
+                      ),
+                      if (i < steps.length - 1)
+                        Container(
+                          width: 3,
+                          height: 32,
+                          color: steps[i + 1].reached ? AppThemeV3.primaryGreen : Colors.grey.shade300,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        steps[i].label,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: steps[i].reached ? Colors.black87 : Colors.grey,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (i < steps.length - 1) const SizedBox(height: 12),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
+  // Old horizontal tracker step widget removed (vertical tracker in use)
+
+  Widget _buildReviewCta(OrderModelV3 order) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.rate_review, color: Colors.amber),
+          const SizedBox(width: 10),
+          const Expanded(child: Text('Your order was delivered. Leave a review?')),
+          ElevatedButton(
+            onPressed: () => _leaveReview(order),
+            style: ElevatedButton.styleFrom(backgroundColor: AppThemeV3.primaryGreen, foregroundColor: Colors.white),
+            child: const Text('Review'),
+          )
+        ],
+      ),
+    );
+  }
+
+  // Removed filters/list helpers for single-order view
 
   Widget _buildEmptyState() {
     return Center(
@@ -171,295 +600,7 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> {
     );
   }
 
-  Widget _buildOrderCard(OrderModelV3 order) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Order Header
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: _getStatusColor(order.status).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    _getStatusIcon(order.status),
-                    color: _getStatusColor(order.status),
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _getMealPlanDisplayName(order.mealPlanType),
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Order #${order.id.substring(order.id.length - 6).toUpperCase()}',
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: _getStatusColor(order.status),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    _getStatusText(order.status),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Delivery Info
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              children: [
-                _buildInfoRow(
-                  Icons.access_time,
-                  'Estimated Delivery',
-                  _formatDeliveryTime(order.estimatedDeliveryTime),
-                ),
-                const SizedBox(height: 8),
-                _buildInfoRow(
-                  Icons.location_on,
-                  'Delivery Address',
-                  order.deliveryAddress,
-                ),
-                const SizedBox(height: 8),
-                _buildInfoRow(
-                  Icons.attach_money,
-                  'Total Amount',
-                  '\$${order.totalAmount.toStringAsFixed(2)}',
-                ),
-              ],
-            ),
-          ),
-
-          // Progress Indicator for Active Orders
-          if (order.status == OrderStatus.preparing || 
-              order.status == OrderStatus.outForDelivery)
-            _buildProgressIndicator(order),
-
-          // Action Buttons
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                if (order.status == OrderStatus.outForDelivery)
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _trackOrder(order),
-                      icon: const Icon(Icons.location_on),
-                      label: const Text('Track Order'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppThemeV3.primaryGreen,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ),
-                if (order.status == OrderStatus.confirmed)
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => _cancelOrder(order),
-                      icon: const Icon(Icons.cancel),
-                      label: const Text('Cancel Order'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
-                        side: const BorderSide(color: Colors.red),
-                      ),
-                    ),
-                  ),
-                if (order.status == OrderStatus.preparing ||
-                    order.status == OrderStatus.outForDelivery) ...[
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => _contactSupport(order),
-                      icon: const Icon(Icons.support_agent),
-                      label: const Text('Support'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppThemeV3.primaryGreen,
-                        side: const BorderSide(color: AppThemeV3.primaryGreen),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _viewOrderDetails(order),
-                      icon: const Icon(Icons.info),
-                      label: const Text('Details'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppThemeV3.primaryGreen,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(
-          icon,
-          size: 16,
-          color: Colors.grey[600],
-        ),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.grey[600],
-            fontSize: 14,
-          ),
-        ),
-        const Spacer(),
-        Text(
-          value,
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildProgressIndicator(OrderModelV3 order) {
-    double progress = 0.0;
-    switch (order.status) {
-      case OrderStatus.confirmed:
-        progress = 0.25;
-        break;
-      case OrderStatus.preparing:
-        progress = 0.5;
-        break;
-      case OrderStatus.outForDelivery:
-        progress = 0.75;
-        break;
-      case OrderStatus.delivered:
-        progress = 1.0;
-        break;
-      default:
-        progress = 0.0;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Order Progress',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: Colors.grey[700],
-            ),
-          ),
-          const SizedBox(height: 8),
-          LinearProgressIndicator(
-            value: progress,
-            backgroundColor: Colors.grey[200],
-            valueColor: AlwaysStoppedAnimation<Color>(AppThemeV3.primaryGreen),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color _getStatusColor(OrderStatus status) {
-    switch (status) {
-      case OrderStatus.confirmed:
-        return Colors.blue;
-      case OrderStatus.preparing:
-        return Colors.orange;
-      case OrderStatus.outForDelivery:
-        return AppThemeV3.primaryGreen;
-      case OrderStatus.delivered:
-        return Colors.green;
-      case OrderStatus.cancelled:
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  IconData _getStatusIcon(OrderStatus status) {
-    switch (status) {
-      case OrderStatus.confirmed:
-        return Icons.check_circle;
-      case OrderStatus.preparing:
-        return Icons.restaurant;
-      case OrderStatus.outForDelivery:
-        return Icons.local_shipping;
-      case OrderStatus.delivered:
-        return Icons.done_all;
-      case OrderStatus.cancelled:
-        return Icons.cancel;
-      default:
-        return Icons.info;
-    }
-  }
-
-  String _getStatusText(OrderStatus status) {
-    switch (status) {
-      case OrderStatus.confirmed:
-        return 'Confirmed';
-      case OrderStatus.preparing:
-        return 'Preparing';
-      case OrderStatus.outForDelivery:
-        return 'Out for Delivery';
-      case OrderStatus.delivered:
-        return 'Delivered';
-      case OrderStatus.cancelled:
-        return 'Cancelled';
-      default:
-        return 'Unknown';
-    }
-  }
+  // Removed old list card and status helpers; tracker remains for confirmed and later
 
   String _getMealPlanDisplayName(MealPlanType type) {
     switch (type) {
@@ -473,28 +614,32 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> {
   }
 
   String _formatDeliveryTime(DateTime? deliveryTime) {
-    if (deliveryTime == null) return 'Not available';
-    
+    if (deliveryTime == null) return 'Time not set';
     final now = DateTime.now();
-    final difference = deliveryTime.difference(now);
-    
-    if (difference.inMinutes < 60) {
-      return '${difference.inMinutes} minutes';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours} hours';
-    } else {
-      return '${difference.inDays} days';
-    }
+    final day = DateTime(deliveryTime.year, deliveryTime.month, deliveryTime.day);
+    final today = DateTime(now.year, now.month, now.day);
+    final isToday = day == today;
+    final isTomorrow = day == today.add(const Duration(days: 1));
+    final hour = deliveryTime.hour;
+    final minute = deliveryTime.minute.toString().padLeft(2, '0');
+    final ampm = hour >= 12 ? 'PM' : 'AM';
+    final h12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+    final time = '$h12:$minute $ampm';
+    final prefix = isToday
+        ? 'Today'
+        : (isTomorrow ? 'Tomorrow' : '${deliveryTime.month}/${deliveryTime.day}');
+    return '$prefix • $time';
   }
 
-  void _trackOrder(OrderModelV3 order) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Tracking order #${order.id.substring(order.id.length - 6).toUpperCase()}...'),
-        backgroundColor: AppThemeV3.primaryGreen,
-      ),
-    );
+  String _formatTimeOnly(DateTime deliveryTime) {
+    final hour = deliveryTime.hour;
+    final minute = deliveryTime.minute.toString().padLeft(2, '0');
+    final ampm = hour >= 12 ? 'PM' : 'AM';
+    final h12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+    return '$h12:$minute $ampm';
   }
+
+  // _trackOrder removed in single-order simplification
 
   void _cancelOrder(OrderModelV3 order) {
     showDialog(
@@ -508,14 +653,24 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> {
             child: const Text('No'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Order cancelled successfully'),
-                  backgroundColor: Colors.red,
-                ),
-              );
+              try {
+                await FirestoreServiceV3.updateOrderStatus(orderId: order.id, status: OrderStatus.cancelled);
+                // Cancel any scheduled notification
+                await NotificationServiceV3.instance.cancel(order.id.hashCode & 0x7fffffff);
+                await _loadUpcomingOrders();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Order cancelled successfully'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to cancel: $e')),
+                );
+              }
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Yes, Cancel'),
@@ -525,20 +680,79 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> {
     );
   }
 
-  void _contactSupport(OrderModelV3 order) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Connecting to customer support...'),
-        backgroundColor: AppThemeV3.primaryGreen,
-      ),
-    );
+  // _contactSupport removed in single-order simplification
+
+  // _viewOrderDetails removed in single-order simplification
+
+  Future<void> _confirmOrder(OrderModelV3 order) async {
+    try {
+      await FirestoreServiceV3.updateOrderStatus(orderId: order.id, status: OrderStatus.confirmed);
+  // Cancel any scheduled reminder notification since it's now confirmed
+  await NotificationServiceV3.instance.cancel(order.id.hashCode & 0x7fffffff);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Order confirmed')),
+      );
+      await _loadUpcomingOrders();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to confirm: $e')),
+      );
+    }
   }
 
-  void _viewOrderDetails(OrderModelV3 order) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Viewing details for order #${order.id.substring(order.id.length - 6).toUpperCase()}'),
-        backgroundColor: AppThemeV3.primaryGreen,
+  Future<void> _replaceMeal(OrderModelV3 order) async {
+    // Navigate to interactive menu and allow picking a replacement for the first meal
+    final current = order.meals.isNotEmpty ? order.meals.first : null;
+    final newMeal = await Navigator.of(context).push<MealModelV3>(
+      MaterialPageRoute(
+        builder: (_) => InteractiveMenuPageV3(
+          menuType: current?.mealType ?? 'lunch',
+          day: _formatDeliveryTime(order.estimatedDeliveryTime ?? order.deliveryDate),
+          onMealSelected: (m) => Navigator.of(context).pop(m),
+          selectedMeal: current,
+        ),
+      ),
+    );
+    if (newMeal != null) {
+      try {
+        final updatedMeals = [newMeal, ...order.meals.skip(1)];
+        await FirestoreServiceV3.updateOrderMeals(orderId: order.id, meals: updatedMeals);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Meal replaced')),
+        );
+        await _loadUpcomingOrders();
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to replace: $e')),
+        );
+      }
+    }
+  }
+
+  void _leaveReview(OrderModelV3 order) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Leave a review', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 12),
+            const TextField(decoration: InputDecoration(labelText: 'Comments', border: OutlineInputBorder())),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(backgroundColor: AppThemeV3.primaryGreen, foregroundColor: Colors.white),
+                child: const Text('Submit'),
+              ),
+            )
+          ],
+        ),
       ),
     );
   }

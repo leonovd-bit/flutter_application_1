@@ -15,9 +15,10 @@ class _MapPageV3State extends State<MapPageV3> {
   GoogleMapController? _mapController;
   Position? _currentPosition;
   bool _isLoading = true;
+  bool _hasLocationPermission = false;
   
-  // FreshPunk ghost kitchen locations in NYC
-  final Set<Marker> _markers = {};
+  // Use dynamic marker loading instead of storing all markers
+  final Set<Marker> _markers = <Marker>{};
   
   static const CameraPosition _initialPosition = CameraPosition(
     target: LatLng(40.7589, -73.9851), // Times Square, NYC
@@ -30,9 +31,17 @@ class _MapPageV3State extends State<MapPageV3> {
     _initializeMap();
   }
 
+  @override
+  void dispose() {
+    _mapController?.dispose();
+    super.dispose();
+  }
+
   Future<void> _initializeMap() async {
     await _requestLocationPermission();
-    await _getCurrentLocation();
+    if (_hasLocationPermission) {
+      await _getCurrentLocation();
+    }
     _addGhostKitchenMarkers();
     setState(() {
       _isLoading = false;
@@ -41,13 +50,20 @@ class _MapPageV3State extends State<MapPageV3> {
 
   Future<void> _requestLocationPermission() async {
     final permission = await Permission.location.request();
-    if (permission.isDenied) {
-      // Handle permission denied
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Location permission is required to show your position on the map'),
-        ),
-      );
+    _hasLocationPermission = permission.isGranted || permission.isLimited;
+    if (!_hasLocationPermission) {
+      // Defer UI feedback until after first frame to avoid Scaffold context issues in initState
+      if (mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          final messenger = ScaffoldMessenger.maybeOf(context);
+          messenger?.showSnackBar(
+            const SnackBar(
+              content: Text('Location permission denied. You can enable it in Settings to show your position.'),
+            ),
+          );
+        });
+      }
     }
   }
 
@@ -58,8 +74,15 @@ class _MapPageV3State extends State<MapPageV3> {
         return;
       }
 
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        return;
+      }
+
       _currentPosition = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
 
       if (_currentPosition != null) {
@@ -73,7 +96,7 @@ class _MapPageV3State extends State<MapPageV3> {
         );
       }
     } catch (e) {
-      print('Error getting location: $e');
+      debugPrint('Error getting location: $e');
     }
   }
 
@@ -311,7 +334,7 @@ class _MapPageV3State extends State<MapPageV3> {
               onMapCreated: _onMapCreated,
               initialCameraPosition: _initialPosition,
               markers: _markers,
-              myLocationEnabled: true,
+              myLocationEnabled: _hasLocationPermission,
               myLocationButtonEnabled: false,
               zoomControlsEnabled: false,
               mapToolbarEnabled: false,

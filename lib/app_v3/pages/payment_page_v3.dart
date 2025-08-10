@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
 import 'home_page_v3.dart';
+import '../services/progress_manager.dart';
 
 class PaymentPageV3 extends StatefulWidget {
   final MealPlanModelV3 mealPlan;
@@ -23,8 +25,8 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
   bool _isProcessing = false;
   String _selectedPaymentMethod = 'card';
   
-  // Calculate monthly price (weekly * 4.33 weeks per month on average)
-  double get _monthlyPrice => widget.mealPlan.pricePerWeek * 4.33;
+  // Monthly price derived from model getter ($13/meal * meals/day * 30)
+  double get _monthlyPrice => widget.mealPlan.monthlyPrice;
 
   @override
   Widget build(BuildContext context) {
@@ -97,7 +99,7 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: AppThemeV3.accent.withOpacity(0.1),
+                          color: AppThemeV3.accent.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
@@ -124,7 +126,7 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
                         style: AppThemeV3.textTheme.bodyLarge,
                       ),
                       Text(
-                        '\$${widget.mealPlan.pricePerWeek.toStringAsFixed(2)}',
+                        '\$${widget.mealPlan.weeklyPrice.toStringAsFixed(2)}',
                         style: AppThemeV3.textTheme.bodyLarge?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
@@ -157,7 +159,7 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppThemeV3.accent.withOpacity(0.1),
+                      color: AppThemeV3.accent.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -426,6 +428,17 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
     try {
       // Mock payment processing for development
       await _processMockPayment();
+      // Mark setup as completed and finalize onboarding
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('setup_completed', true);
+        await ProgressManager.saveCurrentStep(OnboardingStep.completed);
+        // Keep setup_completed flag but clear other onboarding progress data
+        await ProgressManager.clearOnboardingProgress();
+      } catch (e) {
+        // ignore: avoid_print
+        print('Error marking setup completed: $e');
+      }
       
       // If payment successful, navigate to home
       if (mounted) {

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+// import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
 import '../services/firestore_service_v3.dart';
+import '../services/reorder_service.dart';
+import 'reorder_history_page_v3.dart';
 
 class PastOrdersPageV3 extends StatefulWidget {
   const PastOrdersPageV3({super.key});
@@ -50,8 +53,24 @@ class _PastOrdersPageV3State extends State<PastOrdersPageV3> {
           id: 'order_past_1',
           userId: 'user123',
           mealPlanType: MealPlanType.nutritious,
-          meals: [],
-          deliveryAddress: 'Your Address',
+          meals: [
+            MealModelV3(
+              id: 'b1',
+              name: 'Avocado Toast & Eggs',
+              description: 'Whole grain toast with avocado and scrambled eggs',
+              calories: 420,
+              protein: 18,
+              carbs: 35,
+              fat: 24,
+              ingredients: const [],
+              allergens: const [],
+              icon: Icons.breakfast_dining,
+              imageUrl: '',
+              mealType: 'breakfast',
+              price: 12.99,
+            ),
+          ],
+          deliveryAddress: 'Home',
           orderDate: DateTime.now().subtract(const Duration(days: 7)),
           deliveryDate: DateTime.now().subtract(const Duration(days: 7)),
           status: OrderStatus.delivered,
@@ -62,8 +81,24 @@ class _PastOrdersPageV3State extends State<PastOrdersPageV3> {
           id: 'order_past_2',
           userId: 'user123',
           mealPlanType: MealPlanType.leanFreak,
-          meals: [],
-          deliveryAddress: 'Your Address',
+          meals: [
+            MealModelV3(
+              id: 'l1',
+              name: 'Grilled Chicken Power Bowl',
+              description: 'Chicken, quinoa, greens, and roasted veggies',
+              calories: 550,
+              protein: 42,
+              carbs: 45,
+              fat: 16,
+              ingredients: const [],
+              allergens: const [],
+              icon: Icons.lunch_dining,
+              imageUrl: '',
+              mealType: 'lunch',
+              price: 13.99,
+            ),
+          ],
+          deliveryAddress: 'Work',
           orderDate: DateTime.now().subtract(const Duration(days: 14)),
           deliveryDate: DateTime.now().subtract(const Duration(days: 14)),
           status: OrderStatus.delivered,
@@ -74,8 +109,24 @@ class _PastOrdersPageV3State extends State<PastOrdersPageV3> {
           id: 'order_past_3',
           userId: 'user123',
           mealPlanType: MealPlanType.dietKnight,
-          meals: [],
-          deliveryAddress: 'Your Address',
+          meals: [
+            MealModelV3(
+              id: 'd1',
+              name: 'Salmon & Veggie Plate',
+              description: 'Roasted salmon with seasonal vegetables',
+              calories: 480,
+              protein: 34,
+              carbs: 28,
+              fat: 22,
+              ingredients: const [],
+              allergens: const [],
+              icon: Icons.dinner_dining,
+              imageUrl: '',
+              mealType: 'dinner',
+              price: 14.99,
+            ),
+          ],
+          deliveryAddress: 'Office',
           orderDate: DateTime.now().subtract(const Duration(days: 21)),
           deliveryDate: DateTime.now().subtract(const Duration(days: 21)),
           status: OrderStatus.delivered,
@@ -86,8 +137,24 @@ class _PastOrdersPageV3State extends State<PastOrdersPageV3> {
           id: 'order_past_4',
           userId: 'user123',
           mealPlanType: MealPlanType.nutritious,
-          meals: [],
-          deliveryAddress: 'Your Address',
+          meals: [
+            MealModelV3(
+              id: 'b2',
+              name: 'Greek Yogurt Bowl',
+              description: 'Greek yogurt with berries and granola',
+              calories: 320,
+              protein: 20,
+              carbs: 42,
+              fat: 8,
+              ingredients: const [],
+              allergens: const [],
+              icon: Icons.breakfast_dining,
+              imageUrl: '',
+              mealType: 'breakfast',
+              price: 9.99,
+            ),
+          ],
+          deliveryAddress: 'Home',
           orderDate: DateTime.now().subtract(const Duration(days: 30)),
           deliveryDate: DateTime.now().subtract(const Duration(days: 30)),
           status: OrderStatus.cancelled,
@@ -128,6 +195,20 @@ class _PastOrdersPageV3State extends State<PastOrdersPageV3> {
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.history, color: Colors.black87),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ReorderHistoryPageV3(),
+                ),
+              );
+            },
+            tooltip: 'Reorder History',
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(
@@ -243,6 +324,9 @@ class _PastOrdersPageV3State extends State<PastOrdersPageV3> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: order.status == OrderStatus.cancelled 
+            ? Border.all(color: AppThemeV3.primaryGreen.withOpacity(0.3), width: 2)
+            : null,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.08),
@@ -253,6 +337,65 @@ class _PastOrdersPageV3State extends State<PastOrdersPageV3> {
       ),
       child: Column(
         children: [
+          // Special reorder banner for cancelled orders
+          if (order.status == OrderStatus.cancelled)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppThemeV3.primaryGreen.withOpacity(0.1),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.refresh,
+                    color: AppThemeV3.primaryGreen,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Available for Reorder',
+                    style: TextStyle(
+                      color: AppThemeV3.primaryGreen,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const Spacer(),
+                  FutureBuilder<bool>(
+                    future: ReorderService.hasBeenReordered(order.id),
+                    builder: (context, snapshot) {
+                      if (snapshot.data == true) {
+                        return Row(
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              color: AppThemeV3.primaryGreen,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Previously Reordered',
+                              style: TextStyle(
+                                color: AppThemeV3.primaryGreen,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                ],
+              ),
+            ),
+          
           // Order Header
           Container(
             padding: const EdgeInsets.all(16),
@@ -276,7 +419,7 @@ class _PastOrdersPageV3State extends State<PastOrdersPageV3> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _getMealPlanDisplayName(order.mealPlanType),
+                        _orderTitleFromMeals(order),
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -326,14 +469,10 @@ class _PastOrdersPageV3State extends State<PastOrdersPageV3> {
                 _buildInfoRow(
                   Icons.location_on,
                   'Delivery Address',
-                  order.deliveryAddress,
+                  _addressDisplayName(order.deliveryAddress),
                 ),
                 const SizedBox(height: 8),
-                _buildInfoRow(
-                  Icons.attach_money,
-                  'Total Amount',
-                  '\$${order.totalAmount.toStringAsFixed(2)}',
-                ),
+                // Price removed per request
               ],
             ),
           ),
@@ -346,26 +485,30 @@ class _PastOrdersPageV3State extends State<PastOrdersPageV3> {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () => _reorderMeal(order),
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Reorder'),
+                    icon: Icon(
+                      order.status == OrderStatus.cancelled ? Icons.refresh : Icons.refresh,
+                      color: order.status == OrderStatus.cancelled 
+                          ? AppThemeV3.primaryGreen 
+                          : AppThemeV3.primaryGreen,
+                    ),
+                    label: Text(
+                      order.status == OrderStatus.cancelled ? 'Reorder Now' : 'Reorder',
+                      style: TextStyle(
+                        fontWeight: order.status == OrderStatus.cancelled 
+                            ? FontWeight.w600 
+                            : FontWeight.normal,
+                      ),
+                    ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppThemeV3.primaryGreen,
-                      side: const BorderSide(color: AppThemeV3.primaryGreen),
+                      side: BorderSide(
+                        color: AppThemeV3.primaryGreen,
+                        width: order.status == OrderStatus.cancelled ? 2 : 1,
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _viewOrderDetails(order),
-                    icon: const Icon(Icons.receipt),
-                    label: const Text('View Receipt'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppThemeV3.primaryGreen,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ),
+                // Receipt button removed per request
                 if (order.status == OrderStatus.delivered) ...[
                   const SizedBox(width: 12),
                   Expanded(
@@ -468,23 +611,197 @@ class _PastOrdersPageV3State extends State<PastOrdersPageV3> {
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
+  String _orderTitleFromMeals(OrderModelV3 order) {
+    if (order.meals.isEmpty) return _getMealPlanDisplayName(order.mealPlanType);
+    final names = order.meals.map((m) => m.name).where((n) => n.isNotEmpty).toList();
+    if (names.isEmpty) return _getMealPlanDisplayName(order.mealPlanType);
+    if (names.length == 1) return names.first;
+    return '${names.first} +${names.length - 1} more';
+  }
+
+  String _addressDisplayName(String fullAddress) {
+    final lower = fullAddress.toLowerCase();
+    if (lower.contains('home')) return 'Home';
+    if (lower.contains('work')) return 'Work';
+    if (lower.contains('office')) return 'Office';
+    return fullAddress.isNotEmpty ? fullAddress : 'Address';
+  }
+
   void _reorderMeal(OrderModelV3 order) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Reordering ${_getMealPlanDisplayName(order.mealPlanType)}...'),
-        backgroundColor: AppThemeV3.primaryGreen,
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              Icons.refresh,
+              color: AppThemeV3.primaryGreen,
+              size: 24,
+            ),
+            const SizedBox(width: 8),
+            const Text('Reorder Meal'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Reorder "${_orderTitleFromMeals(order)}"?',
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.restaurant_menu, size: 16, color: Colors.grey[600]),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Original order details:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text('• Meal: ${_orderTitleFromMeals(order)}'),
+                  Text('• Address: ${_addressDisplayName(order.deliveryAddress)}'),
+                  if (order.notes != null && order.notes!.isNotEmpty)
+                    Text('• Notes: ${order.notes}'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Icon(Icons.info_outline, size: 16, color: Colors.blue),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'This will create a new order with the same meal plan and preferences.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              _processReorder(order);
+            },
+            icon: const Icon(Icons.add_shopping_cart),
+            label: const Text('Reorder Now'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppThemeV3.primaryGreen,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  void _viewOrderDetails(OrderModelV3 order) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Viewing receipt for order #${order.id.substring(order.id.length - 6).toUpperCase()}'),
-        backgroundColor: AppThemeV3.primaryGreen,
-      ),
+  Future<void> _processReorder(OrderModelV3 order) async {
+    final userId = FirestoreServiceV3.getCurrentUserId();
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in to reorder.')),
+      );
+      return;
+    }
+
+    if (order.meals.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This order has no meal details to reorder.')),
+      );
+      return;
+    }
+
+    final newMeal = order.meals.first;
+    final mealType = newMeal.mealType;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
     );
+
+    try {
+      final replaced = await FirestoreServiceV3.replaceNextUpcomingOrderMealOfType(
+        userId: userId,
+        mealType: mealType,
+        newMeal: newMeal,
+      );
+
+      if (mounted) Navigator.pop(context);
+
+      if (replaced) {
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Replaced Next Order'),
+            content: Text('Your next $mealType order has been updated to "${newMeal.name}".'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.pushNamed(context, '/upcoming-orders-v3');
+                },
+                child: const Text('View Upcoming'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No upcoming $mealType order available to replace, or it is locked.'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to replace next order: $e')),
+      );
+    }
   }
+
+  // Removed legacy success dialog for reorder cart flow
+
+  // Removed unused navigation helper
+
+  // _viewOrderDetails removed (receipt UI disabled)
 
   void _leaveFeedback(OrderModelV3 order) {
     ScaffoldMessenger.of(context).showSnackBar(

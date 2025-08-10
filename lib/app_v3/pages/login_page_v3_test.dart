@@ -1,11 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../theme/app_theme_v3.dart';
-import 'signup_page_v3.dart';
-import 'home_page_v3.dart';
-import 'welcome_page_v3.dart';
+// Removed unused imports for cleaner tests
 
 class LoginPageV3Test extends StatefulWidget {
   const LoginPageV3Test({super.key});

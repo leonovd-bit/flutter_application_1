@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1024" height="1024" fill="#ffffff" rx="180"/>
+  
+  <!-- Fork (left side) -->
+  <g transform="translate(80,200)">
+    <rect x="20" y="0" width="15" height="400" fill="#4a4a4a" rx="7"/>
+    <rect x="45" y="0" width="15" height="400" fill="#4a4a4a" rx="7"/>
+    <rect x="70" y="0" width="15" height="400" fill="#4a4a4a" rx="7"/>
+    <rect x="10" y="380" width="85" height="40" fill="#4a4a4a" rx="20"/>
+  </g>
+  
+  <!-- Knife (right side) -->
+  <g transform="translate(840,200)">
+    <rect x="20" y="0" width="20" height="420" fill="#4a4a4a" rx="10"/>
+    <path d="M15 0 L45 0 L35 40 L25 40 Z" fill="#c0c0c0"/>
+  </g>
+  
+  <!-- Main Plate Container -->
+  <g transform="translate(200,180)">
+    <!-- Outer plate border -->
+    <rect x="0" y="0" width="624" height="400" fill="#4a4a4a" rx="60" stroke="#4a4a4a" stroke-width="8"/>
+    <!-- Inner plate -->
+    <rect x="20" y="20" width="584" height="360" fill="#f8f8f8" rx="40"/>
+    
+    <!-- Left compartment (meat) -->
+    <rect x="40" y="40" width="280" height="320" fill="#ffffff" rx="30" stroke="#4a4a4a" stroke-width="4"/>
+    <!-- Meat/steak -->
+    <ellipse cx="180" cy="200" rx="120" ry="80" fill="#ff4444"/>
+    <ellipse cx="195" cy="180" rx="25" ry="15" fill="#ffffff" opacity="0.8"/>
+    
+    <!-- Top right compartment (carrot) -->
+    <rect x="340" y="40" width="244" height="150" fill="#ffffff" rx="30" stroke="#4a4a4a" stroke-width="4"/>
+    <!-- Carrot -->
+    <ellipse cx="462" cy="115" rx="60" ry="30" fill="#ff8800"/>
+    <path d="M462 85 L472 75 L468 70 L458 80 Z" fill="#22aa22"/>
+    <path d="M465 88 L475 78 L471 73 L461 83 Z" fill="#22aa22"/>
+    <path d="M459 88 L469 78 L465 73 L455 83 Z" fill="#22aa22"/>
+    <!-- Carrot lines -->
+    <path d="M420 115 L504 115" stroke="#ffffff" stroke-width="3" opacity="0.6"/>
+    <path d="M425 105 L499 105" stroke="#ffffff" stroke-width="2" opacity="0.4"/>
+    <path d="M425 125 L499 125" stroke="#ffffff" stroke-width="2" opacity="0.4"/>
+    
+    <!-- Bottom right compartment (greens) -->
+    <rect x="340" y="210" width="244" height="150" fill="#ffffff" rx="30" stroke="#4a4a4a" stroke-width="4"/>
+    <!-- Leafy greens -->
+    <g transform="translate(420,260)">
+      <path d="M0 40 Q-20 20 -10 0 Q10 10 20 0 Q40 20 20 40 Q0 50 0 40 Z" fill="#22aa22"/>
+      <path d="M20 40 Q0 20 10 0 Q30 10 40 0 Q60 20 40 40 Q20 50 20 40 Z" fill="#22aa22"/>
+      <path d="M40 40 Q20 20 30 0 Q50 10 60 0 Q80 20 60 40 Q40 50 40 40 Z" fill="#22aa22"/>
+      <path d="M10 20 Q30 0 50 20 Q30 40 10 20" fill="#44cc44"/>
+    </g>
+  </g>
+  
+  <!-- FreshPunk Text -->
+  <g transform="translate(120,650)">
+    <!-- Fresh (Green) -->
+    <text x="0" y="120" font-family="Arial, sans-serif" font-size="140" font-weight="bold" fill="#22aa22">Fresh</text>
+    <!-- Punk (Orange/Red) -->
+    <text x="360" y="120" font-family="Arial, sans-serif" font-size="140" font-weight="bold" fill="#ff4444">Punk</text>
+  </g>
+</svg>

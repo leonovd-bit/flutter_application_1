@@ -23,6 +23,7 @@ class SettingsPageV3 extends StatefulWidget {
 class _SettingsPageV3State extends State<SettingsPageV3> {
   final LocalAuthentication _localAuth = LocalAuthentication();
   
+  // Optimized state management
   bool _biometricEnabled = false;
   bool _pushNotifications = true;
   bool _emailNotifications = true;
@@ -34,6 +35,12 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
   void initState() {
     super.initState();
     _loadSettings();
+  }
+
+  @override
+  void dispose() {
+    // Clean up any listeners or controllers
+    super.dispose();
   }
 
   Future<void> _loadSettings() async {

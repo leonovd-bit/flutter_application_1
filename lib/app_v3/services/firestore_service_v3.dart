@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/meal_model_v3.dart';
 
 class FirestoreServiceV3 {
@@ -43,6 +44,84 @@ class FirestoreServiceV3 {
     }
   }
 
+  // Display helper: best-effort plan name resolution for the current user.
+  // Order of preference:
+  // 1) Active subscription.planName
+  // 2) Active subscription.mealPlanId -> meal plan displayName/name
+  // 3) Current meal plan (most recent active or recent)
+  // 4) Next upcoming order.mealPlanId -> meal plan displayName/name
+  // 5) Most recent order.mealPlanId -> meal plan displayName/name
+  static Future<String?> getDisplayPlanName(String userId) async {
+    // 1 & 2: Subscription based resolution
+    try {
+      final sub = await getActiveSubscription(userId);
+      final subName = sub?['planName'] as String?;
+      if (subName != null && subName.trim().isNotEmpty) {
+        return subName.trim();
+      }
+      final subPlanId = sub?['mealPlanId'] as String?;
+      if (subPlanId != null && subPlanId.trim().isNotEmpty) {
+        final subPlan = await getMealPlanById(userId, subPlanId);
+        if (subPlan != null) {
+          final name = subPlan.displayName.isNotEmpty ? subPlan.displayName : subPlan.name;
+          if (name.trim().isNotEmpty) return name.trim();
+        }
+      }
+    } catch (_) {}
+
+    // 3: Current meal plan
+    try {
+      final mealPlan = await getCurrentMealPlan(userId);
+      if (mealPlan != null) {
+        final name = mealPlan.displayName.isNotEmpty ? mealPlan.displayName : mealPlan.name;
+        if (name.trim().isNotEmpty) return name.trim();
+      }
+    } catch (_) {}
+
+    // 3.5: Onboarding/Signup fallback via SharedPreferences (saved during delivery schedule)
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final prefDisplay = prefs.getString('selected_meal_plan_display_name');
+      if (prefDisplay != null && prefDisplay.trim().isNotEmpty) {
+        return prefDisplay.trim();
+      }
+      final prefName = prefs.getString('selected_meal_plan_name');
+      if (prefName != null && prefName.trim().isNotEmpty) {
+        return prefName.trim();
+      }
+    } catch (_) {}
+
+    // 4: Next upcoming order
+    try {
+      final next = await getNextUpcomingOrder(userId);
+      final orderPlanId = (next?['mealPlanId'] ?? '').toString();
+      if (orderPlanId.isNotEmpty) {
+        final plan = await getMealPlanById(userId, orderPlanId);
+        if (plan != null) {
+          final name = plan.displayName.isNotEmpty ? plan.displayName : plan.name;
+          if (name.trim().isNotEmpty) return name.trim();
+        }
+      }
+    } catch (_) {}
+
+    // 5: Most recent order fallback
+    try {
+      final recent = await getUserOrders(userId, limit: 10);
+      if (recent.isNotEmpty) {
+        final first = recent.first;
+        final planId = (first['mealPlanId'] ?? '').toString();
+        if (planId.isNotEmpty) {
+          final plan = await getMealPlanById(userId, planId);
+          if (plan != null) {
+            final name = plan.displayName.isNotEmpty ? plan.displayName : plan.name;
+            if (name.trim().isNotEmpty) return name.trim();
+          }
+        }
+      }
+    } catch (_) {}
+
+    return null; // Unknown, UI can show an ellipsis
+  }
   static Future<Map<String, dynamic>?> getUserProfile(String userId) async {
     try {
       final doc = await _firestore.collection(_usersCollection).doc(userId).get();
@@ -54,10 +133,62 @@ class FirestoreServiceV3 {
 
   static Future<void> updateUserProfile(String userId, Map<String, dynamic> data) async {
     try {
-      data['updatedAt'] = FieldValue.serverTimestamp();
-      await _firestore.collection(_usersCollection).doc(userId).update(data);
+      final ref = _firestore.collection(_usersCollection).doc(userId);
+      await _firestore.runTransaction((tx) async {
+        final snap = await tx.get(ref);
+        // Build update payload; avoid mutating the caller's map
+        final Map<String, dynamic> update = Map<String, dynamic>.from(data);
+        update['updatedAt'] = FieldValue.serverTimestamp();
+        if (!snap.exists) {
+          update['id'] = userId;
+          update['createdAt'] = FieldValue.serverTimestamp();
+        }
+        tx.set(ref, update, SetOptions(merge: true));
+      });
     } catch (e) {
       throw Exception('Failed to update user profile: $e');
+    }
+  }
+
+  // Address Management (simple name/address pairs for lightweight use cases)
+  static Future<List<Map<String, String>>> getUserAddressPairs(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection(_usersCollection)
+          .doc(userId)
+          .collection(_addressesCollection)
+          .orderBy('createdAt', descending: false)
+          .get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        final name = (data['name'] ?? '').toString();
+        final address = (data['address'] ?? '').toString();
+        return {'name': name, 'address': address};
+      }).toList();
+    } catch (e) {
+      throw Exception('Failed to load addresses: $e');
+    }
+  }
+
+  static Future<void> addUserAddressPair({
+    required String userId,
+    required String name,
+    required String address,
+  }) async {
+    try {
+      await _firestore
+          .collection(_usersCollection)
+          .doc(userId)
+          .collection(_addressesCollection)
+          .add({
+        'name': name,
+        'address': address,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      throw Exception('Failed to add address: $e');
     }
   }
 
@@ -77,21 +208,72 @@ class FirestoreServiceV3 {
 
   static Future<MealPlanModelV3?> getCurrentMealPlan(String userId) async {
     try {
+      // Avoid composite index by fetching a reasonable number and filtering client-side
       final querySnapshot = await _firestore
           .collection(_usersCollection)
           .doc(userId)
           .collection(_mealPlansCollection)
-          .where('isActive', isEqualTo: true)
           .orderBy('createdAt', descending: true)
-          .limit(1)
+          .limit(20)
           .get();
 
-      if (querySnapshot.docs.isNotEmpty) {
-        return MealPlanModelV3.fromFirestore(querySnapshot.docs.first);
-      }
-      return null;
+      final docs = querySnapshot.docs;
+      if (docs.isEmpty) return null;
+
+      // Prefer the most recent active plan; else the most recent plan
+      final active = docs.firstWhere(
+        (d) => (d.data()['isActive'] == true),
+        orElse: () => docs.first,
+      );
+      return MealPlanModelV3.fromFirestore(active);
     } catch (e) {
       throw Exception('Failed to get current meal plan: $e');
+    }
+  }
+
+  static Future<MealPlanModelV3?> getMealPlanById(String userId, String mealPlanId) async {
+    try {
+      final doc = await _firestore
+          .collection(_usersCollection)
+          .doc(userId)
+          .collection(_mealPlansCollection)
+          .doc(mealPlanId)
+          .get();
+      if (!doc.exists) return null;
+      return MealPlanModelV3.fromFirestore(doc);
+    } catch (e) {
+      throw Exception('Failed to get meal plan by id: $e');
+    }
+  }
+
+  // Activate the given meal plan for the user (and deactivate others)
+  static Future<void> setActiveMealPlan(String userId, MealPlanModelV3 plan) async {
+    try {
+      final userPlans = await _firestore
+          .collection(_usersCollection)
+          .doc(userId)
+          .collection(_mealPlansCollection)
+          .limit(100)
+          .get();
+
+      final batch = _firestore.batch();
+      for (final d in userPlans.docs) {
+        batch.update(d.reference, {'isActive': false, 'updatedAt': FieldValue.serverTimestamp()});
+      }
+      final planRef = _firestore
+          .collection(_usersCollection)
+          .doc(userId)
+          .collection(_mealPlansCollection)
+          .doc(plan.id);
+      batch.set(planRef, {
+        ...plan.toFirestore(),
+        'userId': userId,
+        'isActive': true,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      await batch.commit();
+    } catch (e) {
+      throw Exception('Failed to set active meal plan: $e');
     }
   }
 
@@ -143,13 +325,14 @@ class FirestoreServiceV3 {
 
   static Future<List<AddressModelV3>> getUserAddresses(String userId) async {
     try {
-      final querySnapshot = await _firestore
-          .collection(_usersCollection)
-          .doc(userId)
-          .collection(_addressesCollection)
-          .orderBy('isDefault', descending: true)
-          .orderBy('createdAt', descending: false)
-          .get();
+    // Use a single-field orderBy to avoid requiring a composite index.
+    // We'll handle any preferred ordering (e.g., isDefault first) on the client side if needed.
+    final querySnapshot = await _firestore
+      .collection(_usersCollection)
+      .doc(userId)
+      .collection(_addressesCollection)
+      .orderBy('createdAt', descending: false)
+      .get();
 
       return querySnapshot.docs
           .map((doc) => AddressModelV3.fromFirestore(doc))
@@ -186,6 +369,19 @@ class FirestoreServiceV3 {
       await batch.commit();
     } catch (e) {
       throw Exception('Failed to set default address: $e');
+    }
+  }
+
+  static Future<void> deleteUserAddress(String userId, String addressId) async {
+    try {
+      await _firestore
+          .collection(_usersCollection)
+          .doc(userId)
+          .collection(_addressesCollection)
+          .doc(addressId)
+          .delete();
+    } catch (e) {
+      throw Exception('Failed to delete address: $e');
     }
   }
 
@@ -285,6 +481,34 @@ class FirestoreServiceV3 {
     }
   }
 
+  static Future<void> updateOrderStatus({
+    required String orderId,
+    required OrderStatus status,
+  }) async {
+    try {
+      await _firestore.collection(_ordersCollection).doc(orderId).update({
+        'status': status.toString().split('.').last,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      throw Exception('Failed to update order status: $e');
+    }
+  }
+
+  static Future<void> updateOrderMeals({
+    required String orderId,
+    required List<MealModelV3> meals,
+  }) async {
+    try {
+      await _firestore.collection(_ordersCollection).doc(orderId).update({
+        'meals': meals.map((m) => m.toFirestore()).toList(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      throw Exception('Failed to update order meals: $e');
+    }
+  }
+
   static Future<List<Map<String, dynamic>>> getUserOrders(String userId, {int limit = 50}) async {
     try {
       final querySnapshot = await _firestore
@@ -305,18 +529,145 @@ class FirestoreServiceV3 {
       final now = DateTime.now();
       final nextWeek = now.add(const Duration(days: 7));
       
+    final querySnapshot = await _firestore
+      .collection(_ordersCollection)
+      .where('userId', isEqualTo: userId)
+      .where('deliveryDate', isGreaterThanOrEqualTo: now)
+      .where('deliveryDate', isLessThanOrEqualTo: nextWeek)
+      .orderBy('deliveryDate')
+      .get();
+
+    // Filter statuses client-side to avoid composite index requirement
+    final valid = {'pending', 'confirmed', 'preparing', 'outfordelivery'};
+    return querySnapshot.docs
+      .map((doc) => doc.data())
+      .where((data) => valid.contains((data['status'] ?? '').toString().toLowerCase()))
+      .toList();
+    } catch (e) {
+      // Graceful fallback if a composite index isn't ready yet
+      try {
+        final now = DateTime.now();
+        final nextWeek = now.add(const Duration(days: 7));
+        final fallback = await _firestore
+            .collection(_ordersCollection)
+            .where('userId', isEqualTo: userId)
+            .orderBy('createdAt', descending: true)
+            .limit(150)
+            .get();
+
+        final valid = {'pending', 'confirmed', 'preparing', 'outfordelivery'};
+        final items = fallback.docs.map((d) => d.data()).where((data) {
+          final ts = data['deliveryDate'];
+          final dt = ts is Timestamp
+              ? ts.toDate()
+              : DateTime.fromMillisecondsSinceEpoch((ts ?? 0) as int);
+          final status = (data['status'] ?? '').toString().toLowerCase();
+          return dt.isAfter(now) && dt.isBefore(nextWeek) && valid.contains(status);
+        }).toList();
+
+        // Sort ascending by deliveryDate to match original query
+        items.sort((a, b) {
+          DateTime ad, bd;
+          final ats = a['deliveryDate'];
+          final bts = b['deliveryDate'];
+          ad = ats is Timestamp ? ats.toDate() : DateTime.fromMillisecondsSinceEpoch((ats ?? 0) as int);
+          bd = bts is Timestamp ? bts.toDate() : DateTime.fromMillisecondsSinceEpoch((bts ?? 0) as int);
+          return ad.compareTo(bd);
+        });
+        return items;
+      } catch (_) {
+        throw Exception('Failed to get upcoming orders: $e');
+      }
+    }
+  }
+
+  static Future<Map<String, dynamic>?> getNextUpcomingOrder(String userId) async {
+    final now = DateTime.now();
+    try {
       final querySnapshot = await _firestore
           .collection(_ordersCollection)
           .where('userId', isEqualTo: userId)
-          .where('status', whereIn: ['confirmed', 'preparing', 'shipped'])
           .where('deliveryDate', isGreaterThanOrEqualTo: now)
-          .where('deliveryDate', isLessThanOrEqualTo: nextWeek)
           .orderBy('deliveryDate')
+          .limit(1)
+          .get();
+      if (querySnapshot.docs.isNotEmpty) {
+        return querySnapshot.docs.first.data();
+      }
+      return null;
+    } catch (e) {
+      // Fallback: fetch recent orders and pick the next by deliveryDate client-side
+      try {
+        final recent = await getUserOrders(userId, limit: 50);
+        recent.sort((a, b) {
+          final ad = (a['deliveryDate'] as Timestamp?)?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(a['deliveryDate'] ?? 0);
+          final bd = (b['deliveryDate'] as Timestamp?)?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(b['deliveryDate'] ?? 0);
+          return ad.compareTo(bd);
+        });
+        for (final o in recent) {
+          final dt = (o['deliveryDate'] as Timestamp?)?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(o['deliveryDate'] ?? 0);
+          final status = (o['status'] ?? '').toString().toLowerCase();
+          if (dt.isAfter(now) && status != 'cancelled') {
+            return o;
+          }
+        }
+      } catch (_) {}
+      return null;
+    }
+  }
+
+  // Replace the next upcoming order of a given meal type with a new meal.
+  // Respects the 60-minute lock and skips terminal/out-for-delivery statuses.
+  static Future<bool> replaceNextUpcomingOrderMealOfType({
+    required String userId,
+    required String mealType, // 'breakfast' | 'lunch' | 'dinner'
+    required MealModelV3 newMeal,
+  }) async {
+    final now = DateTime.now();
+    try {
+      final querySnapshot = await _firestore
+          .collection(_ordersCollection)
+          .where('userId', isEqualTo: userId)
+          .where('deliveryDate', isGreaterThanOrEqualTo: now)
+          .orderBy('deliveryDate')
+          .limit(10)
           .get();
 
-      return querySnapshot.docs.map((doc) => doc.data()).toList();
+      for (final doc in querySnapshot.docs) {
+        final data = doc.data();
+        final status = (data['status'] ?? '').toString().toLowerCase();
+        if (status == 'delivered' || status == 'cancelled' || status == 'outfordelivery') {
+          continue;
+        }
+        final deliveryTs = data['estimatedDeliveryTime'] ?? data['deliveryDate'];
+        final dt = deliveryTs is Timestamp
+            ? deliveryTs.toDate()
+            : DateTime.fromMillisecondsSinceEpoch((deliveryTs ?? 0) as int);
+        // Enforce 60-min edit lock
+        if (dt.difference(now).inMinutes <= 60) continue;
+
+        final meals = (data['meals'] as List<dynamic>? ?? [])
+            .whereType<Map<String, dynamic>>()
+            .toList();
+        if (meals.isEmpty) {
+          // If we cannot tell the type, skip this order
+          continue;
+        }
+        final firstMealType = (meals.first['mealType'] ?? '').toString().toLowerCase();
+        if (firstMealType != mealType.toLowerCase()) {
+          continue;
+        }
+
+        // Update meals to the new single meal
+        await doc.reference.update({
+          'meals': [newMeal.toFirestore()],
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        return true;
+      }
+      return false;
     } catch (e) {
-      throw Exception('Failed to get upcoming orders: $e');
+      throw Exception('Failed to replace upcoming order meal: $e');
     }
   }
 
@@ -335,7 +686,39 @@ class FirestoreServiceV3 {
 
       return querySnapshot.docs.map((doc) => doc.data()).toList();
     } catch (e) {
-      throw Exception('Failed to get past orders: $e');
+      // Graceful fallback while composite index builds: fetch recent by createdAt and filter client-side
+      try {
+        final now = DateTime.now();
+        final recent = await _firestore
+            .collection(_ordersCollection)
+            .where('userId', isEqualTo: userId)
+            .orderBy('createdAt', descending: true)
+            .limit(200)
+            .get();
+
+        final allowed = {'delivered', 'cancelled', 'refunded'};
+        final items = recent.docs.map((d) => d.data()).where((data) {
+          final ts = data['deliveryDate'];
+          final dt = ts is Timestamp
+              ? ts.toDate()
+              : DateTime.fromMillisecondsSinceEpoch((ts ?? 0) as int);
+          final status = (data['status'] ?? '').toString().toLowerCase();
+          return dt.isBefore(now) && allowed.contains(status);
+        }).toList();
+
+        // Sort to match server query and cap to 50
+        items.sort((a, b) {
+          DateTime ad, bd;
+          final ats = a['deliveryDate'];
+          final bts = b['deliveryDate'];
+          ad = ats is Timestamp ? ats.toDate() : DateTime.fromMillisecondsSinceEpoch((ats ?? 0) as int);
+          bd = bts is Timestamp ? bts.toDate() : DateTime.fromMillisecondsSinceEpoch((bts ?? 0) as int);
+          return bd.compareTo(ad);
+        });
+        return items.take(50).toList();
+      } catch (_) {
+        throw Exception('Failed to get past orders: $e');
+      }
     }
   }
 
@@ -388,6 +771,50 @@ class FirestoreServiceV3 {
     }
   }
 
+  // Update the active subscription to reflect the chosen plan
+  static Future<void> updateActiveSubscriptionPlan(String userId, MealPlanModelV3 plan) async {
+    try {
+      final col = _firestore
+          .collection(_usersCollection)
+          .doc(userId)
+          .collection(_subscriptionsCollection);
+
+      final snap = await col
+          .where('status', isEqualTo: 'active')
+          .limit(1)
+          .get();
+
+      if (snap.docs.isEmpty) {
+        // No active subscription exists yet (e.g., manual/dev setup). Create a local active one.
+        final localId = 'local';
+        final ref = col.doc(localId);
+        await ref.set({
+          'id': localId,
+          'userId': userId,
+          'stripeSubscriptionId': localId,
+          'status': 'active',
+          'mealPlanId': plan.id,
+          'planName': plan.displayName.isNotEmpty ? plan.displayName : plan.name,
+          'monthlyAmount': plan.monthlyPrice,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'nextBillingDate': null,
+          'cancelAtPeriodEnd': false,
+        }, SetOptions(merge: true));
+      } else {
+        final ref = snap.docs.first.reference;
+        await ref.set({
+          'mealPlanId': plan.id,
+          'planName': plan.displayName.isNotEmpty ? plan.displayName : plan.name,
+          'monthlyAmount': plan.monthlyPrice,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+    } catch (e) {
+      throw Exception('Failed to update subscription plan: $e');
+    }
+  }
+
   // Utility Methods
   static String? getCurrentUserId() {
     return _auth.currentUser?.uid;
@@ -398,6 +825,31 @@ class FirestoreServiceV3 {
       await _firestore.collection(collection).doc(documentId).delete();
     } catch (e) {
       throw Exception('Failed to delete document: $e');
+    }
+  }
+
+  // Backup email helpers
+  static Future<void> setBackupEmail(String userId, String? email) async {
+    try {
+      final Map<String, dynamic> update = {
+        'backupEmail': (email ?? '').trim().isEmpty ? null : email!.trim(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      await _firestore.collection(_usersCollection).doc(userId).set(update, SetOptions(merge: true));
+    } catch (e) {
+      throw Exception('Failed to set backup email: $e');
+    }
+  }
+
+  static Future<String?> getBackupEmail(String userId) async {
+    try {
+      final doc = await _firestore.collection(_usersCollection).doc(userId).get();
+      if (!doc.exists) return null;
+      final data = doc.data();
+      final v = data?['backupEmail'];
+      return v is String && v.trim().isNotEmpty ? v.trim() : null;
+    } catch (e) {
+      throw Exception('Failed to get backup email: $e');
     }
   }
 

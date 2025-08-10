@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../theme/app_theme_v3.dart';
+import '../services/firestore_service_v3.dart';
 
 class CircleOfHealthPageV3 extends StatefulWidget {
   const CircleOfHealthPageV3({super.key});
@@ -9,454 +11,345 @@ class CircleOfHealthPageV3 extends StatefulWidget {
 }
 
 class _CircleOfHealthPageV3State extends State<CircleOfHealthPageV3> {
-  // Mock health data - in real app, this would come from Firebase
-  final String _currentMealPlan = 'DietKnight'; // 2 meals/day
-  final Map<String, dynamic> _todayStats = {
-    'calories': 850,
-    'protein': 45,
-    'carbs': 95,
-    'fat': 32,
-    'fiber': 18,
-    'water': 6.2, // glasses
-  };
-  
-  final Map<String, dynamic> _weeklyGoals = {
-    'calories': 1800,
-    'protein': 80,
-    'carbs': 200,
-    'fat': 60,
-    'fiber': 25,
-    'water': 8.0,
-  };
-  
-  final List<Map<String, dynamic>> _weeklyProgress = [
-    {'day': 'Mon', 'calories': 1650, 'protein': 75, 'completed': true},
-    {'day': 'Tue', 'calories': 1720, 'protein': 82, 'completed': true},
-    {'day': 'Wed', 'calories': 1590, 'protein': 68, 'completed': true},
-    {'day': 'Thu', 'calories': 1800, 'protein': 85, 'completed': true},
-    {'day': 'Fri', 'calories': 1670, 'protein': 78, 'completed': true},
-    {'day': 'Sat', 'calories': 1520, 'protein': 65, 'completed': true},
-    {'day': 'Today', 'calories': 850, 'protein': 45, 'completed': false},
-  ];
+  final _auth = FirebaseAuth.instance;
+  late final PageController _pageController;
+  static const int _daysCount = 14; // today + previous 13 days
+  String? _planName;
+  bool _loadingHeader = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: 0);
+    _loadHeader();
+  }
+
+  Future<void> _loadHeader() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      setState(() => _loadingHeader = false);
+      return;
+    }
+    try {
+      final name = await FirestoreServiceV3.getDisplayPlanName(user.uid);
+      setState(() {
+        _planName = (name != null && name.isNotEmpty) ? name : 'Select a Plan';
+        _loadingHeader = false;
+      });
+    } catch (_) {
+      setState(() {
+  // If loading fails, don't show the old 'Your Plan' text; keep it minimal
+  _planName = 'Select a Plan';
+        _loadingHeader = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppThemeV3.background,
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: AppThemeV3.background,
+        backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
+        title: const Text(
           'Circle of Health',
-          style: AppThemeV3.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w700, color: Colors.black87),
         ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Large Circle of Health
-            _buildLargeHealthCircle(),
-            
-            const SizedBox(height: 32),
-            
-            // Today's Nutrition Breakdown
-            _buildNutritionBreakdown(),
-            
-            const SizedBox(height: 32),
-            
-            // Weekly Progress
-            _buildWeeklyProgress(),
-            
-            const SizedBox(height: 32),
-            
-            // Health Insights
-            _buildHealthInsights(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLargeHealthCircle() {
-    return Center(
-      child: SizedBox(
-        width: 280,
-        height: 280,
-        child: Stack(
-          children: [
-            // Outer progress ring for calories
-            SizedBox(
-              width: 280,
-              height: 280,
-              child: CircularProgressIndicator(
-                value: _todayStats['calories'] / _weeklyGoals['calories'],
-                strokeWidth: 12,
-                backgroundColor: AppThemeV3.accent.withOpacity(0.1),
-                valueColor: AlwaysStoppedAnimation<Color>(AppThemeV3.accent),
-              ),
-            ),
-            
-            // Middle ring for protein
-            Positioned(
-              top: 20,
-              left: 20,
-              child: SizedBox(
-                width: 240,
-                height: 240,
-                child: CircularProgressIndicator(
-                  value: _todayStats['protein'] / _weeklyGoals['protein'],
-                  strokeWidth: 8,
-                  backgroundColor: Colors.orange.withOpacity(0.1),
-                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.orange),
-                ),
-              ),
-            ),
-            
-            // Inner circle content
-            Positioned(
-              top: 60,
-              left: 60,
-              child: Container(
-                width: 160,
-                height: 160,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppThemeV3.surface,
-                  boxShadow: AppThemeV3.cardShadow,
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      _currentMealPlan,
-                      style: AppThemeV3.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: AppThemeV3.accent,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '${_todayStats['calories']}',
-                      style: AppThemeV3.textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Text(
-                      'calories today',
-                      style: AppThemeV3.textTheme.bodySmall?.copyWith(
-                        color: AppThemeV3.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            
-            // Progress labels
-            Positioned(
-              bottom: 20,
-              left: 0,
-              right: 0,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  Column(
-                    children: [
-                      Container(
-                        width: 16,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: AppThemeV3.accent,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Calories',
-                        style: AppThemeV3.textTheme.bodySmall,
-                      ),
-                      Text(
-                        '${((_todayStats['calories'] / _weeklyGoals['calories']) * 100).round()}%',
-                        style: AppThemeV3.textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Column(
-                    children: [
-                      Container(
-                        width: 16,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: Colors.orange,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Protein',
-                        style: AppThemeV3.textTheme.bodySmall,
-                      ),
-                      Text(
-                        '${((_todayStats['protein'] / _weeklyGoals['protein']) * 100).round()}%',
-                        style: AppThemeV3.textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNutritionBreakdown() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Today\'s Nutrition',
-          style: AppThemeV3.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 16),
-        
-        // Nutrition cards grid
-        GridView.count(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: 1.5,
-          children: [
-            _buildNutritionCard('Carbs', '${_todayStats['carbs']}g', '${_weeklyGoals['carbs']}g', Colors.blue),
-            _buildNutritionCard('Fat', '${_todayStats['fat']}g', '${_weeklyGoals['fat']}g', Colors.purple),
-            _buildNutritionCard('Fiber', '${_todayStats['fiber']}g', '${_weeklyGoals['fiber']}g', Colors.green),
-            _buildNutritionCard('Water', '${_todayStats['water']} glasses', '${_weeklyGoals['water']} glasses', Colors.cyan),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNutritionCard(String title, String current, String goal, Color color) {
-    final currentValue = double.parse(current.replaceAll(RegExp(r'[^0-9.]'), ''));
-    final goalValue = double.parse(goal.replaceAll(RegExp(r'[^0-9.]'), ''));
-    final progress = (currentValue / goalValue).clamp(0.0, 1.0);
-    
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppThemeV3.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppThemeV3.border),
-        boxShadow: AppThemeV3.cardShadow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      body: Column(
         children: [
-          Text(
-            title,
-            style: AppThemeV3.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: color,
-            ),
+          Padding(
+            // Add more space at the top as requested
+            padding: const EdgeInsets.fromLTRB(16, 100, 16, 100),
+            child: _PlanHeader(planName: _loadingHeader ? null : _planName),
           ),
-          const SizedBox(height: 8),
-          Text(
-            current,
-            style: AppThemeV3.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w700,
+          Expanded(
+            child: PageView.builder(
+              controller: _pageController,
+              reverse: true, // swipe left -> previous day
+              itemCount: _daysCount,
+              itemBuilder: (context, index) {
+                final date = DateTime.now().subtract(Duration(days: index));
+                return _DailyPage(date: date);
+              },
             ),
-          ),
-          Text(
-            'of $goal',
-            style: AppThemeV3.textTheme.bodySmall?.copyWith(
-              color: AppThemeV3.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          LinearProgressIndicator(
-            value: progress,
-            backgroundColor: color.withOpacity(0.1),
-            valueColor: AlwaysStoppedAnimation<Color>(color),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildWeeklyProgress() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Weekly Progress',
-          style: AppThemeV3.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 16),
-        
-        // Weekly chart
-        Container(
-          height: 200,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppThemeV3.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppThemeV3.border),
-            boxShadow: AppThemeV3.cardShadow,
-          ),
-          child: Column(
-            children: [
-              // Chart bars
-              Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: _weeklyProgress.map((day) {
-                    final progress = day['calories'] / _weeklyGoals['calories'];
-                    final isToday = day['day'] == 'Today';
-                    
-                    return Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Container(
-                          width: 24,
-                          height: (progress * 120).clamp(8.0, 120.0),
-                          decoration: BoxDecoration(
-                            color: isToday 
-                                ? AppThemeV3.accent.withOpacity(0.6)
-                                : day['completed'] 
-                                    ? AppThemeV3.accent 
-                                    : AppThemeV3.accent.withOpacity(0.3),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          day['day'],
-                          style: AppThemeV3.textTheme.bodySmall?.copyWith(
-                            fontWeight: isToday ? FontWeight.w600 : FontWeight.normal,
-                            color: isToday ? AppThemeV3.accent : AppThemeV3.textSecondary,
-                          ),
-                        ),
-                      ],
-                    );
-                  }).toList(),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
+class _PlanHeader extends StatelessWidget {
+  final String? planName;
+  const _PlanHeader({required this.planName});
 
-  Widget _buildHealthInsights() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Health Insights',
-          style: AppThemeV3.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        planName ?? '…',
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w800,
+          color: Colors.black87,
         ),
-        const SizedBox(height: 16),
-        
-        // Insight cards
-        _buildInsightCard(
-          icon: Icons.trending_up,
-          title: 'Great Progress!',
-          subtitle: 'You\'re 47% ahead of your weekly protein goal',
-          color: Colors.green,
-        ),
-        const SizedBox(height: 12),
-        _buildInsightCard(
-          icon: Icons.local_drink,
-          title: 'Stay Hydrated',
-          subtitle: 'Drink 2 more glasses to reach your daily water goal',
-          color: Colors.blue,
-        ),
-        const SizedBox(height: 12),
-        _buildInsightCard(
-          icon: Icons.restaurant,
-          title: 'Meal Reminder',
-          subtitle: 'Your next meal is scheduled for 6:30 PM today',
-          color: Colors.orange,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInsightCard({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppThemeV3.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppThemeV3.border),
-        boxShadow: AppThemeV3.cardShadow,
       ),
-      child: Row(
+    );
+  }
+}
+
+class _DailyPage extends StatefulWidget {
+  final DateTime date;
+  const _DailyPage({required this.date});
+
+  @override
+  State<_DailyPage> createState() => _DailyPageState();
+}
+
+class _DailyPageState extends State<_DailyPage> {
+  late Future<_DailyNutrition> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  Future<_DailyNutrition> _load() async {
+    // Try to load Firestore data for the given date; fall back to deterministic demo values.
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception('No user');
+
+      final data = await FirestoreServiceV3.getHealthDataForDate(user.uid, widget.date);
+      final nutrition = (data?['nutrition'] as Map<String, dynamic>?) ?? const {};
+
+      // Default daily targets (can be refined per plan later)
+      const targets = {
+        'calories': 2000.0, // kcal
+        'protein': 75.0,    // g
+        'fats': 70.0,       // g
+        'carbs': 260.0,     // g
+        'fiber': 28.0,      // g
+        'sugar': 50.0,      // g (upper bound)
+        'vitaminE': 15.0,   // mg
+      };
+
+      double _v(String k) => (nutrition[k] as num?)?.toDouble() ?? 0.0;
+      double _pct(double val, double target) => target > 0 ? (val / target).clamp(0.0, 1.0) : 0.0;
+
+      if (nutrition.isNotEmpty) {
+        return _DailyNutrition(
+          calories: _pct(_v('calories'), targets['calories']!),
+          protein: _pct(_v('protein'), targets['protein']!),
+          fats: _pct(_v('fats'), targets['fats']!),
+          carbs: _pct(_v('carbs'), targets['carbs']!),
+          fiber: _pct(_v('fiber'), targets['fiber']!),
+          sugar: _pct(_v('sugar'), targets['sugar']!),
+          vitaminE: _pct(_v('vitaminE'), targets['vitaminE']!),
+        );
+      }
+    } catch (_) {
+      // Ignore and fall back to demo values below
+    }
+
+    // Placeholder deterministic data
+    final w = widget.date.weekday; // 1..7
+    double pct(int base) => (base + (w * 7) % 30) / 100.0;
+    return _DailyNutrition(
+      calories: pct(55),
+      protein: pct(60),
+      fats: pct(50),
+      carbs: pct(65),
+      fiber: pct(58),
+      sugar: pct(70),
+      vitaminE: pct(52),
+    );
+  }
+
+  String _weekday(DateTime d) {
+    const names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    return names[d.weekday - 1];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final d = widget.date;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 3)),
+              ],
             ),
-            child: Icon(
-              icon,
-              color: color,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  subtitle,
-                  style: AppThemeV3.textTheme.bodyMedium?.copyWith(
-                    color: AppThemeV3.textSecondary,
-                  ),
+                Text(_weekday(d), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 20),
+                Row(
+                  children: const [
+                    Expanded(child: Center(child: _MealChip(icon: Icons.free_breakfast, label: 'Breakfast'))),
+                    SizedBox(width: 12),
+                    Expanded(child: Center(child: _MealChip(icon: Icons.lunch_dining, label: 'Lunch'))),
+                    SizedBox(width: 12),
+                    Expanded(child: Center(child: _MealChip(icon: Icons.dinner_dining, label: 'Dinner'))),
+                  ],
                 ),
               ],
             ),
           ),
+
+      const SizedBox(height: 100),
+          const _SectionTitle('Daily Tracker'),
+
+          FutureBuilder<_DailyNutrition>(
+            future: _future,
+            builder: (context, snap) {
+              final n = snap.data;
+              return Column(
+                children: [
+                  _MetricBar(label: 'Calorie Progress', value: n?.calories ?? 0, icon: Icons.local_fire_department, color: Colors.orange),
+                  _MetricBar(label: 'Protein Progress', value: n?.protein ?? 0, icon: Icons.fitness_center, color: AppThemeV3.primaryGreen),
+                  _MetricBar(label: 'Fats Progress', value: n?.fats ?? 0, icon: Icons.water_drop, color: Colors.amber),
+                  _MetricBar(label: 'Carbs Progress', value: n?.carbs ?? 0, icon: Icons.grain, color: Colors.teal),
+                  _MetricBar(label: 'Fibers Progress', value: n?.fiber ?? 0, icon: Icons.eco, color: Colors.green),
+                  _MetricBar(label: 'Sugar Progress', value: n?.sugar ?? 0, icon: Icons.icecream, color: Colors.pinkAccent),
+                  _MetricBar(label: 'Vitamin E', value: n?.vitaminE ?? 0, icon: Icons.medical_information_outlined, color: Colors.deepPurple),
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
   }
+}
+
+class _MealChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  const _MealChip({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppThemeV3.primaryGreen.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: AppThemeV3.primaryGreen),
+        ),
+        const SizedBox(height: 6),
+        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+      ],
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String text;
+  const _SectionTitle(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Text(text, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricBar extends StatelessWidget {
+  final String label;
+  final double value; // 0..1
+  final IconData icon;
+  final Color color;
+  const _MetricBar({required this.label, required this.value, required this.icon, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('${(value.clamp(0, 1) * 100).round()}%', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                  const SizedBox(width: 6),
+                  Icon(icon, size: 18, color: Colors.black54),
+                ],
+              ),
+            ],
+          ),
+      const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+        minHeight: 14,
+              value: value.clamp(0, 1),
+              backgroundColor: Colors.grey.shade200,
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DailyNutrition {
+  final double calories;
+  final double protein;
+  final double fats;
+  final double carbs;
+  final double fiber;
+  final double sugar;
+  final double vitaminE;
+
+  _DailyNutrition({
+    required this.calories,
+    required this.protein,
+    required this.fats,
+    required this.carbs,
+    required this.fiber,
+    required this.sugar,
+    required this.vitaminE,
+  });
 }

@@ -1,7 +1,7 @@
-name: flutter_application_1
-description: "A new Flutter project."
+name: freshpunk
+description: "FreshPunk - Premium Meal Delivery Service. Fresh, healthy meals delivered to your door."
 publish_to: 'none'
-version: 0.1.0
+version: 1.0.0+1
 
 environment:
   sdk: ^3.8.1
@@ -33,6 +33,7 @@ dependencies:
   google_sign_in: ^6.2.1
   sign_in_with_apple: ^6.1.1
   permission_handler: ^11.3.1
+  flutter_svg: ^2.0.10+1
 
 dev_dependencies:
   flutter_test:
