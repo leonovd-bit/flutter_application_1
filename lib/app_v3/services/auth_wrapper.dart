@@ -7,6 +7,9 @@ import '../pages/delivery_schedule_page_v4.dart';
 import '../pages/meal_schedule_page_v3_fixed.dart';
 import 'progress_manager.dart';
 import 'firestore_service_v3.dart';
+import 'data_migration_v3.dart';
+import 'scheduler_service_v3.dart';
+import 'notification_service_v3.dart';
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
@@ -40,7 +43,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
               'fullName': user.displayName,
           });
         } catch (_) {}
-        // User is signed in and verified, check if they completed setup
+  // User is signed in and verified, check if they completed setup
         final prefs = await SharedPreferences.getInstance();
 
         // Proactively cache the user's current plan locally for UI fallbacks
@@ -66,6 +69,17 @@ class _AuthWrapperState extends State<AuthWrapper> {
         } catch (_) {
           // Best-effort only; UI has additional fallbacks
         }
+        
+        // Initialize notifications (no-op stub) and seed/generate essential data
+        try {
+          await NotificationServiceV3.instance.init();
+        } catch (_) {}
+
+        try {
+          // Seed canonical plans if user's collection is empty, then generate upcoming orders
+          await DataMigrationV3.seedMealPlansIfMissing(user.uid);
+          await SchedulerServiceV3.generateUpcomingOrders(userId: user.uid, daysAhead: 7);
+        } catch (_) {}
         final setupCompleted = prefs.getBool('setup_completed') ?? false;
         final savedSchedules = prefs.getStringList('saved_schedules') ?? const [];
         _hasSavedSchedules = savedSchedules.isNotEmpty;

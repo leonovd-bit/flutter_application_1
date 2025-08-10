@@ -428,6 +428,16 @@
 				"--no-fatal-infos"
 			],
 			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
 		}
 	]
 }
