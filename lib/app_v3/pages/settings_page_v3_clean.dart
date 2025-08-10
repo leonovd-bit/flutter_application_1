@@ -106,17 +106,17 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
   Future<void> _signOut() async {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Sign Out'),
         content: const Text('Are you sure you want to sign out?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () async {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
               
               try {
                 // Sign out from Firebase
@@ -125,20 +125,17 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
                 // Reset the welcome flag so user sees welcome page again
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.setBool('has_seen_welcome', false);
-                
-                if (mounted) {
-                  // Navigate to welcome page and clear all previous routes
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (context) => const WelcomePageV3()),
-                    (route) => false,
-                  );
-                }
+                if (!mounted) return;
+                // Navigate to welcome page and clear all previous routes
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const WelcomePageV3()),
+                  (route) => false,
+                );
               } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error signing out: $e')),
-                  );
-                }
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error signing out: $e')),
+                );
               }
             },
             style: TextButton.styleFrom(
@@ -374,7 +371,7 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: AppThemeV3.primaryGreen.withOpacity(0.1),
+            color: AppThemeV3.primaryGreen.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(
@@ -425,7 +422,7 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: AppThemeV3.primaryGreen.withOpacity(0.1),
+            color: AppThemeV3.primaryGreen.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(

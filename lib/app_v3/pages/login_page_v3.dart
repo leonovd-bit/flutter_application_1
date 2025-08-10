@@ -334,31 +334,29 @@ class _LoginPageV3State extends State<LoginPageV3> {
     // Check internet connectivity first
     final hasConnection = await ConnectivityServiceV3.hasInternetConnection();
     if (!hasConnection) {
-      if (mounted) {
-        // Try offline authentication first
-        final offlineSuccess = await OfflineAuthServiceV3.signInOffline(
-          _emailController.text.trim(),
-          _passwordController.text,
+      // Try offline authentication first
+      final offlineSuccess = await OfflineAuthServiceV3.signInOffline(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+      if (!mounted) return;
+      if (offlineSuccess) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Signed in offline! Some features may be limited.'),
+            backgroundColor: Colors.orange,
+          ),
         );
-        
-        if (offlineSuccess) {
-          setState(() => _isLoading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Signed in offline! Some features may be limited.'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomePageV3()),
-          );
-          return;
-        } else {
-          setState(() => _isLoading = false);
-          _showNetworkErrorDialog();
-          return;
-        }
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomePageV3()),
+        );
+        return;
+      } else {
+        setState(() => _isLoading = false);
+        _showNetworkErrorDialog();
+        return;
       }
     }
 
@@ -380,109 +378,104 @@ class _LoginPageV3State extends State<LoginPageV3> {
   debugPrint('Email verified: ${credential.user?.emailVerified}');
 
       if (credential.user != null && credential.user!.emailVerified) {
-        if (mounted) {
-          debugPrint('Navigating to home page');
-          // Navigate to home page
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomePageV3()),
-          );
-        }
-      } else {
-        if (mounted) {
-          debugPrint('Email not verified, showing verification dialog');
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Email Not Verified'),
-              content: const Text('Please check your email and click the verification link before signing in.'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('OK'),
-                ),
-                TextButton(
-                  onPressed: () async {
-                    try {
-                      await credential.user!.sendEmailVerification();
-                      if (mounted) {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Verification email sent')),
-                        );
-                      }
-                    } catch (e) {
-                      if (mounted) {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Failed to send verification email. Please check your connection.')),
-                        );
-                      }
-                    }
-                  },
-                  child: const Text('Resend Verification'),
-                ),
-              ],
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('Sign in error: $e');
-      if (mounted) {
-        // Try offline authentication as fallback
-        final offlineSuccess = await OfflineAuthServiceV3.signInOffline(
-          _emailController.text.trim(),
-          _passwordController.text,
+        if (!mounted) return;
+        debugPrint('Navigating to home page');
+        // Navigate to home page
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomePageV3()),
         );
-        
-        if (offlineSuccess) {
-          setState(() => _isLoading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Signed in offline! Some features may be limited.'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomePageV3()),
-          );
-          return;
-        }
-        
-        String errorMessage = 'Failed to sign in';
-        
-        if (e.toString().contains('network-request-failed') || 
-            e.toString().contains('timeout') ||
-            e.toString().contains('Failed host lookup') ||
-            e.toString().contains('Connection timeout')) {
-          errorMessage = 'Network error. Please check your internet connection and try again.';
-        } else if (e.toString().contains('user-not-found')) {
-          errorMessage = 'No account found with this email';
-        } else if (e.toString().contains('wrong-password') || e.toString().contains('invalid-credential')) {
-          errorMessage = 'Incorrect email or password';
-        } else if (e.toString().contains('invalid-email')) {
-          errorMessage = 'Invalid email address';
-        } else if (e.toString().contains('too-many-requests')) {
-          errorMessage = 'Too many failed attempts. Please try again later.';
-        } else if (e.toString().contains('user-disabled')) {
-          errorMessage = 'This account has been disabled. Please contact support.';
-        }
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            duration: const Duration(seconds: 4),
-            action: errorMessage.contains('Network error') 
-              ? SnackBarAction(
-                  label: 'Retry',
-                  onPressed: () => _signInWithEmail(),
-                )
-              : null,
+      } else {
+        if (!mounted) return;
+        debugPrint('Email not verified, showing verification dialog');
+        showDialog(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Email Not Verified'),
+            content: const Text('Please check your email and click the verification link before signing in.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('OK'),
+              ),
+              TextButton(
+                onPressed: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  try {
+                    await credential.user!.sendEmailVerification();
+                    Navigator.pop(dialogContext);
+                    if (!mounted) return;
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('Verification email sent')),
+                    );
+                  } catch (e) {
+                    Navigator.pop(dialogContext);
+                    if (!mounted) return;
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('Failed to send verification email. Please check your connection.')),
+                    );
+                  }
+                },
+                child: const Text('Resend Verification'),
+              ),
+            ],
           ),
         );
       }
+    } catch (e) {
+      debugPrint('Sign in error: $e');
+      // Try offline authentication as fallback
+      final offlineSuccess = await OfflineAuthServiceV3.signInOffline(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+      if (!mounted) return;
+      if (offlineSuccess) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Signed in offline! Some features may be limited.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomePageV3()),
+        );
+        return;
+      }
+      
+      String errorMessage = 'Failed to sign in';
+      
+      if (e.toString().contains('network-request-failed') || 
+          e.toString().contains('timeout') ||
+          e.toString().contains('Failed host lookup') ||
+          e.toString().contains('Connection timeout')) {
+        errorMessage = 'Network error. Please check your internet connection and try again.';
+      } else if (e.toString().contains('user-not-found')) {
+        errorMessage = 'No account found with this email';
+      } else if (e.toString().contains('wrong-password') || e.toString().contains('invalid-credential')) {
+        errorMessage = 'Incorrect email or password';
+      } else if (e.toString().contains('invalid-email')) {
+        errorMessage = 'Invalid email address';
+      } else if (e.toString().contains('too-many-requests')) {
+        errorMessage = 'Too many failed attempts. Please try again later.';
+      } else if (e.toString().contains('user-disabled')) {
+        errorMessage = 'This account has been disabled. Please contact support.';
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          duration: const Duration(seconds: 4),
+          action: errorMessage.contains('Network error') 
+            ? SnackBarAction(
+                label: 'Retry',
+                onPressed: () => _signInWithEmail(),
+              )
+            : null,
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -520,41 +513,39 @@ class _LoginPageV3State extends State<LoginPageV3> {
         },
       );
 
-      if (mounted) {
-        // Navigate to home page
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomePageV3()),
-        );
-      }
+      if (!mounted) return;
+      // Navigate to home page
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const HomePageV3()),
+      );
     } catch (e) {
   debugPrint('Google sign in error: $e');
-      if (mounted) {
-        String errorMessage = 'Failed to sign in with Google';
-        
-        if (e.toString().contains('network-request-failed') || 
-            e.toString().contains('timeout') ||
-            e.toString().contains('Failed host lookup')) {
-          errorMessage = 'Network error. Please check your internet connection and try again.';
-        } else if (e.toString().contains('sign_in_canceled')) {
-          errorMessage = 'Sign in was cancelled';
-        } else if (e.toString().contains('sign_in_failed')) {
-          errorMessage = 'Google sign in failed. Please try again.';
-        }
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            duration: const Duration(seconds: 4),
-            action: errorMessage.contains('Network error') 
-              ? SnackBarAction(
-                  label: 'Retry',
-                  onPressed: () => _signInWithGoogle(),
-                )
-              : null,
-          ),
-        );
+      if (!mounted) return;
+      String errorMessage = 'Failed to sign in with Google';
+      
+      if (e.toString().contains('network-request-failed') || 
+          e.toString().contains('timeout') ||
+          e.toString().contains('Failed host lookup')) {
+        errorMessage = 'Network error. Please check your internet connection and try again.';
+      } else if (e.toString().contains('sign_in_canceled')) {
+        errorMessage = 'Sign in was cancelled';
+      } else if (e.toString().contains('sign_in_failed')) {
+        errorMessage = 'Google sign in failed. Please try again.';
       }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          duration: const Duration(seconds: 4),
+          action: errorMessage.contains('Network error') 
+            ? SnackBarAction(
+                label: 'Retry',
+                onPressed: () => _signInWithGoogle(),
+              )
+            : null,
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -580,19 +571,17 @@ class _LoginPageV3State extends State<LoginPageV3> {
 
       await FirebaseAuth.instance.signInWithCredential(oauthCredential);
 
-      if (mounted) {
-        // Navigate to home page
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomePageV3()),
-        );
-      }
+      if (!mounted) return;
+      // Navigate to home page
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const HomePageV3()),
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to sign in with Apple')),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to sign in with Apple')),
+      );
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -615,14 +604,13 @@ class _LoginPageV3State extends State<LoginPageV3> {
           password: demoPassword,
         );
 
-        if (mounted) {
-          if (credential.user != null) {
-            // Navigate to home page
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const HomePageV3()),
-            );
-          }
+        if (!mounted) return;
+        if (credential.user != null) {
+          // Navigate to home page
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const HomePageV3()),
+          );
         }
       } catch (signInError) {
         // If sign in fails, try to create the demo account
@@ -635,22 +623,19 @@ class _LoginPageV3State extends State<LoginPageV3> {
 
             // Mark the email as verified for demo purposes
             await newCredential.user?.sendEmailVerification();
-            
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Demo account created! You can now explore the app.'),
-                  duration: Duration(seconds: 3),
-                ),
-              );
-              
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const HomePageV3()),
-              );
-            }
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Demo account created! You can now explore the app.'),
+                duration: Duration(seconds: 3),
+              ),
+            );
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const HomePageV3()),
+            );
           } catch (createError) {
-            throw signInError; // Re-throw the original error
+            rethrow; // Re-throw the original error
           }
         } else {
           throw signInError;
@@ -658,19 +643,18 @@ class _LoginPageV3State extends State<LoginPageV3> {
       }
     } catch (e) {
   debugPrint('Demo account error: $e');
-      if (mounted) {
-        String errorMessage = 'Failed to sign in with demo account';
-        
-        if (e.toString().contains('network-request-failed') || 
-            e.toString().contains('timeout') ||
-            e.toString().contains('Failed host lookup')) {
-          errorMessage = 'Network error. The demo account requires an internet connection.';
-        }
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMessage)),
-        );
+  if (!mounted) return;
+  String errorMessage = 'Failed to sign in with demo account';
+      
+      if (e.toString().contains('network-request-failed') || 
+          e.toString().contains('timeout') ||
+          e.toString().contains('Failed host lookup')) {
+        errorMessage = 'Network error. The demo account requires an internet connection.';
       }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(errorMessage)),
+      );
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -690,18 +674,15 @@ class _LoginPageV3State extends State<LoginPageV3> {
       await FirebaseAuth.instance.sendPasswordResetEmail(
         email: _emailController.text.trim(),
       );
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Password reset email sent')),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password reset email sent')),
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to send password reset email')),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to send password reset email')),
+      );
     }
   }
 

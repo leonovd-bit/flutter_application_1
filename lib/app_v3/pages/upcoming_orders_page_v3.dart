@@ -644,22 +644,23 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
   void _cancelOrder(OrderModelV3 order) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Cancel Order'),
         content: const Text('Are you sure you want to cancel this order?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('No'),
           ),
           TextButton(
             onPressed: () async {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
               try {
                 await FirestoreServiceV3.updateOrderStatus(orderId: order.id, status: OrderStatus.cancelled);
                 // Cancel any scheduled notification
                 await NotificationServiceV3.instance.cancel(order.id.hashCode & 0x7fffffff);
                 await _loadUpcomingOrders();
+                if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Order cancelled successfully'),
@@ -667,6 +668,7 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
                   ),
                 );
               } catch (e) {
+                if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Failed to cancel: $e')),
                 );
@@ -687,13 +689,15 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
   Future<void> _confirmOrder(OrderModelV3 order) async {
     try {
       await FirestoreServiceV3.updateOrderStatus(orderId: order.id, status: OrderStatus.confirmed);
-  // Cancel any scheduled reminder notification since it's now confirmed
-  await NotificationServiceV3.instance.cancel(order.id.hashCode & 0x7fffffff);
+      // Cancel any scheduled reminder notification since it's now confirmed
+      await NotificationServiceV3.instance.cancel(order.id.hashCode & 0x7fffffff);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Order confirmed')),
       );
       await _loadUpcomingOrders();
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to confirm: $e')),
       );
@@ -703,7 +707,7 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
   Future<void> _replaceMeal(OrderModelV3 order) async {
     // Navigate to interactive menu and allow picking a replacement for the first meal
     final current = order.meals.isNotEmpty ? order.meals.first : null;
-    final newMeal = await Navigator.of(context).push<MealModelV3>(
+  final newMeal = await Navigator.of(context).push<MealModelV3>(
       MaterialPageRoute(
         builder: (_) => InteractiveMenuPageV3(
           menuType: current?.mealType ?? 'lunch',
@@ -713,16 +717,19 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
         ),
       ),
     );
+  if (!mounted) return;
     if (newMeal != null) {
       try {
         final updatedMeals = [newMeal, ...order.meals.skip(1)];
         await FirestoreServiceV3.updateOrderMeals(orderId: order.id, meals: updatedMeals);
+    if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Meal replaced')),
         );
         await _loadUpcomingOrders();
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to replace: $e')),
         );
       }

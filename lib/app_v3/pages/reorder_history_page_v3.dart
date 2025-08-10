@@ -28,12 +28,14 @@ class _ReorderHistoryPageV3State extends State<ReorderHistoryPageV3> {
       final history = await ReorderService.getReorderHistory();
       final stats = await ReorderService.getReorderStats();
       
+      if (!mounted) return;
       setState(() {
         _reorderHistory = history;
         _reorderStats = stats;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -525,8 +527,9 @@ class _ReorderHistoryPageV3State extends State<ReorderHistoryPageV3> {
 
   Future<void> _toggleFavorite(String reorderId) async {
     await ReorderService.toggleFavoriteReorder(reorderId);
-    _loadReorderData(); // Refresh the list
-    
+    if (!mounted) return;
+    await _loadReorderData(); // Refresh the list
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Favorite status updated'),
@@ -538,18 +541,19 @@ class _ReorderHistoryPageV3State extends State<ReorderHistoryPageV3> {
   void _reorderAgain(Map<String, dynamic> reorder) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Reorder Again'),
         content: Text('Reorder "${_getMealPlanDisplayName(reorder['mealPlanType'])}" again?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
               // TODO: Implement reorder logic
+              if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Starting reorder process...'),

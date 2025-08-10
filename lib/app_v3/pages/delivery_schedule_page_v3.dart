@@ -1757,8 +1757,11 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    final navigator = Navigator.of(context);
                     // Save the selected time
                     final selectedTime = TimeOfDay(hour: selectedHour, minute: selectedMinute);
+                    final formatted = selectedTime.format(context);
                     setState(() {
                       _tempTimes[mealType] = selectedTime;
                       _hasTempEditsThisSession = true;
@@ -1768,17 +1771,14 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
                     await _saveTimeConfiguration();
                     
                     // Show confirmation snackbar
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('✅ $mealType time set to ${selectedTime.format(context)}'),
-                          backgroundColor: Colors.green,
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
-                    }
-                    
-                    Navigator.pop(context);
+          messenger.showSnackBar(
+                      SnackBar(
+            content: Text('\u2705 $mealType time set to $formatted'),
+                        backgroundColor: Colors.green,
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                    navigator.pop();
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppThemeV3.accent,
@@ -2479,15 +2479,16 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
 
   // ignore: unused_element
   void _saveSchedule() async {
+    final messenger = ScaffoldMessenger.of(context);
     if (_scheduleName.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(content: Text('Please enter a schedule name')),
       );
       return;
     }
 
     if (!_canContinueToMeals()) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(content: Text('Please configure all 7 days before saving. Missing: ${_unconfiguredDays.join(', ')}')),
       );
       return;
@@ -2530,7 +2531,7 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
     await ProgressManager.saveCurrentStep(OnboardingStep.paymentSetup);
     await _saveScheduleProgress();
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger.showSnackBar(
       SnackBar(content: Text('Schedule "$_scheduleName" saved successfully!')),
     );
   }
@@ -2607,11 +2608,11 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
     }
 
     // Save progress before navigating to meal selection
+    final navigator = Navigator.of(context);
     await ProgressManager.saveCurrentStep(OnboardingStep.paymentSetup);
     await _saveScheduleProgress();
-
-    Navigator.push(
-      context,
+    
+    navigator.push(
       MaterialPageRoute(
         builder: (context) => MealSchedulePageV3(
           mealPlan: _selectedMealPlan!,
@@ -2633,7 +2634,7 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
     // Show confirmation dialog
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Skip Delivery Schedule'),
         content: const Text(
           'Are you sure you want to skip setting up the delivery schedule? '
@@ -2641,11 +2642,11 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppThemeV3.accent,
             ),
@@ -2661,11 +2662,11 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
     Map<String, Map<String, dynamic>> emptySchedule = {};
     
     // Save progress to skip this step
+    final navigator2 = Navigator.of(context);
     await ProgressManager.saveCurrentStep(OnboardingStep.paymentSetup);
-
+    
     // Navigate to meal selection with minimal schedule
-    Navigator.push(
-      context,
+    navigator2.push(
       MaterialPageRoute(
         builder: (context) => MealSchedulePageV3(
           mealPlan: _selectedMealPlan!,

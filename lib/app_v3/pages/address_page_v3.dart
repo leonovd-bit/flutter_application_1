@@ -496,7 +496,8 @@ class _AddressPageV3State extends State<AddressPageV3> {
     _zipController.clear();
     _editingId = null;
 
-    ScaffoldMessenger.of(context).showSnackBar(
+  if (!mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(existingIndex >= 0 ? 'Address updated' : 'Address saved successfully'),
         backgroundColor: Colors.green,
@@ -521,11 +522,11 @@ class _AddressPageV3State extends State<AddressPageV3> {
     // Replace the saved entry upon save
     await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Edit Address'),
         content: const Text('Update the fields below and tap Save Address.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('OK')),
         ],
       ),
     );
@@ -535,12 +536,12 @@ class _AddressPageV3State extends State<AddressPageV3> {
   Future<void> _deleteAddress(AddressModelV3 address) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Delete Address'),
         content: Text('Remove "${address.label}"?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Delete')),
         ],
       ),
     );
@@ -558,7 +559,8 @@ class _AddressPageV3State extends State<AddressPageV3> {
     setState(() {
       _savedAddresses.removeWhere((a) => a.id == address.id);
     });
-    ScaffoldMessenger.of(context).showSnackBar(
+  if (!mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Address deleted')),
     );
   }
