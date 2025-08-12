@@ -77,6 +77,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       theme: AppThemeV3.lightTheme,
       home: const SplashPageV3(),
       debugShowCheckedModeBanner: false,
+      onGenerateRoute: (settings) {
+        final name = settings.name ?? '';
+        if (name.contains('V1') || name.contains('_v1')) {
+          debugPrint('[RouteBlock] Attempted navigation to legacy route: $name');
+          return MaterialPageRoute(builder: (_) => const SplashPageV3());
+        }
+        return null; // fall back to normal
+      },
       navigatorObservers: [
         _routeObserver,
         _RouteLogger(),
