@@ -13,6 +13,7 @@ import 'data_migration_v3.dart';
 import 'scheduler_service_v3.dart';
 import 'notification_service_v3.dart';
 import 'meal_service_v3.dart';
+import '../../app_v3/debug/debug_state.dart';
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
@@ -40,6 +41,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
       final user = FirebaseAuth.instance.currentUser;
       
   if (user != null) {
+  DebugState.updateUser(user.uid);
         // Ensure a user profile document exists (idempotent upsert)
         try {
           await FirestoreServiceV3.updateUserProfile(user.uid, {
@@ -171,6 +173,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
       }
       else {
         // Not authenticated; nothing else to do here
+  DebugState.updateUser(null);
       }
       
   // Ensure splash shows at least for UX consistency
@@ -181,6 +184,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         setState(() {
           _isInitialized = true;
         });
+  DebugState.update(explicitApproved: _explicitUserSetupApproved);
       }
     } catch (e) {
       debugPrint('Error initializing auth: $e');
@@ -192,6 +196,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         setState(() {
           _isInitialized = true;
         });
+  DebugState.update(explicitApproved: _explicitUserSetupApproved);
       }
     }
   }
@@ -249,6 +254,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
                       debugPrint('[AuthBootstrap] Explicit user setup approved via scope.');
                       // Re-run initialize to perform seeding now that flag is set
                       _initializeAuth();
+                      DebugState.updateExplicit(true);
                     }
                   },
                   child: _hasSavedSchedules
@@ -261,6 +267,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         } else {
           // Never route unauthenticated users to Home. Show login/welcome instead.
           debugPrint('No authenticated user, showing login page');
+          DebugState.update(explicitApproved: false);
           return const LoginPageV3();
         }
       },
@@ -295,6 +302,8 @@ class AuthHelper {
       await FirebaseAuth.instance.signOut();
       await prefs.clear();
   debugPrint('Force sign out completed');
+  DebugState.updateUser(null);
+  DebugState.updateExplicit(false);
     } catch (e) {
   debugPrint('Error during force sign out: $e');
     }

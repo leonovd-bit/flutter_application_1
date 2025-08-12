@@ -7,6 +7,9 @@ import 'app_v3/pages/splash_page_v3.dart';
 import 'app_v3/theme/app_theme_v3.dart';
 import 'app_v3/services/memory_optimizer.dart';
 import 'app_v3/debug/build_badge.dart';
+import 'app_v3/config/feature_flags.dart';
+import 'app_v3/debug/debug_overlay.dart';
+import 'app_v3/debug/debug_state.dart';
 
 void main() {
   runZonedGuarded(() async {
@@ -101,18 +104,25 @@ class _RouteLogger extends NavigatorObserver {
   @override
   void didPush(Route route, Route? previousRoute) {
     debugPrint('[Route] push -> ${route.settings.name ?? route.runtimeType}');
+  DebugState.updateRoute(route.settings.name?.toString() ?? route.runtimeType.toString());
     super.didPush(route, previousRoute);
   }
 
   @override
   void didReplace({Route? newRoute, Route? oldRoute}) {
     debugPrint('[Route] replace -> ${newRoute?.settings.name ?? newRoute?.runtimeType}');
+    if (newRoute != null) {
+      DebugState.updateRoute(newRoute.settings.name?.toString() ?? newRoute.runtimeType.toString());
+    }
     super.didReplace(newRoute: newRoute, oldRoute: oldRoute);
   }
 
   @override
   void didPop(Route route, Route? previousRoute) {
     debugPrint('[Route] pop <- ${route.settings.name ?? route.runtimeType}');
+    if (previousRoute != null) {
+      DebugState.updateRoute(previousRoute.settings.name?.toString() ?? previousRoute.runtimeType.toString());
+    }
     super.didPop(route, previousRoute);
   }
 }
