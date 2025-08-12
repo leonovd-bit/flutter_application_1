@@ -241,13 +241,20 @@ class _AuthWrapperState extends State<AuthWrapper> {
               if (setupCompleted) {
                 return const HomePageV3();
               } else {
-                // If there's any saved schedule, jump straight to meal scheduling to continue.
-                if (_hasSavedSchedules) {
-                  debugPrint('Setup incomplete but schedules exist; directing to meal schedule.');
-                  return const MealSchedulePageV3();
-                }
-                debugPrint('Setup incomplete, directing to delivery schedule page');
-                return const DeliverySchedulePageV4();
+                // Expose a tiny inherited bridge so signup/login pages can mark explicit approval
+                return _ExplicitSetupScope(
+                  onApprove: () {
+                    if (!_explicitUserSetupApproved) {
+                      setState(() => _explicitUserSetupApproved = true);
+                      debugPrint('[AuthBootstrap] Explicit user setup approved via scope.');
+                      // Re-run initialize to perform seeding now that flag is set
+                      _initializeAuth();
+                    }
+                  },
+                  child: _hasSavedSchedules
+                      ? const MealSchedulePageV3()
+                      : const DeliverySchedulePageV4(),
+                );
               }
             },
           );
@@ -258,6 +265,24 @@ class _AuthWrapperState extends State<AuthWrapper> {
         }
       },
     );
+  }
+}
+
+// Inherited widget to provide approval callback deeper in the tree without tight coupling.
+class _ExplicitSetupScope extends InheritedWidget {
+  final VoidCallback onApprove;
+  const _ExplicitSetupScope({required this.onApprove, required super.child});
+
+  static _ExplicitSetupScope? of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<_ExplicitSetupScope>();
+
+  @override
+  bool updateShouldNotify(covariant _ExplicitSetupScope oldWidget) => false;
+}
+
+/// Public helper for pages to mark explicit user setup consent.
+class ExplicitSetupApproval {
+  static void approve(BuildContext context) {
+    _ExplicitSetupScope.of(context)?.onApprove();
   }
 }
 

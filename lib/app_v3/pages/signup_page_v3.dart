@@ -4,6 +4,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../theme/app_theme_v3.dart';
 import '../services/progress_manager.dart';
+import '../services/auth_wrapper.dart' show ExplicitSetupApproval; // approve explicit setup
 import 'email_verification_page_v3.dart';
 import 'login_page_v3.dart';
 import 'delivery_schedule_page_v3.dart';
@@ -714,6 +715,10 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
 
       // Send email verification
       await credential.user?.sendEmailVerification();
+      // Mark explicit approval since user intentionally created an account
+      if (mounted) {
+        ExplicitSetupApproval.approve(context);
+      }
   debugPrint('Email verification sent'); // Debug
 
       // Update progress to email verification step

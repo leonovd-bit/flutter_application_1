@@ -5,6 +5,7 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../theme/app_theme_v3.dart';
 import '../services/connectivity_service_v3.dart';
 import '../services/offline_auth_service_v3.dart';
+import '../services/auth_wrapper.dart' show ExplicitSetupApproval; // for setup approval
 import 'signup_page_v3.dart';
 import 'home_page_v3.dart';
 import 'welcome_page_v3.dart';
@@ -380,6 +381,8 @@ class _LoginPageV3State extends State<LoginPageV3> {
       if (credential.user != null && credential.user!.emailVerified) {
         if (!mounted) return;
         debugPrint('Navigating to home page');
+  // Mark explicit setup approval (user performed deliberate sign-in action)
+  ExplicitSetupApproval.approve(context);
         // Navigate to home page
         Navigator.pushReplacement(
           context,
