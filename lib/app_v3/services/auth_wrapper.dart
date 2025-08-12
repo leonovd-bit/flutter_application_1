@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../pages/home_page_v3.dart';
 import '../pages/login_page_v3.dart';
+import '../pages/splash_page_v1.dart';
 import '../pages/delivery_schedule_page_v4.dart';
 import '../pages/meal_schedule_page_v3_fixed.dart';
 import 'progress_manager.dart';
@@ -10,6 +12,7 @@ import 'firestore_service_v3.dart';
 import 'data_migration_v3.dart';
 import 'scheduler_service_v3.dart';
 import 'notification_service_v3.dart';
+import 'meal_service_v3.dart';
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
@@ -21,19 +24,21 @@ class AuthWrapper extends StatefulWidget {
 class _AuthWrapperState extends State<AuthWrapper> {
   bool _isInitialized = false;
   bool _hasSavedSchedules = false;
-  bool _setupCompletedLocal = false;
+  DateTime? _bootStartedAt;
+  static const Duration _minSplashDuration = Duration(milliseconds: 1200);
 
   @override
   void initState() {
     super.initState();
-    _initializeAuth();
+  _bootStartedAt = DateTime.now();
+  _initializeAuth();
   }
 
   Future<void> _initializeAuth() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       
-      if (user != null && user.emailVerified) {
+  if (user != null) {
         // Ensure a user profile document exists (idempotent upsert)
         try {
           await FirestoreServiceV3.updateUserProfile(user.uid, {
@@ -75,15 +80,63 @@ class _AuthWrapperState extends State<AuthWrapper> {
           await NotificationServiceV3.instance.init();
         } catch (_) {}
 
-        try {
+  try {
           // Seed canonical plans if user's collection is empty, then generate upcoming orders
           await DataMigrationV3.seedMealPlansIfMissing(user.uid);
-          await SchedulerServiceV3.generateUpcomingOrders(userId: user.uid, daysAhead: 7);
+          final generated = await SchedulerServiceV3.generateUpcomingOrders(userId: user.uid, daysAhead: 7);
+          debugPrint('[AuthBootstrap] scheduler generated=$generated');
+
+          // Backfill notifications for any existing future orders without reminders yet
+          try {
+            final upcoming = await FirestoreServiceV3.getUpcomingOrders(user.uid);
+            for (final o in upcoming) {
+              final ts = o['deliveryDate'];
+              DateTime dt;
+              if (ts is Timestamp) {
+                dt = ts.toDate();
+              } else if (ts is int) {
+                dt = DateTime.fromMillisecondsSinceEpoch(ts);
+              } else if (ts is DateTime) {
+                dt = ts;
+              } else {
+                continue;
+              }
+              final notifId = dt.millisecondsSinceEpoch ~/ 60000;
+              final orderId = (o['id'] ?? '').toString();
+              final mealType = (o['meals'] is List && (o['meals'] as List).isNotEmpty)
+                  ? (((o['meals'] as List).first as Map)['mealType'] ?? 'meal').toString()
+                  : (o['mealType'] ?? 'meal').toString();
+              final addressLabel = (o['deliveryAddress'] ?? 'your address').toString();
+              await NotificationServiceV3.instance.scheduleIfNotExists(
+                id: notifId,
+                deliveryTime: dt,
+                title: 'FreshPunk delivery',
+                body: 'Your $mealType arrives in 1 hour at $addressLabel.',
+                payload: orderId,
+              );
+            }
+            debugPrint('[AuthBootstrap] notification backfill scheduled for ${upcoming.length} orders');
+          } catch (e) {
+            debugPrint('[AuthBootstrap] notification backfill error: $e');
+          }
+          // Ensure meals are seeded (idempotent upsert). Safe to run anytime.
+          try {
+            final seeded = await MealServiceV3.seedFromJsonAsset();
+            debugPrint('[AuthBootstrap] meals seeded (attempted): $seeded');
+          } catch (e) {
+            debugPrint('[AuthBootstrap] meals seed error: $e');
+          }
+          // Ensure token plan exists (idempotent)
+          try {
+            await MealServiceV3.seedTokenPlanIfNeeded();
+            debugPrint('[AuthBootstrap] token plan ensured');
+          } catch (e) {
+            debugPrint('[AuthBootstrap] token plan seed error: $e');
+          }
         } catch (_) {}
-        final setupCompleted = prefs.getBool('setup_completed') ?? false;
+  final setupCompleted = prefs.getBool('setup_completed') ?? false;
         final savedSchedules = prefs.getStringList('saved_schedules') ?? const [];
         _hasSavedSchedules = savedSchedules.isNotEmpty;
-  _setupCompletedLocal = setupCompleted;
         
         if (!setupCompleted) {
           // If user has an existing schedule, keep it and allow them to continue without wiping data.
@@ -99,11 +152,13 @@ class _AuthWrapperState extends State<AuthWrapper> {
         }
       }
       else {
-        // Even if not currently authenticated, honor completed setup for offline/home resume
-        final prefs = await SharedPreferences.getInstance();
-        _setupCompletedLocal = prefs.getBool('setup_completed') ?? false;
+        // Not authenticated; nothing else to do here
       }
       
+  // Ensure splash shows at least for UX consistency
+  final elapsed = _bootStartedAt == null ? Duration.zero : DateTime.now().difference(_bootStartedAt!);
+  final wait = elapsed >= _minSplashDuration ? Duration.zero : (_minSplashDuration - elapsed);
+      await Future.delayed(wait);
       if (mounted) {
         setState(() {
           _isInitialized = true;
@@ -111,6 +166,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
       }
     } catch (e) {
       debugPrint('Error initializing auth: $e');
+  // Even on error, keep splash visible for the minimum duration
+  final elapsed = _bootStartedAt == null ? Duration.zero : DateTime.now().difference(_bootStartedAt!);
+  final wait = elapsed >= _minSplashDuration ? Duration.zero : (_minSplashDuration - elapsed);
+      await Future.delayed(wait);
       if (mounted) {
         setState(() {
           _isInitialized = true;
@@ -132,22 +191,16 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   Widget build(BuildContext context) {
     if (!_isInitialized) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      // Show a dedicated splash while bootstrapping
+      return const SplashPageV1();
     }
 
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(),
-            ),
-          );
+          // Keep showing splash while auth state resolves
+          return const SplashPageV1();
         }
         
         if (snapshot.hasData && snapshot.data != null) {
@@ -181,11 +234,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
             },
           );
         } else {
-          // If onboarding was completed previously, resume directly to Home (offline-friendly)
-          if (_setupCompletedLocal) {
-            debugPrint('No authenticated user but setup completed; resuming to Home');
-            return const HomePageV3();
-          }
+          // Never route unauthenticated users to Home. Show login/welcome instead.
           debugPrint('No authenticated user, showing login page');
           return const LoginPageV3();
         }

@@ -3,7 +3,7 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-import 'app_v3/services/auth_wrapper.dart';
+import 'app_v3/pages/splash_page_v3.dart';
 import 'app_v3/theme/app_theme_v3.dart';
 import 'app_v3/services/memory_optimizer.dart';
 
@@ -70,7 +70,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     return MaterialApp(
       title: 'Flutter Demo',
       theme: AppThemeV3.lightTheme,
-      home: const AuthWrapper(),
+      home: const SplashPageV3(),
       debugShowCheckedModeBanner: false,
       // Optimize app performance
       builder: (context, child) {
