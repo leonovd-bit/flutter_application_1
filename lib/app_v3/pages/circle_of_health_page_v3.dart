@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../theme/app_theme_v3.dart';
+import 'menu_page_v3.dart';
 import '../services/firestore_service_v3.dart';
 
 class CircleOfHealthPageV3 extends StatefulWidget {
@@ -90,6 +91,7 @@ class _CircleOfHealthPageV3State extends State<CircleOfHealthPageV3> {
       ),
     );
   }
+
 }
 
 class _PlanHeader extends StatelessWidget {
@@ -210,12 +212,57 @@ class _DailyPageState extends State<_DailyPage> {
                 Text(_weekday(d), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
         const SizedBox(height: 20),
                 Row(
-                  children: const [
-                    Expanded(child: Center(child: _MealChip(icon: Icons.free_breakfast, label: 'Breakfast'))),
-                    SizedBox(width: 12),
-                    Expanded(child: Center(child: _MealChip(icon: Icons.lunch_dining, label: 'Lunch'))),
-                    SizedBox(width: 12),
-                    Expanded(child: Center(child: _MealChip(icon: Icons.dinner_dining, label: 'Dinner'))),
+                  children: [
+                    Expanded(
+                      child: Center(
+                        child: _MealChip(
+                          icon: Icons.free_breakfast,
+                          label: 'Breakfast',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => MenuPageV3(menuType: 'breakfast'),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Center(
+                        child: _MealChip(
+                          icon: Icons.lunch_dining,
+                          label: 'Lunch',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => MenuPageV3(menuType: 'lunch'),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Center(
+                        child: _MealChip(
+                          icon: Icons.dinner_dining,
+                          label: 'Dinner',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => MenuPageV3(menuType: 'dinner'),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -251,11 +298,14 @@ class _DailyPageState extends State<_DailyPage> {
 class _MealChip extends StatelessWidget {
   final IconData icon;
   final String label;
-  const _MealChip({required this.icon, required this.label});
+  final VoidCallback? onTap;
+  const _MealChip({required this.icon, required this.label, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
@@ -269,6 +319,7 @@ class _MealChip extends StatelessWidget {
         const SizedBox(height: 6),
         Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
       ],
+      ),
     );
   }
 }

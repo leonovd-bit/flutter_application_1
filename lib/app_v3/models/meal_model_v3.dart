@@ -417,6 +417,18 @@ class DeliveryScheduleModelV3 {
 
   factory DeliveryScheduleModelV3.fromJson(Map<String, dynamic> json) {
     final timeParts = json['deliveryTime'].split(':');
+    // Normalize weekStartDate across possible representations
+    final ws = json['weekStartDate'];
+    DateTime? weekStart;
+    if (ws is Timestamp) {
+      weekStart = ws.toDate();
+    } else if (ws is int) {
+      weekStart = DateTime.fromMillisecondsSinceEpoch(ws);
+    } else if (ws is String) {
+      // Best-effort parse if string (ISO8601 or millis)
+      final asInt = int.tryParse(ws);
+      weekStart = asInt != null ? DateTime.fromMillisecondsSinceEpoch(asInt) : DateTime.tryParse(ws);
+    }
     return DeliveryScheduleModelV3(
       id: json['id'] ?? '',
       userId: json['userId'] ?? '',
@@ -428,9 +440,7 @@ class DeliveryScheduleModelV3 {
       ),
       addressId: json['addressId'] ?? '',
       isActive: json['isActive'] ?? true,
-      weekStartDate: json['weekStartDate'] != null 
-          ? DateTime.fromMillisecondsSinceEpoch(json['weekStartDate'])
-          : null,
+      weekStartDate: weekStart,
     );
   }
 }
@@ -494,6 +504,17 @@ class AddressModelV3 {
   }
 
   factory AddressModelV3.fromJson(Map<String, dynamic> json) {
+    // Normalize createdAt across possible representations
+    final ca = json['createdAt'];
+    DateTime? createdAt;
+    if (ca is Timestamp) {
+      createdAt = ca.toDate();
+    } else if (ca is int) {
+      createdAt = DateTime.fromMillisecondsSinceEpoch(ca);
+    } else if (ca is String) {
+      final asInt = int.tryParse(ca);
+      createdAt = asInt != null ? DateTime.fromMillisecondsSinceEpoch(asInt) : DateTime.tryParse(ca);
+    }
     return AddressModelV3(
       id: json['id'] ?? '',
       userId: json['userId'] ?? '',
@@ -504,9 +525,7 @@ class AddressModelV3 {
       state: json['state'] ?? 'New York',
       zipCode: json['zipCode'] ?? '',
       isDefault: json['isDefault'] ?? false,
-      createdAt: json['createdAt'] != null 
-          ? DateTime.fromMillisecondsSinceEpoch(json['createdAt'])
-          : null,
+      createdAt: createdAt,
     );
   }
 }

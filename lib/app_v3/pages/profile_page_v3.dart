@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:image_picker/image_picker.dart';
+// Image picker is optional; if not available, stub the picker.
+// ignore: uri_does_not_exist
+// image_picker is temporarily disabled to unblock Android builds.
+// The _pickImage method will act as a no-op stub until re-enabled.
 import '../theme/app_theme_v3.dart';
 import '../services/firestore_service_v3.dart';
 import 'dart:io';
@@ -164,19 +167,8 @@ class _ProfilePageV3State extends State<ProfilePageV3> {
   }
 
   Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 512,
-      maxHeight: 512,
-      imageQuality: 85,
-    );
-
-    if (pickedFile != null) {
-      setState(() {
-        _selectedImage = File(pickedFile.path);
-      });
-    }
+    // No-op while image_picker is disabled; keep UI responsive
+    _showSnackBar('Image picker not available in this build.');
   }
 
   void _showSnackBar(String message) {

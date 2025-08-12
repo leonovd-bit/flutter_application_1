@@ -191,6 +191,7 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
     final when = order.estimatedDeliveryTime ?? order.deliveryDate;
   final timeOnly = _formatTimeOnly(when);
   final desc = meal?.description ?? 'Scheduled meal delivery';
+  final bool isNew = now.difference(order.orderDate).inHours < 24 && order.status == OrderStatus.pending;
     final minutesToGo = when.difference(now).inMinutes;
     final canModify = minutesToGo > 60 &&
         order.status != OrderStatus.outForDelivery &&
@@ -242,6 +243,26 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
                     ),
+                    if (isNew) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppThemeV3.primaryGreen.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppThemeV3.primaryGreen.withValues(alpha: 0.6)),
+                        ),
+                        child: Text(
+                          'NEW',
+                          style: TextStyle(
+                            color: AppThemeV3.primaryGreen,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 4),
                     _expandableDescription(desc),
                     const SizedBox(height: 8),
