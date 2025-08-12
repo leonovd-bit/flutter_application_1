@@ -21,21 +21,16 @@ class _DebugOverlayState extends State<DebugOverlay> {
     return Positioned(
       left: _offset.dx,
       top: _offset.dy,
-      child: Listener(
-        onPointerDown: (_) {},
-        child: Draggable(
-          feedback: _buildCard(opacity: 0.85),
-          childWhenDragging: Opacity(
-            opacity: 0.3,
-            child: _buildCard(),
-          ),
-          onDragEnd: (details) {
-            setState(() {
-              _offset = details.offset;
-            });
-          },
-          child: _buildCard(),
-        ),
+      child: GestureDetector(
+        onPanUpdate: (details) {
+          setState(() {
+            // Constrain a little so it stays visible
+            final dx = (_offset.dx + details.delta.dx).clamp(0, MediaQuery.of(context).size.width - 40);
+            final dy = (_offset.dy + details.delta.dy).clamp(kToolbarHeight, MediaQuery.of(context).size.height - 40);
+            _offset = Offset(dx.toDouble(), dy.toDouble());
+          });
+        },
+        child: _buildCard(),
       ),
     );
   }
