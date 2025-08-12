@@ -93,6 +93,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           children: [
             wrapped, // main app content
             const BuildBadge(label: 'REFINED • OneDrive'),
+            if (FeatureFlags.showDebugOverlay) const DebugOverlay(),
           ],
         );
       },
