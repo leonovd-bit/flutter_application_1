@@ -11,6 +11,7 @@ import 'circle_of_health_page_v3.dart';
 import 'upcoming_orders_page_v3.dart';
 import 'past_orders_page_v3.dart';
 import 'address_page_v3.dart';
+import 'menu_page_v3.dart';
 import '../services/firestore_service_v3.dart';
 
 class HomePageV3 extends StatefulWidget {
@@ -277,12 +278,22 @@ class _HomePageV3State extends State<HomePageV3> {
               ),
             ),
             
-            // App logo in the center (no background box)
-            SizedBox(
-              height: 100,
-              child: Image.asset(
-                'assets/images/freshpunk_logo.png',
-                fit: BoxFit.contain,
+            // App logo in the center (tap to open Menu)
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const MenuPageV3(menuType: 'lunch'),
+                  ),
+                );
+              },
+              child: SizedBox(
+                height: 100,
+                child: Image.asset(
+                  'assets/images/freshpunk_logo.png',
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
             

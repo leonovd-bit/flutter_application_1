@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../services/firestore_service_v3.dart';
 import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
-import 'meal_schedule_page_v3.dart';
+import 'meal_schedule_page_v3_fixed.dart';
 import 'address_page_v3.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';

@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
 import '../services/progress_manager.dart';
 import 'address_page_v3.dart';
-import 'meal_schedule_page_v3.dart';
+import 'meal_schedule_page_v3_fixed.dart';
 
 class DeliverySchedulePageV3 extends StatefulWidget {
   const DeliverySchedulePageV3({super.key});
@@ -2614,7 +2613,7 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
     
     navigator.push(
       MaterialPageRoute(
-        builder: (context) => MealSchedulePageV3(
+  builder: (context) => MealSchedulePageV3(
           mealPlan: _selectedMealPlan!,
           weeklySchedule: weeklySchedule,
           initialScheduleName: _scheduleName,
@@ -2668,7 +2667,7 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
     // Navigate to meal selection with minimal schedule
     navigator2.push(
       MaterialPageRoute(
-        builder: (context) => MealSchedulePageV3(
+  builder: (context) => MealSchedulePageV3(
           mealPlan: _selectedMealPlan!,
           weeklySchedule: emptySchedule,
           initialScheduleName: _scheduleName,
