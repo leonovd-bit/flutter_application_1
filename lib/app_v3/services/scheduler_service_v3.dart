@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firestore_service_v3.dart';
 import 'order_service_v3.dart';
 
@@ -7,14 +8,40 @@ class SchedulerServiceV3 {
   static Future<int> generateUpcomingOrders({required String userId, int daysAhead = 7}) async {
     try {
       final plan = await FirestoreServiceV3.getCurrentMealPlan(userId);
-      if (plan == null) return 0;
+      if (plan == null) {
+        debugPrint('[Scheduler] skip: no current meal plan for user=$userId');
+        return 0;
+      }
       final schedules = await FirestoreServiceV3.getActiveDeliverySchedules(userId);
-      if (schedules.isEmpty) return 0;
+      if (schedules.isEmpty) {
+        debugPrint('[Scheduler] skip: no active schedules for user=$userId');
+        return 0;
+      }
       final addresses = await FirestoreServiceV3.getUserAddresses(userId);
-      if (addresses.isEmpty) return 0;
+      if (addresses.isEmpty) {
+        debugPrint('[Scheduler] skip: no addresses for user=$userId');
+        return 0;
+      }
       final defaultAddress = addresses.firstWhere((a) => a.isDefault, orElse: () => addresses.first);
 
       final now = DateTime.now();
+  debugPrint('[Scheduler] start: user=$userId plan=${plan.id} schedules=${schedules.length} addresses=${addresses.length} defaultAddress=${defaultAddress.id}');
+      // Fetch once for dedupe window and build a set of existing delivery slots (epoch minutes)
+      final existing = await FirestoreServiceV3.getUpcomingOrders(userId);
+      final existingSlots = existing.map<int>((o) {
+        final ts = o['deliveryDate'];
+        DateTime dt;
+        if (ts is Timestamp) {
+          dt = ts.toDate();
+        } else if (ts is int) {
+          dt = DateTime.fromMillisecondsSinceEpoch(ts);
+        } else if (ts is DateTime) {
+          dt = ts;
+        } else {
+          return -1;
+        }
+        return dt.millisecondsSinceEpoch ~/ 60000; // minute resolution
+      }).where((v) => v >= 0).toSet();
       int created = 0;
       for (var i = 0; i < daysAhead; i++) {
         final day = now.add(Duration(days: i));
@@ -23,13 +50,8 @@ class SchedulerServiceV3 {
           // Build delivery datetime from the schedule's time
           final deliveryDate = DateTime(day.year, day.month, day.day, s.deliveryTime.hour, s.deliveryTime.minute);
           // Skip if an order already exists for this user at this delivery time (best-effort)
-          final existing = await FirestoreServiceV3.getUpcomingOrders(userId);
-          final already = existing.any((o) {
-            final ts = o['deliveryDate'];
-            final dt = ts is int ? DateTime.fromMillisecondsSinceEpoch(ts) : (ts is DateTime ? ts : DateTime.now());
-            return dt.year == deliveryDate.year && dt.month == deliveryDate.month && dt.day == deliveryDate.day && dt.hour == deliveryDate.hour && dt.minute == deliveryDate.minute;
-          });
-          if (already) continue;
+          final slotKey = deliveryDate.millisecondsSinceEpoch ~/ 60000;
+          if (existingSlots.contains(slotKey)) continue;
 
           await OrderServiceV3.createScheduledOrder(
             userId: userId,
@@ -38,10 +60,12 @@ class SchedulerServiceV3 {
             address: defaultAddress,
             deliveryDate: deliveryDate,
           );
+          existingSlots.add(slotKey);
           created++;
         }
       }
-      return created;
+  debugPrint('[Scheduler] Generated $created orders for user=$userId (daysAhead=$daysAhead)');
+  return created;
     } catch (e) {
       debugPrint('Scheduler generation failed: $e');
       return 0;

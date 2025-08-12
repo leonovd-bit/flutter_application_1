@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/meal_model_v3.dart';
+import 'notification_service_v3.dart';
 // No direct dependency needed here; Firestore writes are local in this service.
 
 class OrderServiceV3 {
@@ -30,10 +31,21 @@ class OrderServiceV3 {
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
-        'orderDate': DateTime.now().millisecondsSinceEpoch,
-        'deliveryDate': deliveryDate.millisecondsSinceEpoch,
-        'estimatedDeliveryTime': deliveryDate.millisecondsSinceEpoch,
+        'orderDate': Timestamp.fromDate(DateTime.now()),
+        'deliveryDate': Timestamp.fromDate(deliveryDate),
+        'estimatedDeliveryTime': Timestamp.fromDate(deliveryDate),
       });
+      debugPrint('[Scheduler] Created order $orderId for $userId at $deliveryDate');
+
+      // Schedule a local reminder one hour before delivery
+      final notifId = deliveryDate.millisecondsSinceEpoch ~/ 60000; // minute-granularity id
+  await NotificationServiceV3.instance.scheduleIfNotExists(
+        id: notifId,
+        deliveryTime: deliveryDate,
+        title: 'FreshPunk delivery',
+        body: 'Your ${schedule.mealType} arrives in 1 hour at ${address.label}.',
+        payload: orderId,
+      );
     } catch (e) {
       debugPrint('Failed to create scheduled order: $e');
       rethrow;

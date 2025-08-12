@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/meal_model_v3.dart';
@@ -208,6 +209,7 @@ class FirestoreServiceV3 {
 
   static Future<MealPlanModelV3?> getCurrentMealPlan(String userId) async {
     try {
+      debugPrint('[getCurrentMealPlan] V2 start for user=$userId');
       // Avoid composite index by fetching a reasonable number and filtering client-side
       final querySnapshot = await _firestore
           .collection(_usersCollection)
@@ -218,7 +220,9 @@ class FirestoreServiceV3 {
           .get();
 
       final docs = querySnapshot.docs;
+      debugPrint('[getCurrentMealPlan] fetched docs=${docs.length}');
       if (docs.isEmpty) {
+        debugPrint('[getCurrentMealPlan] no user plans; checking subscription fallback');
         // Fallback: resolve from active subscription if no meal plan docs exist yet
         try {
           final sub = await getActiveSubscription(userId);
@@ -242,12 +246,18 @@ class FirestoreServiceV3 {
         return null;
       }
 
-      // Prefer the most recent active plan; else the most recent plan
-      final active = docs.firstWhere(
-        (d) => (d.data()['isActive'] == true),
-        orElse: () => docs.first,
-      );
-      return MealPlanModelV3.fromFirestore(active);
+  // Prefer the most recent active plan; else the most recent plan
+      QueryDocumentSnapshot<Map<String, dynamic>>? active;
+      for (final d in docs) {
+        final data = d.data();
+        if ((data['isActive'] == true)) {
+          active = d;
+          break;
+        }
+      }
+      final chosen = active ?? docs.first;
+  debugPrint('[getCurrentMealPlan] returning plan doc id=${chosen.id} (active? ${active != null})');
+      return MealPlanModelV3.fromFirestore(chosen);
     } catch (e) {
       throw Exception('Failed to get current meal plan: $e');
     }
@@ -324,17 +334,23 @@ class FirestoreServiceV3 {
 
   static Future<List<DeliveryScheduleModelV3>> getActiveDeliverySchedules(String userId) async {
     try {
+      // Use single-field filter to avoid composite index requirement; sort client-side
       final querySnapshot = await _firestore
           .collection(_usersCollection)
           .doc(userId)
           .collection(_deliverySchedulesCollection)
           .where('isActive', isEqualTo: true)
-          .orderBy('weekStartDate', descending: false)
           .get();
 
-      return querySnapshot.docs
+      final items = querySnapshot.docs
           .map((doc) => DeliveryScheduleModelV3.fromFirestore(doc))
           .toList();
+      items.sort((a, b) {
+        final at = a.weekStartDate?.millisecondsSinceEpoch ?? 0;
+        final bt = b.weekStartDate?.millisecondsSinceEpoch ?? 0;
+        return at.compareTo(bt);
+      });
+      return items;
     } catch (e) {
       throw Exception('Failed to get delivery schedules: $e');
     }
