@@ -44,6 +44,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  final _routeObserver = RouteObserver<PageRoute>();
   @override
   void initState() {
     super.initState();
@@ -73,6 +74,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       theme: AppThemeV3.lightTheme,
       home: const SplashPageV3(),
       debugShowCheckedModeBanner: false,
+      navigatorObservers: [
+        _routeObserver,
+        _RouteLogger(),
+      ],
       builder: (context, child) {
         final wrapped = MediaQuery(
           data: MediaQuery.of(context).copyWith(
@@ -89,5 +94,25 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         );
       },
     );
+  }
+}
+
+class _RouteLogger extends NavigatorObserver {
+  @override
+  void didPush(Route route, Route? previousRoute) {
+    debugPrint('[Route] push -> ${route.settings.name ?? route.runtimeType}');
+    super.didPush(route, previousRoute);
+  }
+
+  @override
+  void didReplace({Route? newRoute, Route? oldRoute}) {
+    debugPrint('[Route] replace -> ${newRoute?.settings.name ?? newRoute?.runtimeType}');
+    super.didReplace(newRoute: newRoute, oldRoute: oldRoute);
+  }
+
+  @override
+  void didPop(Route route, Route? previousRoute) {
+    debugPrint('[Route] pop <- ${route.settings.name ?? route.runtimeType}');
+    super.didPop(route, previousRoute);
   }
 }
