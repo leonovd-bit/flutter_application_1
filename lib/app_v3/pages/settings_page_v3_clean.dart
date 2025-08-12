@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/notification_service_v3.dart';
 import '../theme/app_theme_v3.dart';
 import 'welcome_page_v3.dart';
 import 'address_page_v3.dart';
@@ -28,7 +29,6 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
   bool _pushNotifications = true;
   bool _emailNotifications = true;
   bool _orderUpdates = true;
-  bool _promotionalEmails = false;
   bool _isLoading = true;
 
   @override
@@ -44,9 +44,12 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
   }
 
   Future<void> _loadSettings() async {
-    // Load user settings from Firebase or local storage
-    // For now, using default values
+    final prefs = await SharedPreferences.getInstance();
     setState(() {
+      _pushNotifications = prefs.getBool('notifications_enabled') ?? true;
+      _emailNotifications = prefs.getBool('email_notifications_enabled') ?? true;
+      _orderUpdates = prefs.getBool('order_updates_enabled') ?? true;
+  // Promotional emails temporarily disabled/hidden
       _isLoading = false;
     });
   }
@@ -228,10 +231,19 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
             title: 'Push Notifications',
             subtitle: 'Receive notifications on your device',
             value: _pushNotifications,
-            onChanged: (value) {
+            onChanged: (value) async {
               setState(() {
                 _pushNotifications = value;
               });
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool('notifications_enabled', value);
+              if (!value) {
+                // Cancel pending notifications if user turns off push
+                await NotificationServiceV3.instance.cancelAll();
+              } else {
+                // Ensure permissions requested if re-enabled
+                await NotificationServiceV3.instance.init();
+              }
             },
           ),
           _buildSwitchTile(
@@ -239,10 +251,12 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
             title: 'Email Notifications',
             subtitle: 'Receive notifications via email',
             value: _emailNotifications,
-            onChanged: (value) {
+            onChanged: (value) async {
               setState(() {
                 _emailNotifications = value;
               });
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool('email_notifications_enabled', value);
             },
           ),
           _buildSwitchTile(
@@ -250,23 +264,15 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
             title: 'Order Updates',
             subtitle: 'Get notified about order status',
             value: _orderUpdates,
-            onChanged: (value) {
+            onChanged: (value) async {
               setState(() {
                 _orderUpdates = value;
               });
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool('order_updates_enabled', value);
             },
           ),
-          _buildSwitchTile(
-            icon: Icons.local_offer_outlined,
-            title: 'Promotional Emails',
-            subtitle: 'Receive offers and promotions',
-            value: _promotionalEmails,
-            onChanged: (value) {
-              setState(() {
-                _promotionalEmails = value;
-              });
-            },
-          ),
+          // Promotional Emails temporarily removed
 
           const SizedBox(height: 24),
 
@@ -277,6 +283,15 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
             title: 'Help & FAQ',
             subtitle: 'Get answers to common questions',
             onTap: () => _navigateToHelp(),
+          ),
+          _buildSettingsTile(
+            icon: Icons.notifications_active_outlined,
+            title: 'Send Test Notification',
+            subtitle: 'Verify device notifications are working',
+            onTap: () async {
+              await NotificationServiceV3.instance.showTestNotification();
+              _showSnackBar('Test notification sent');
+            },
           ),
           _buildSettingsTile(
             icon: Icons.chat_bubble_outline,

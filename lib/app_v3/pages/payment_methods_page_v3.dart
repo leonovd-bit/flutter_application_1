@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme_v3.dart';
+import '../services/stripe_service.dart';
 
 class PaymentMethodsPageV3 extends StatefulWidget {
   const PaymentMethodsPageV3({super.key});
@@ -19,38 +20,35 @@ class _PaymentMethodsPageV3State extends State<PaymentMethodsPageV3> {
   }
 
   Future<void> _loadPaymentMethods() async {
-    // Simulate loading payment methods
-    await Future.delayed(const Duration(seconds: 1));
-    
-    setState(() {
-      // Sample payment methods for demonstration
-      _paymentMethods = [
-        PaymentMethod(
-          id: '1',
+    setState(() => _isLoading = true);
+    try {
+      final items = await StripeService.instance.listPaymentMethods();
+      final mapped = items.map((pm) {
+        return PaymentMethod(
+          id: pm['id'] as String? ?? '',
           type: PaymentMethodType.card,
-          lastFour: '4242',
-          brand: 'Visa',
-          expiryMonth: 12,
-          expiryYear: 2025,
-          isDefault: true,
-        ),
-        PaymentMethod(
-          id: '2',
-          type: PaymentMethodType.card,
-          lastFour: '5555',
-          brand: 'Mastercard',
-          expiryMonth: 8,
-          expiryYear: 2026,
-          isDefault: false,
-        ),
-      ];
-      _isLoading = false;
-    });
+          lastFour: (pm['card']?['last4'] as String?) ?? '****',
+          brand: (pm['card']?['brand'] as String?) ?? 'Card',
+          expiryMonth: (pm['card']?['exp_month'] as int?) ?? 1,
+          expiryYear: (pm['card']?['exp_year'] as int?) ?? 2100,
+          isDefault: (pm['default'] as bool?) ?? false,
+        );
+      }).toList();
+      setState(() {
+        _paymentMethods = mapped;
+        _isLoading = false;
+      });
+    } catch (_) {
+      setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _addPaymentMethod() async {
-    // Show add payment method dialog
-    _showAddPaymentMethodDialog();
+    final ok = await StripeService.instance.addPaymentMethod(context);
+    if (ok) {
+      _showSnackBar('Payment method added');
+      await _loadPaymentMethods();
+    }
   }
 
   Future<void> _removePaymentMethod(PaymentMethod method) async {
@@ -65,12 +63,15 @@ class _PaymentMethodsPageV3State extends State<PaymentMethodsPageV3> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              setState(() {
-                _paymentMethods.remove(method);
-              });
-              _showSnackBar('Payment method removed');
+              final ok = await StripeService.instance.detachPaymentMethod(method.id);
+              if (ok) {
+                _showSnackBar('Payment method removed');
+                await _loadPaymentMethods();
+              } else {
+                _showSnackBar('Failed to remove payment method');
+              }
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Remove'),
@@ -81,88 +82,13 @@ class _PaymentMethodsPageV3State extends State<PaymentMethodsPageV3> {
   }
 
   Future<void> _setDefaultPaymentMethod(PaymentMethod method) async {
-    setState(() {
-      for (var pm in _paymentMethods) {
-        pm.isDefault = pm.id == method.id;
-      }
-    });
-    _showSnackBar('Default payment method updated');
-  }
-
-  void _showAddPaymentMethodDialog() {
-    final cardNumberController = TextEditingController();
-    final expiryController = TextEditingController();
-    final cvvController = TextEditingController();
-    final nameController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add Payment Method'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: cardNumberController,
-                decoration: const InputDecoration(
-                  labelText: 'Card Number',
-                  hintText: '1234 5678 9012 3456',
-                ),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: expiryController,
-                      decoration: const InputDecoration(
-                        labelText: 'MM/YY',
-                        hintText: '12/25',
-                      ),
-                      keyboardType: TextInputType.number,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: TextField(
-                      controller: cvvController,
-                      decoration: const InputDecoration(
-                        labelText: 'CVV',
-                        hintText: '123',
-                      ),
-                      keyboardType: TextInputType.number,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Cardholder Name',
-                  hintText: 'John Doe',
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _showSnackBar('Payment method integration coming soon');
-            },
-            child: const Text('Add'),
-          ),
-        ],
-      ),
-    );
+    final ok = await StripeService.instance.setDefaultPaymentMethod(method.id);
+    if (ok) {
+      _showSnackBar('Default payment method updated');
+      await _loadPaymentMethods();
+    } else {
+      _showSnackBar('Failed to set default');
+    }
   }
 
   void _showSnackBar(String message) {
