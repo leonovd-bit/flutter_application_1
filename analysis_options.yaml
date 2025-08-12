@@ -1,1 +1,8 @@
 include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - dataconnect-generated/**
+    - build/**
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"

@@ -86,7 +86,7 @@ class _EmailVerificationPageV3State extends State<EmailVerificationPageV3> {
         ),
       ),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -171,7 +171,7 @@ class _EmailVerificationPageV3State extends State<EmailVerificationPageV3> {
                 ),
               ),
               
-              const Spacer(),
+              const SizedBox(height: 32),
               
               // Resend email button
               SizedBox(

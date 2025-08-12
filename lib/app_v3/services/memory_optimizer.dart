@@ -16,10 +16,24 @@ class MemoryOptimizer {
   static void optimizeImageCache() {
     final imageCache = PaintingBinding.instance.imageCache;
     
-    if (Platform.isAndroid || Platform.isIOS) {
-      // Reduce cache size for mobile devices
-      imageCache.maximumSize = 50; // Reduced from default 1000
-      imageCache.maximumSizeBytes = 10 << 20; // 10MB instead of default 100MB
+    // Check if we're on web platform first
+    if (kIsWeb) {
+      // Web-specific optimizations
+      imageCache.maximumSize = 30; // Smaller cache for web
+      imageCache.maximumSizeBytes = 5 << 20; // 5MB for web
+    } else {
+      // Check platform for mobile/desktop
+      try {
+        if (Platform.isAndroid || Platform.isIOS) {
+          // Reduce cache size for mobile devices
+          imageCache.maximumSize = 50; // Reduced from default 1000
+          imageCache.maximumSizeBytes = 10 << 20; // 10MB instead of default 100MB
+        }
+      } catch (e) {
+        // Fallback for unsupported platforms
+        imageCache.maximumSize = 30;
+        imageCache.maximumSizeBytes = 5 << 20;
+      }
     }
   }
   

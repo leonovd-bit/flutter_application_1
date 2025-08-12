@@ -6,6 +6,7 @@ import 'firebase_options.dart';
 import 'app_v3/pages/splash_page_v3.dart';
 import 'app_v3/theme/app_theme_v3.dart';
 import 'app_v3/services/memory_optimizer.dart';
+import 'app_v3/debug/build_badge.dart';
 
 void main() {
   runZonedGuarded(() async {
@@ -26,7 +27,7 @@ void main() {
       options: DefaultFirebaseOptions.currentPlatform,
     );
 
-    // MemoryOptimizer.optimizeImageCache(); // disabled while diagnosing
+    // MemoryOptimizer.optimizeImageCache(); // Disabled for web compatibility
 
     runApp(const MyApp());
   }, (error, stack) {
@@ -68,17 +69,23 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'FreshPunk',
       theme: AppThemeV3.lightTheme,
       home: const SplashPageV3(),
       debugShowCheckedModeBanner: false,
-      // Optimize app performance
       builder: (context, child) {
-        return MediaQuery(
+        final wrapped = MediaQuery(
           data: MediaQuery.of(context).copyWith(
-            textScaler: TextScaler.linear(1.0), // Prevent font scaling issues
+            textScaler: const TextScaler.linear(1.0),
           ),
           child: child!,
+        );
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            wrapped, // main app content
+            const BuildBadge(label: 'REFINED • OneDrive'),
+          ],
         );
       },
     );

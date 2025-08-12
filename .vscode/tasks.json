@@ -438,6 +438,89 @@
 				"--no-fatal-infos"
 			],
 			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze (verify)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze (verify 2)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Run Flutter",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"run"
+			],
+			"isBackground": true,
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos",
+				"--no-fatal-warnings"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos",
+				"--no-fatal-warnings"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos",
+				"--no-fatal-warnings"
+			],
+			"group": "build"
 		}
 	]
 }

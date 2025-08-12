@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../pages/home_page_v3.dart';
 import '../pages/login_page_v3.dart';
-import '../pages/splash_page_v1.dart';
+import '../pages/splash_page_v3.dart';
 import '../pages/delivery_schedule_page_v4.dart';
 import '../pages/meal_schedule_page_v3_fixed.dart';
 import 'progress_manager.dart';
@@ -192,7 +192,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
   Widget build(BuildContext context) {
     if (!_isInitialized) {
       // Show a dedicated splash while bootstrapping
-      return const SplashPageV1();
+  return const SplashPageV3();
     }
 
     return StreamBuilder<User?>(
@@ -200,7 +200,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           // Keep showing splash while auth state resolves
-          return const SplashPageV1();
+          return const SplashPageV3();
         }
         
         if (snapshot.hasData && snapshot.data != null) {

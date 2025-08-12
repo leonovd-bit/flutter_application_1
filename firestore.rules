@@ -32,5 +32,11 @@ service cloud.firestore {
       // Allow read/update/delete if the authenticated user owns the order
       allow read, update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
     }
+
+    // Meals collection (top-level) - allow authenticated users to read and seed
+    match /meals/{mealId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if request.auth != null;
+    }
   }
 }
