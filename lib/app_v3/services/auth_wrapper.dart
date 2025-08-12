@@ -24,6 +24,7 @@ class AuthWrapper extends StatefulWidget {
 class _AuthWrapperState extends State<AuthWrapper> {
   bool _isInitialized = false;
   bool _hasSavedSchedules = false;
+  bool _explicitUserSetupApproved = false; // set true only after user action in login/signup UI
   DateTime? _bootStartedAt;
   static const Duration _minSplashDuration = Duration(milliseconds: 1200);
 
@@ -81,15 +82,21 @@ class _AuthWrapperState extends State<AuthWrapper> {
         } catch (_) {}
 
   try {
-          // Seed canonical plans if user's collection is empty, then generate upcoming orders
-          await DataMigrationV3.seedMealPlansIfMissing(user.uid);
-          final generated = await SchedulerServiceV3.generateUpcomingOrders(userId: user.uid, daysAhead: 7);
-          debugPrint('[AuthBootstrap] scheduler generated=$generated');
+          // Only proceed with seeding + generation if explicit user setup approved.
+          // This prevents unintended automatic account bootstrap if a stray auth user appears.
+          if (_explicitUserSetupApproved) {
+            await DataMigrationV3.seedMealPlansIfMissing(user.uid);
+            final generated = await SchedulerServiceV3.generateUpcomingOrders(userId: user.uid, daysAhead: 7);
+            debugPrint('[AuthBootstrap] scheduler generated=$generated');
+          } else {
+            debugPrint('[AuthBootstrap] Skipping seeding/scheduler until explicit setup approval.');
+          }
 
           // Backfill notifications for any existing future orders without reminders yet
           try {
-            final upcoming = await FirestoreServiceV3.getUpcomingOrders(user.uid);
-            for (final o in upcoming) {
+            if (_explicitUserSetupApproved) {
+              final upcoming = await FirestoreServiceV3.getUpcomingOrders(user.uid);
+              for (final o in upcoming) {
               final ts = o['deliveryDate'];
               DateTime dt;
               if (ts is Timestamp) {
@@ -114,22 +121,33 @@ class _AuthWrapperState extends State<AuthWrapper> {
                 body: 'Your $mealType arrives in 1 hour at $addressLabel.',
                 payload: orderId,
               );
+              }
+              debugPrint('[AuthBootstrap] notification backfill scheduled (explicit)');
+            } else {
+              debugPrint('[AuthBootstrap] Skipping notification backfill (no explicit approval).');
             }
-            debugPrint('[AuthBootstrap] notification backfill scheduled for ${upcoming.length} orders');
           } catch (e) {
             debugPrint('[AuthBootstrap] notification backfill error: $e');
           }
           // Ensure meals are seeded (idempotent upsert). Safe to run anytime.
           try {
-            final seeded = await MealServiceV3.seedFromJsonAsset();
-            debugPrint('[AuthBootstrap] meals seeded (attempted): $seeded');
+            if (_explicitUserSetupApproved) {
+              final seeded = await MealServiceV3.seedFromJsonAsset();
+              debugPrint('[AuthBootstrap] meals seeded (attempted): $seeded');
+            } else {
+              debugPrint('[AuthBootstrap] Skipping meal seed until explicit approval.');
+            }
           } catch (e) {
             debugPrint('[AuthBootstrap] meals seed error: $e');
           }
           // Ensure token plan exists (idempotent)
           try {
-            await MealServiceV3.seedTokenPlanIfNeeded();
-            debugPrint('[AuthBootstrap] token plan ensured');
+            if (_explicitUserSetupApproved) {
+              await MealServiceV3.seedTokenPlanIfNeeded();
+              debugPrint('[AuthBootstrap] token plan ensured');
+            } else {
+              debugPrint('[AuthBootstrap] Skipping token plan seed until explicit approval.');
+            }
           } catch (e) {
             debugPrint('[AuthBootstrap] token plan seed error: $e');
           }
