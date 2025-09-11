@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Meal Planner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+        }
+
+        .app-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 420px; /* Phone-like width */
+            height: 85vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .header {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            padding: 20px 20px 15px 20px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .header h1 {
+            font-size: 22px;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 13px;
+            line-height: 1.3;
+        }
+
+        .progress-section {
+            background: white;
+            padding: 15px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            flex-shrink: 0;
+        }
+
+        .profile-completeness {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .progress-bar {
+            background: #e9ecef;
+            border-radius: 10px;
+            height: 6px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f8f9fa;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .message {
+            margin-bottom: 16px;
+            max-width: 85%;
+            word-wrap: break-word;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            margin-left: auto;
+            background: #007bff;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 18px 18px 4px 18px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .message.ai {
+            background: white;
+            padding: 12px 16px;
+            border-radius: 18px 18px 18px 4px;
+            border: 1px solid #e9ecef;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .input-area {
+            padding: 15px 20px 20px 20px;
+            background: white;
+            flex-shrink: 0;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e9ecef;
+            border-radius: 20px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s;
+            resize: none;
+            max-height: 100px;
+            min-height: 44px;
+            line-height: 1.4;
+            font-family: inherit;
+        }
+
+        .message-input:focus {
+            border-color: #007bff;
+        }
+
+        .send-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            width: 44px;
+            height: 44px;
+            border-radius: 22px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .send-btn:hover {
+            background: #0056b3;
+        }
+
+        .send-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .meal-plan-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        .meal-plan-overlay.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .meal-plan-content {
+            background: white;
+            border-radius: 15px;
+            width: 100%;
+            max-width: 400px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .meal-plan-header {
+            padding: 20px;
+            border-bottom: 1px solid #f0f0f0;
+            position: sticky;
+            top: 0;
+            background: white;
+            border-radius: 15px 15px 0 0;
+        }
+
+        .meal-plan-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin: 0;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .meal-plan-body {
+            padding: 20px;
+        }
+
+        .nutrition-summary {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid #e9ecef;
+        }
+
+        .nutrition-summary h3 {
+            color: #4CAF50;
+            font-size: 16px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .nutrition-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .nutrition-item {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .meal-group {
+            margin-bottom: 20px;
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            border: 1px solid #f0f0f0;
+        }
+
+        .meal-group h3 {
+            color: #4CAF50;
+            font-size: 16px;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .food-item {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 1px solid #e9ecef;
+        }
+
+        .food-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .food-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+            font-size: 14px;
+        }
+
+        .food-restaurant {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 6px;
+        }
+
+        .food-description {
+            font-size: 12px;
+            color: #555;
+            margin-bottom: 8px;
+            line-height: 1.3;
+        }
+
+        .food-nutrition {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .food-bottom {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .food-price {
+            font-weight: 600;
+            color: #4CAF50;
+            font-size: 14px;
+        }
+
+        .add-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.3s;
+        }
+
+        .add-btn:hover {
+            background: #45a049;
+        }
+
+        .cart-section {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 25px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: none;
+            font-size: 14px;
+            z-index: 999;
+        }
+
+        .cart-section.show {
+            display: block;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .input-hint {
+            font-size: 11px;
+            color: #999;
+            margin-top: 5px;
+            text-align: center;
+        }
+
+        /* Mobile specific adjustments */
+        @media (max-width: 480px) {
+            body {
+                padding: 5px;
+            }
+            
+            .app-container {
+                height: 100vh;
+                border-radius: 0;
+                max-width: 100%;
+            }
+            
+            .header {
+                padding: 15px;
+            }
+            
+            .messages {
+                padding: 15px;
+            }
+            
+            .input-area {
+                padding: 15px;
+            }
+        }
+
+        /* Landscape phone adjustments */
+        @media (max-height: 600px) and (orientation: landscape) {
+            .app-container {
+                height: 95vh;
+            }
+            
+            .header {
+                padding: 15px;
+            }
+            
+            .header h1 {
+                font-size: 18px;
+            }
+            
+            .header p {
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="header">
+            <h1>🥗 AI Meal Planner</h1>
+            <p>Tell me your goals and I'll create the perfect meal plan!</p>
+        </div>
+        
+        <div class="progress-section">
+            <div class="profile-completeness">
+                <div>Profile Completeness: <span id="completeness">0%</span></div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="messages" id="messages">
+            <div class="message ai">
+                Hi! I'm your personal nutrition assistant. Tell me about your meal planning goals - like your fitness routine, dietary preferences, or what you're trying to achieve!
+            </div>
+        </div>
+        
+        <div class="loading" id="loading">
+            <div>🤔 Thinking...</div>
+        </div>
+        
+        <div class="input-area">
+            <div class="input-container">
+                <textarea 
+                    id="messageInput" 
+                    class="message-input" 
+                    placeholder="Type your message here..."
+                    rows="1"
+                    maxlength="1000"
+                ></textarea>
+                <button id="sendBtn" class="send-btn">➤</button>
+            </div>
+            <div class="input-hint">Shift+Enter for new line, Enter to send</div>
+        </div>
+    </div>
+    
+    <div class="meal-plan-overlay" id="mealPlanOverlay">
+        <div class="meal-plan-content">
+            <div class="meal-plan-header">
+                <h2 class="meal-plan-title">Your Personalized Meal Plan</h2>
+                <button class="close-btn" id="closeMealPlan">&times;</button>
+            </div>
+            <div class="meal-plan-body" id="mealPlanContent"></div>
+        </div>
+    </div>
+    
+    <div class="cart-section" id="cartSection">
+        🛒 Cart (<span id="cartCount">0</span>) - $<span id="cartTotal">0.00</span>
+    </div>
+
+    <script>
+        class MealPlannerApp {
+            constructor() {
+                this.userId = 'user_' + Math.random().toString(36).substr(2, 9);
+                this.cartItems = [];
+                this.init();
+            }
+
+            init() {
+                this.messageInput = document.getElementById('messageInput');
+                this.sendBtn = document.getElementById('sendBtn');
+                this.messages = document.getElementById('messages');
+                this.loading = document.getElementById('loading');
+                this.mealPlanOverlay = document.getElementById('mealPlanOverlay');
+                this.closeMealPlan = document.getElementById('closeMealPlan');
+                this.cartSection = document.getElementById('cartSection');
+                this.completenessSpan = document.getElementById('completeness');
+                this.progressFill = document.getElementById('progress-fill');
+
+                this.bindEvents();
+                this.adjustTextareaHeight();
+            }
+
+            bindEvents() {
+                this.sendBtn.addEventListener('click', () => this.sendMessage());
+                
+                // Enhanced keyboard handling for textarea
+                this.messageInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.sendMessage();
+                    }
+                });
+                
+                // Auto-resize textarea
+                this.messageInput.addEventListener('input', () => {
+                    this.adjustTextareaHeight();
+                });
+                
+                this.cartSection.addEventListener('click', () => this.showCart());
+                this.closeMealPlan.addEventListener('click', () => this.hideMealPlan());
+                
+                // Close meal plan when clicking overlay
+                this.mealPlanOverlay.addEventListener('click', (e) => {
+                    if (e.target === this.mealPlanOverlay) {
+                        this.hideMealPlan();
+                    }
+                });
+            }
+
+            adjustTextareaHeight() {
+                this.messageInput.style.height = 'auto';
+                this.messageInput.style.height = Math.min(this.messageInput.scrollHeight, 100) + 'px';
+            }
+
+            async sendMessage() {
+                const message = this.messageInput.value.trim();
+                if (!message) return;
+
+                this.addMessage('user', message);
+                this.messageInput.value = '';
+                this.adjustTextareaHeight();
+                this.showLoading(true);
+                this.sendBtn.disabled = true;
+
+                try {
+                    const response = await fetch('/api/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userId: this.userId,
+                            message: message
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.error) {
+                        this.addMessage('ai', 'Sorry, I encountered an error. Please try again.');
+                    } else {
+                        this.addMessage('ai', data.message);
+                        
+                        if (data.profileCompleteness !== undefined) {
+                            this.updateProfileCompleteness(data.profileCompleteness);
+                        }
+
+                        if (data.showMealPlan && data.mealPlan) {
+                            this.showMealPlan(data.mealPlan);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    this.addMessage('ai', 'Sorry, I\'m having trouble connecting. Please check your internet and try again.');
+                }
+
+                this.showLoading(false);
+                this.sendBtn.disabled = false;
+                this.messageInput.focus();
+            }
+
+            addMessage(role, content) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${role}`;
+                messageDiv.textContent = content;
+                this.messages.appendChild(messageDiv);
+                this.messages.scrollTop = this.messages.scrollHeight;
+            }
+
+            showLoading(show) {
+                this.loading.classList.toggle('show', show);
+                if (show) {
+                    this.messages.scrollTop = this.messages.scrollHeight;
+                }
+            }
+
+            updateProfileCompleteness(percentage) {
+                this.completenessSpan.textContent = `${percentage}%`;
+                this.progressFill.style.width = `${percentage}%`;
+            }
+
+            showMealPlan(mealPlan) {
+                const content = document.getElementById('mealPlanContent');
+                content.innerHTML = '';
+
+                // Add nutrition summary first
+                if (mealPlan.actualNutrition || mealPlan.targetCalories) {
+                    const nutritionDiv = document.createElement('div');
+                    nutritionDiv.className = 'nutrition-summary';
+                    
+                    const actual = mealPlan.actualNutrition;
+                    const target = {
+                        calories: mealPlan.targetCalories,
+                        protein: mealPlan.nutritionGoals?.protein
+                    };
+                    
+                    nutritionDiv.innerHTML = `
+                        <h3>Nutrition Summary</h3>
+                        <div class="nutrition-grid">
+                            <div class="nutrition-item">
+                                <span>Calories:</span>
+                                <span>${actual?.calories || 'N/A'} ${target.calories ? `/ ${target.calories}` : ''}</span>
+                            </div>
+                            <div class="nutrition-item">
+                                <span>Protein:</span>
+                                <span>${actual?.protein || 'N/A'}g ${target.protein ? `/ ${target.protein}g` : ''}</span>
+                            </div>
+                            <div class="nutrition-item">
+                                <span>Carbs:</span>
+                                <span>${actual?.carbs || 'N/A'}g</span>
+                            </div>
+                            <div class="nutrition-item">
+                                <span>Fat:</span>
+                                <span>${actual?.fat || 'N/A'}g</span>
+                            </div>
+                        </div>
+                    `;
+                    content.appendChild(nutritionDiv);
+                }
+
+                // Add meal groups
+                if (mealPlan.dailyPlan) {
+                    Object.entries(mealPlan.dailyPlan).forEach(([mealType, foods]) => {
+                        const mealGroup = document.createElement('div');
+                        mealGroup.className = 'meal-group';
+                        
+                        const mealTitle = document.createElement('h3');
+                        mealTitle.textContent = mealType;
+                        mealGroup.appendChild(mealTitle);
+
+                        foods.forEach(food => {
+                            const foodItem = this.createFoodItem(food);
+                            mealGroup.appendChild(foodItem);
+                        });
+
+                        content.appendChild(mealGroup);
+                    });
+                }
+
+                this.mealPlanOverlay.classList.add('show');
+                document.body.style.overflow = 'hidden';
+            }
+
+            hideMealPlan() {
+                this.mealPlanOverlay.classList.remove('show');
+                document.body.style.overflow = 'auto';
+            }
+
+            createFoodItem(food) {
+                const foodDiv = document.createElement('div');
+                foodDiv.className = 'food-item';
+                
+                foodDiv.innerHTML = `
+                    <div class="food-name">${food.name}</div>
+                    <div class="food-restaurant">${food.restaurant}</div>
+                    <div class="food-description">${food.description}</div>
+                    <div class="food-nutrition">
+                        <span>${food.calories} cal</span>
+                        <span>${food.protein}g protein</span>
+                        <span>${food.carbs}g carbs</span>
+                        <span>${food.fat}g fat</span>
+                    </div>
+                    <div class="food-bottom">
+                        <span class="food-price">$${food.price}</span>
+                        <button class="add-btn" onclick="app.addToCart('${food.id}')">Add to Cart</button>
+                    </div>
+                `;
+                
+                return foodDiv;
+            }
+
+            async addToCart(foodId) {
+                try {
+                    const response = await fetch('/api/add-to-cart', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userId: this.userId,
+                            foodId: foodId
+                        })
+                    });
+
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        this.updateCartDisplay(data.cartSize);
+                        this.addMessage('ai', data.message);
+                    }
+                } catch (error) {
+                    console.error('Error adding to cart:', error);
+                }
+            }
+
+            updateCartDisplay(cartSize) {
+                if (cartSize > 0) {
+                    this.cartSection.classList.add('show');
+                    document.getElementById('cartCount').textContent = cartSize;
+                    this.updateCartTotal();
+                }
+            }
+
+            async updateCartTotal() {
+                try {
+                    const response = await fetch(`/api/cart/${this.userId}`);
+                    const data = await response.json();
+                    document.getElementById('cartTotal').textContent = data.total;
+                } catch (error) {
+                    console.error('Error updating cart total:', error);
+                }
+            }
+
+            async showCart() {
+                try {
+                    const response = await fetch(`/api/cart/${this.userId}`);
+                    const data = await response.json();
+                    
+                    if (data.cart.length === 0) {
+                        alert('Your cart is empty!');
+                        return;
+                    }
+
+                    const cartItems = data.cart.map(item => `${item.name} - $${item.price}`).join('\n');
+                    const confirmOrder = confirm(`Your Cart:\n${cartItems}\n\nTotal: $${data.total}\n\nPlace order?`);
+                    
+                    if (confirmOrder) {
+                        this.checkout();
+                    }
+                } catch (error) {
+                    console.error('Error showing cart:', error);
+                }
+            }
+
+            async checkout() {
+                try {
+                    const response = await fetch('/api/checkout', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userId: this.userId
+                        })
+                    });
+
+                    const data = await response.json();
+                    
+                    if (data.orderId) {
+                        this.addMessage('ai', data.message);
+                        this.cartSection.classList.remove('show');
+                        document.getElementById('cartCount').textContent = '0';
+                        document.getElementById('cartTotal').textContent = '0.00';
+                    }
+                } catch (error) {
+                    console.error('Error during checkout:', error);
+                }
+            }
+        }
+
+        // Initialize the app
+        const app = new MealPlannerApp();
+    </script>
+</body>
+</html>
