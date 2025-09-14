@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firestore_service_v3.dart';
 import 'order_service_v3.dart';
+import '../models/meal_model_v3.dart';
 
 class SchedulerServiceV3 {
   // Generate upcoming orders for the next N days based on active schedules
@@ -17,7 +18,29 @@ class SchedulerServiceV3 {
         debugPrint('[Scheduler] skip: no active schedules for user=$userId');
         return 0;
       }
-      final addresses = await FirestoreServiceV3.getUserAddresses(userId);
+      var addresses = await FirestoreServiceV3.getUserAddresses(userId);
+      if (addresses.isEmpty) {
+        // Fallback to simple name/address pairs (choose first as default) for robustness
+        try {
+          final pairs = await FirestoreServiceV3.getUserAddressPairs(userId);
+          if (pairs.isNotEmpty) {
+            // Map the pair to a minimal AddressModelV3-like structure
+            addresses = [
+              AddressModelV3(
+                id: 'pair-0',
+                userId: userId,
+                label: (pairs.first['name'] ?? 'Address'),
+                streetAddress: (pairs.first['address'] ?? ''),
+                apartment: '',
+                city: 'New York City',
+                state: 'New York',
+                zipCode: '10001',
+                isDefault: true,
+              ),
+            ];
+          }
+        } catch (_) {}
+      }
       if (addresses.isEmpty) {
         debugPrint('[Scheduler] skip: no addresses for user=$userId');
         return 0;

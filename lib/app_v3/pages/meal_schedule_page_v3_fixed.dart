@@ -2,10 +2,12 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/meal_model_v3.dart';
 import '../theme/app_theme_v3.dart';
 import 'delivery_schedule_page_v4.dart';
+import '../services/meal_service_v3.dart';
 import 'interactive_menu_page_v3.dart';
 import 'payment_page_v3.dart';
 
@@ -98,7 +100,9 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
   // Load saved schedule names (deduped) and optionally load one
   Future<void> _loadAvailableSchedules() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getStringList('saved_schedules') ?? [];
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  final listKey = uid == null ? 'saved_schedules' : 'saved_schedules_${uid}';
+  final saved = prefs.getStringList(listKey) ?? [];
     final seen = <String>{};
     final unique = <String>[];
     for (final s in saved) {
@@ -123,7 +127,9 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
 
   Future<void> _loadScheduleData(String name) async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString('delivery_schedule_$name');
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  final schedKey = uid == null ? 'delivery_schedule_$name' : 'delivery_schedule_${uid}_$name';
+  final raw = prefs.getString(schedKey);
     if (raw == null) return;
     final data = json.decode(raw) as Map<String, dynamic>;
 
@@ -183,7 +189,11 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
   Future<void> _loadPersistedMealSelections() async {
     if (_selectedSchedule == null) return;
     final prefs = await SharedPreferences.getInstance();
-  final raw = prefs.getString('meal_selections_$_selectedSchedule');
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  final key = uid == null
+    ? 'meal_selections_${_selectedSchedule}'
+    : 'meal_selections_${uid}_${_selectedSchedule}';
+  final raw = prefs.getString(key);
     if (raw == null) return;
     try {
       final data = json.decode(raw) as Map<String, dynamic>;
@@ -202,6 +212,7 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
   Future<void> _saveMealSelections() async {
     if (_selectedSchedule == null) return;
     final prefs = await SharedPreferences.getInstance();
+  final uid = FirebaseAuth.instance.currentUser?.uid;
     final out = <String, Map<String, Map<String, dynamic>>>{};
     _selectedMeals.forEach((day, mtMap) {
       out[day] = {};
@@ -209,7 +220,10 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
         if (meal != null) out[day]![mt] = meal.toJson();
       });
     });
-  await prefs.setString('meal_selections_$_selectedSchedule', json.encode(out));
+  final key = uid == null
+    ? 'meal_selections_${_selectedSchedule}'
+    : 'meal_selections_${uid}_${_selectedSchedule}';
+  await prefs.setString(key, json.encode(out));
   }
 
   TimeOfDay? _parseTime(dynamic val) {
@@ -258,6 +272,13 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
             'Meal Schedule',
             style: AppThemeV3.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w600),
           ),
+          actions: [
+            IconButton(
+              tooltip: 'Randomize meals for current type',
+              icon: const Icon(Icons.shuffle),
+              onPressed: _randomizeCurrentMealType,
+            ),
+          ],
         ),
         body: Column(
           children: [
@@ -296,6 +317,68 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
         ),
       ),
     );
+  }
+
+  // Randomly fill any empty selections for the currently selected meal type
+  Future<void> _randomizeCurrentMealType() async {
+    if (_selectedSchedule == null || _currentMealPlan == null) return;
+    // Fetch a pool of meals for the current type from service or use simple samples if empty
+    final meals = await _fetchMealsForType(_selectedMealType);
+    if (meals.isEmpty) return;
+    meals.shuffle();
+    int idx = 0;
+    for (final day in _configuredDays) {
+      final required = _currentWeeklySchedule[day]?[_selectedMealType]?['time'] != null;
+      if (!required) continue;
+      if (_selectedMeals[day]?[_selectedMealType] == null) {
+        _selectedMeals[day]![_selectedMealType] = meals[idx % meals.length];
+        idx++;
+      }
+    }
+    await _saveMealSelections();
+    if (mounted) setState(() {});
+  }
+
+  // Helper to fetch meals by type; tries Firestore via MealServiceV3 first, else falls back to simple defaults
+  Future<List<MealModelV3>> _fetchMealsForType(String type) async {
+    debugPrint('[MealSchedule] FETCHING meals for type: $type');
+    
+    try {
+      debugPrint('[MealSchedule] Calling MealServiceV3.getMeals(mealType: ${type.toLowerCase()}, limit: 50)');
+      final svcMeals = await MealServiceV3.getMeals(mealType: type.toLowerCase(), limit: 50);
+      debugPrint('[MealSchedule] MealServiceV3.getMeals returned ${svcMeals.length} meals');
+      
+      if (svcMeals.isNotEmpty) {
+        debugPrint('[MealSchedule] ✅ SUCCESS: Found ${svcMeals.length} database meals for $type');
+        // Log first few meal names
+        for (int i = 0; i < svcMeals.length && i < 3; i++) {
+          debugPrint('[MealSchedule]   - Database meal $i: ${svcMeals[i].name}');
+        }
+        return svcMeals;
+      } else {
+        debugPrint('[MealSchedule] ⚠️ MealServiceV3.getMeals returned empty list for $type');
+      }
+    } catch (e) {
+      debugPrint('[MealSchedule] ❌ ERROR fetching meals for $type: $e');
+      debugPrint('[MealSchedule] Error type: ${e.runtimeType}');
+    }
+    
+    // Fallback to in-memory samples if service returns nothing
+    debugPrint('[MealSchedule] 🔄 FALLING BACK to sample meals for $type');
+    try {
+      final samples = MealModelV3.getSampleMeals()
+          .where((m) => m.mealType.toLowerCase() == type.toLowerCase())
+          .toList();
+      debugPrint('[MealSchedule] ⚠️ Using ${samples.length} SAMPLE meals for $type as fallback');
+      // Log first few sample meal names
+      for (int i = 0; i < samples.length && i < 3; i++) {
+        debugPrint('[MealSchedule]   - Sample meal $i: ${samples[i].name}');
+      }
+      return samples;
+    } catch (e) {
+      debugPrint('[MealSchedule] ❌ Error even getting sample meals: $e');
+      return [];
+    }
   }
 
   // Header widgets

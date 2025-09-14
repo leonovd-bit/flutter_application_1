@@ -4,6 +4,10 @@ import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
 import 'home_page_v3.dart';
 import '../services/progress_manager.dart';
+import '../services/firestore_service_v3.dart';
+import '../services/scheduler_service_v3.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 class PaymentPageV3 extends StatefulWidget {
   final MealPlanModelV3 mealPlan;
@@ -428,6 +432,49 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
     try {
       // Mock payment processing for development
       await _processMockPayment();
+      // After payment, persist the weeklySchedule as active Firestore delivery schedules
+      try {
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (uid != null) {
+          // Convert weekly schedule map -> list of DeliveryScheduleModelV3
+          final List<DeliveryScheduleModelV3> schedules = [];
+          final now = DateTime.now();
+          final weekStart = now.subtract(Duration(days: now.weekday - DateTime.monday));
+          widget.weeklySchedule.forEach((day, mealMap) {
+            mealMap.forEach((mealType, cfg) {
+              final enabled = (cfg['enabled'] ?? true) == true;
+              if (!enabled) return;
+              final timeVal = cfg['time'];
+              int hour = 12, minute = 0;
+              if (timeVal is String) {
+                final parts = timeVal.split(':');
+                if (parts.length == 2) {
+                  hour = int.tryParse(parts[0]) ?? 12;
+                  minute = int.tryParse(parts[1]) ?? 0;
+                }
+              }
+              final id = '${day.toLowerCase()}_${mealType.toString().toLowerCase()}';
+              schedules.add(DeliveryScheduleModelV3(
+                id: id,
+                userId: uid,
+                dayOfWeek: day.toLowerCase(),
+                mealType: mealType.toString().toLowerCase(),
+                deliveryTime: TimeOfDay(hour: hour, minute: minute),
+                // Address persistence: we only stored full address string in UI; use a placeholder id
+                addressId: 'default',
+                isActive: true,
+                weekStartDate: weekStart,
+              ));
+            });
+          });
+          await FirestoreServiceV3.replaceActiveDeliverySchedules(uid, schedules);
+          // Generate upcoming orders to reflect the new schedules
+          final created = await SchedulerServiceV3.generateUpcomingOrders(userId: uid, daysAhead: 7);
+          debugPrint('[Payment] Generated $created upcoming orders after subscription start for user=$uid');
+        }
+      } catch (e) {
+        debugPrint('[Payment] Failed to persist schedules or generate orders: $e');
+      }
       // Mark setup as completed and finalize onboarding
       try {
         final prefs = await SharedPreferences.getInstance();

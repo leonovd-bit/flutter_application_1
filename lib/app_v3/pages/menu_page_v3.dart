@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
 import '../services/meal_service_v3.dart';
-import '../services/token_service_v3.dart';
+import '../widgets/app_image.dart';
 
 class MenuPageV3 extends StatefulWidget {
   final String menuType;
@@ -21,7 +21,7 @@ class _MenuPageV3State extends State<MenuPageV3> {
   void initState() {
     super.initState();
     _selectedMealType = widget.menuType.capitalizeFirst();
-  _mealsFuture = MealServiceV3.getMeals(mealType: _selectedMealType.toLowerCase());
+    _mealsFuture = MealServiceV3.getMeals(mealType: _selectedMealType.toLowerCase());
   }
 
   @override
@@ -53,33 +53,6 @@ class _MenuPageV3State extends State<MenuPageV3> {
       ),
       body: Column(
         children: [
-          // Token balance banner
-          StreamBuilder<int>(
-            stream: TokenServiceV3.balanceStream(),
-            builder: (context, snapshot) {
-              final tokens = snapshot.data ?? 0;
-              return Container(
-                color: Colors.orange.shade50,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  children: [
-                    const Icon(Icons.toll, color: Colors.orange),
-                    const SizedBox(width: 8),
-                    Text('$tokens tokens available', style: AppThemeV3.textTheme.bodyMedium),
-                    const Spacer(),
-                    TextButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Go to Plans to buy more tokens')),
-                        );
-                      },
-                      child: const Text('Buy tokens'),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
           // Meal type selector (Breakfast, Lunch, Dinner)
           Container(
             color: AppThemeV3.surface,
@@ -188,26 +161,15 @@ class _MenuPageV3State extends State<MenuPageV3> {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                // Meal image placeholder
-                ClipRRect(
+                // Meal image (asset or network) with graceful fallback
+                AppImage(
+                  meal.imageUrl,
+                  width: 80,
+                  height: 80,
                   borderRadius: BorderRadius.circular(12),
-                  child: SizedBox(
-                    width: 80,
-                    height: 80,
-                    child: meal.imageUrl.isNotEmpty
-                        ? Image.network(
-                            meal.imageUrl,
-                            fit: BoxFit.cover,
-                          )
-                        : Container(
-                            color: AppThemeV3.surfaceElevated,
-                            child: Icon(
-                              meal.icon,
-                              size: 40,
-                              color: AppThemeV3.accent,
-                            ),
-                          ),
-                  ),
+                  fallbackIcon: meal.icon,
+                  fallbackBg: AppThemeV3.surfaceElevated,
+                  fallbackIconColor: AppThemeV3.accent,
                 ),
                 
                 const SizedBox(width: 16),
@@ -259,60 +221,26 @@ class _MenuPageV3State extends State<MenuPageV3> {
           // Meal Info button
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _showMealInfo(meal),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppThemeV3.accent,
-                      side: const BorderSide(color: AppThemeV3.accent),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    child: Text(
-                      'Meal Info',
-                      style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                        color: AppThemeV3.accent,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () => _showMealInfo(meal),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppThemeV3.accent,
+                  side: const BorderSide(color: AppThemeV3.accent),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: Text(
+                  'Meal Info',
+                  style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                    color: AppThemeV3.accent,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
-                      final balance = await TokenServiceV3.getBalance();
-                      if (balance <= 0) {
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('No tokens left. Buy more from Plans.')),
-                        );
-                        return;
-                      }
-                      final ok = await TokenServiceV3.useTokens(
-                        orderId: 'order_${DateTime.now().millisecondsSinceEpoch}',
-                        tokens: 1,
-                      );
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(ok ? 'Meal ordered with 1 token' : 'Failed to use token')),
-                      );
-                    },
-                    icon: const Icon(Icons.toll),
-                    label: const Text('Use 1 Token'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ],

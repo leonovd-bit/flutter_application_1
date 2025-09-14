@@ -2,41 +2,173 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // User-scoped documents
+    // Helper functions for role-based access control
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
+    }
+    
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+    
+    function isKitchenPartner() {
+      return request.auth != null && request.auth.token.kitchen == true;
+    }
+    
+    function isValidEmail() {
+      return request.auth != null && (request.auth.token.email_verified == true || request.auth.token.email_verified == null);
+    }
+    
+    // Rate limiting helper (basic implementation)
+    function withinRateLimit() {
+      return request.time > resource.data.lastUpdate + duration.value(1, 's');
+    }
+
+    // User profile management
     match /users/{userId} {
-      // Allow user to read/write their own profile doc
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Users can read/write their own profile
+      allow read, write: if isOwner(userId);
+      // Admins can read all profiles
+      allow read: if isAdmin();
+      // Admins can update admin status and roles
+      allow update: if isAdmin();
 
-      // Nested collections under a user
+      // User sub-collections with proper scoping
       match /addresses/{addressId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isOwner(userId) && isValidEmail();
+        allow read: if isAdmin();
       }
+      
       match /meal_plans/{planId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isOwner(userId);
+        allow read: if isAdmin();
       }
+      
       match /delivery_schedules/{scheduleId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isOwner(userId) && isValidEmail();
+        allow read: if isAdmin() || isKitchenPartner();
       }
+      
       match /subscriptions/{subId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isOwner(userId) && isValidEmail();
+        allow read: if isAdmin();
       }
+      
       match /health_data/{docId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isOwner(userId) && isValidEmail();
+        allow read: if isAdmin();
       }
     }
 
-    // Orders collection (top-level)
+    // Orders collection with enhanced security
     match /orders/{orderId} {
-      // Allow create if the creating user owns the order
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      // Allow read/update/delete if the authenticated user owns the order
-      allow read, update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+      // Create: authenticated users can create orders for themselves only
+      allow create: if isAuthenticated() && isValidEmail() && 
+                     request.resource.data.userId == request.auth.uid &&
+                     request.resource.data.keys().hasAll(['userId', 'status', 'totalAmount']) &&
+                     request.resource.data.totalAmount is number &&
+                     request.resource.data.totalAmount > 0;
+
+      // Read: owner, admin, or kitchen partner can read
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.userId) ||
+        isAdmin() ||
+        isKitchenPartner()
+      );
+
+      // Update: different rules for different actors
+      allow update: if isAuthenticated() && (
+        // Admins can update any field
+        isAdmin() ||
+        // Kitchen partners can update status and tracking
+        (isKitchenPartner() && 
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'trackingNumber', 'estimatedDeliveryTime', 'updatedAt'])) ||
+        // Users can only cancel their own orders
+        (isOwner(resource.data.userId) && 
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
+         request.resource.data.status == 'cancelled')
+      );
+
+      // Delete: admin only
+      allow delete: if isAdmin();
     }
 
-    // Meals collection (top-level) - allow authenticated users to read and seed
+    // Meals collection - public read, authenticated create for seeding, admin manage
     match /meals/{mealId} {
-      allow read: if request.auth != null;
-      allow create, update, delete: if request.auth != null;
+      // Allow public read access so users can browse menus
+      allow read: if true;
+      // Allow authenticated users to create meals (for seeding)
+      allow create: if isAuthenticated() && isValidEmail();
+      // Only admins can update/delete meals
+      allow update, delete: if isAdmin() && isValidEmail();
+      
+      // Validate meal data structure
+      allow create: if isAdmin() && 
+                     request.resource.data.keys().hasAll(['name', 'description', 'calories', 'protein']) &&
+                     request.resource.data.calories is number &&
+                     request.resource.data.calories > 0;
+    }
+
+    // Kitchen operations for restaurant partners
+    match /kitchen/{kitchenId} {
+      allow read, write: if isKitchenPartner() || isAdmin();
+      
+      match /orders/{orderId} {
+        allow read, update: if isKitchenPartner() || isAdmin();
+        // Kitchen can only update specific fields
+        allow update: if isKitchenPartner() && 
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'preparationTime', 'notes']);
+      }
+    }
+
+    // Admin-only collections
+    match /admin/{document} {
+      allow read, write: if isAdmin() && isValidEmail();
+    }
+    
+    match /audit_logs/{logId} {
+      allow create: if isAuthenticated(); // System can create logs
+      allow read: if isAdmin(); // Only admins can read logs
+      allow update, delete: if false; // Logs are immutable
+    }
+
+    // Settings and configuration
+    match /app_settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Analytics and metrics (read-only for most users)
+    match /analytics/{metricId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated(); // System generated
+      allow update, delete: if isAdmin();
+    }
+
+    // Stripe webhook events (system only)
+    match /webhook_events/{eventId} {
+      allow create: if true; // Webhooks need to create without auth
+      allow read: if isAdmin();
+      allow update, delete: if false; // Immutable
+    }
+
+    // Notifications
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.userId) || isAdmin()
+      );
+      allow create: if isAuthenticated();
+      allow update: if isOwner(resource.data.userId) || isAdmin();
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+
+    // Default deny all other access
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

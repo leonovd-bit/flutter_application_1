@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="FreshPunk Kitchen Management - Organized professional restaurant operations dashboard.">
+  
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="FreshPunk Kitchen">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>FreshPunk Kitchen Management - Professional Dashboard</title>
+  <link rel="manifest" href="manifest.json">
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      /* FreshPunk Brand Colors */
+      --primary-green: #4CAF50;
+      --primary-dark: #388E3C;
+      --primary-light: #81C784;
+      --background: #FFFFFF;
+      --surface: #FFFFFF;
+      --surface-elevated: #F8F9FA;
+      --surface-dark: #2D2D2D;
+      
+      /* Text Colors */
+      --text-primary: #212121;
+      --text-secondary: #757575;
+      --text-light: #BDBDBD;
+      --text-on-dark: #FFFFFF;
+      
+      /* UI Colors */
+      --accent: #4CAF50;
+      --accent-light: #81C784;
+      --success: #4CAF50;
+      --warning: #FF9800;
+      --error: #F44336;
+      --info: #2196F3;
+      --purple: #9C27B0;
+      
+      /* Border & Effects */
+      --border: #E0E0E0;
+      --border-light: #F5F5F5;
+      --hover: #E8F5E8;
+      --shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+      --shadow-hover: 0 8px 32px rgba(76, 175, 80, 0.15);
+      
+      /* Layout */
+      --header-height: 80px;
+      --sidebar-width: 280px;
+      --content-padding: 32px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--background);
+      color: var(--text-primary);
+      line-height: 1.6;
+      font-weight: 500;
+    }
+
+    /* Typography */
+    h1, h2, h3, h4, h5, h6 {
+      font-family: 'Poppins', sans-serif;
+      font-weight: 700;
+      margin: 0;
+      line-height: 1.2;
+    }
+
+    h1 { font-size: 32px; font-weight: 900; letter-spacing: -0.5px; }
+    h2 { font-size: 28px; font-weight: 800; letter-spacing: -0.3px; }
+    h3 { font-size: 24px; font-weight: 700; letter-spacing: -0.2px; }
+    h4 { font-size: 20px; font-weight: 700; }
+    h5 { font-size: 18px; font-weight: 600; }
+    h6 { font-size: 16px; font-weight: 600; }
+
+    /* Layout Structure */
+    .app-container {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .app-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: var(--header-height);
+      background: linear-gradient(135deg, var(--primary-green), var(--primary-light));
+      color: white;
+      display: flex;
+      align-items: center;
+      padding: 0 var(--content-padding);
+      z-index: 1000;
+      box-shadow: var(--shadow);
+    }
+
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .brand-icon {
+      width: 48px;
+      height: 48px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(10px);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .brand-text {
+      font-family: 'Poppins', sans-serif;
+      font-size: 24px;
+      font-weight: 800;
+      color: white;
+    }
+
+    .header-nav {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .nav-item {
+      color: rgba(255, 255, 255, 0.9);
+      text-decoration: none;
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .nav-item:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: white;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--surface);
+      border-right: 2px solid var(--border-light);
+      position: fixed;
+      top: var(--header-height);
+      left: 0;
+      height: calc(100vh - var(--header-height));
+      overflow-y: auto;
+      padding: 24px 0;
+      z-index: 900;
+    }
+
+    .sidebar-section {
+      margin-bottom: 32px;
+    }
+
+    .sidebar-title {
+      padding: 0 24px 12px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .sidebar-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px 24px;
+      color: var(--text-primary);
+      text-decoration: none;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      border-left: 4px solid transparent;
+    }
+
+    .sidebar-item:hover {
+      background: var(--hover);
+      border-left-color: var(--primary-green);
+    }
+
+    .sidebar-item.active {
+      background: var(--hover);
+      border-left-color: var(--primary-green);
+      color: var(--primary-green);
+    }
+
+    .sidebar-icon {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Main Content */
+    .main-content {
+      margin-left: var(--sidebar-width);
+      margin-top: var(--header-height);
+      padding: var(--content-padding);
+      flex: 1;
+      background: var(--background);
+    }
+
+    /* Page Header */
+    .page-header {
+      display: flex;
+      justify-content: between;
+      align-items: center;
+      margin-bottom: 32px;
+      padding-bottom: 24px;
+      border-bottom: 2px solid var(--border-light);
+    }
+
+    .page-title {
+      flex: 1;
+    }
+
+    .page-title h1 {
+      margin-bottom: 8px;
+    }
+
+    .page-subtitle {
+      color: var(--text-secondary);
+      font-size: 16px;
+      font-weight: 500;
+    }
+
+    .page-actions {
+      display: flex;
+      gap: 16px;
+    }
+
+    /* Cards */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 2px solid var(--border-light);
+      border-radius: 20px;
+      padding: 28px;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(135deg, var(--primary-green), var(--primary-light));
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-hover);
+      border-color: var(--primary-green);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+    }
+
+    .card-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .card-subtitle {
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .card-metric {
+      font-size: 36px;
+      font-weight: 900;
+      font-family: 'Poppins', sans-serif;
+      color: var(--text-primary);
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+
+    .card-icon {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, var(--primary-green), var(--primary-light));
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 24px;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 16px 24px;
+      background: linear-gradient(135deg, var(--primary-green), var(--primary-light));
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+      box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(76, 175, 80, 0.4);
+    }
+
+    .btn.secondary {
+      background: var(--surface-elevated);
+      color: var(--text-primary);
+      border: 2px solid var(--border);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .btn.secondary:hover {
+      background: var(--primary-green);
+      color: white;
+      border-color: var(--primary-green);
+    }
+
+    .btn.small {
+      padding: 12px 20px;
+      font-size: 14px;
+    }
+
+    /* Tables */
+    .table-container {
+      background: var(--surface);
+      border: 2px solid var(--border-light);
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .table th {
+      background: var(--surface-elevated);
+      padding: 20px;
+      text-align: left;
+      font-weight: 700;
+      color: var(--text-primary);
+      border-bottom: 2px solid var(--border-light);
+    }
+
+    .table td {
+      padding: 20px;
+      border-bottom: 1px solid var(--border-light);
+      vertical-align: middle;
+    }
+
+    .table tr:hover {
+      background: var(--hover);
+    }
+
+    /* Status Badges */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-pending {
+      background: rgba(255, 152, 0, 0.15);
+      color: var(--warning);
+      border: 2px solid var(--warning);
+    }
+
+    .status-preparing {
+      background: rgba(33, 150, 243, 0.15);
+      color: var(--info);
+      border: 2px solid var(--info);
+    }
+
+    .status-ready {
+      background: rgba(76, 175, 80, 0.15);
+      color: var(--success);
+      border: 2px solid var(--success);
+    }
+
+    .status-completed {
+      background: rgba(156, 39, 176, 0.15);
+      color: var(--purple);
+      border: 2px solid var(--purple);
+    }
+
+    /* Quick Actions */
+    .quick-actions {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+
+    .action-card {
+      background: var(--surface);
+      border: 2px solid var(--border-light);
+      border-radius: 16px;
+      padding: 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .action-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(135deg, var(--primary-green), var(--primary-light));
+    }
+
+    .action-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-hover);
+      border-color: var(--primary-green);
+    }
+
+    /* Forms */
+    .form-group {
+      margin-bottom: 24px;
+    }
+
+    .form-label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: var(--text-primary);
+      font-size: 16px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 16px 20px;
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 500;
+      background: var(--surface);
+      transition: all 0.2s ease;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--primary-green);
+      box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 768px) {
+      .sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+      }
+
+      .sidebar.open {
+        transform: translateX(0);
+      }
+
+      .main-content {
+        margin-left: 0;
+      }
+
+      .card-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .quick-actions {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      }
+    }
+
+    /* Animations */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .fade-in {
+      animation: fadeIn 0.5s ease forwards;
+    }
+
+    /* Loading States */
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid var(--border-light);
+      border-top: 4px solid var(--primary-green);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 20px auto;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Utilities */
+    .hidden { display: none !important; }
+    .text-center { text-align: center; }
+    .text-success { color: var(--success); }
+    .text-warning { color: var(--warning); }
+    .text-error { color: var(--error); }
+    .mb-16 { margin-bottom: 16px; }
+    .mb-24 { margin-bottom: 24px; }
+    .mb-32 { margin-bottom: 32px; }
+  </style>
+</head>
+<body>
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="header-brand">
+      <div class="brand-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7z" fill="white"/>
+          <path d="M16 6v8h2.5v8H21V2c0-1.1-.9-2-2-2h-3v6z" fill="white"/>
+        </svg>
+      </div>
+      <div class="brand-text">FreshPunk Kitchen</div>
+    </div>
+    
+    <nav class="header-nav">
+      <a href="#" class="nav-item" onclick="showPage('dashboard')">Dashboard</a>
+      <a href="#" class="nav-item" onclick="showPage('orders')">Orders</a>
+      <a href="#" class="nav-item" onclick="showPage('menu')">Menu</a>
+      <a href="#" class="nav-item" onclick="showPage('inventory')">Inventory</a>
+      <a href="#" class="nav-item" onclick="showPage('analytics')">Analytics</a>
+    </nav>
+  </header>
+
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-title">Operations</div>
+        <a href="#" class="sidebar-item active" onclick="showPage('dashboard')">
+          <div class="sidebar-icon">📊</div>
+          <span>Dashboard</span>
+        </a>
+        <a href="#" class="sidebar-item" onclick="showPage('orders')">
+          <div class="sidebar-icon">📋</div>
+          <span>Orders</span>
+        </a>
+        <a href="#" class="sidebar-item" onclick="showPage('live-orders')">
+          <div class="sidebar-icon">⚡</div>
+          <span>Live Orders</span>
+        </a>
+        <a href="#" class="sidebar-item" onclick="showPage('queue')">
+          <div class="sidebar-icon">⏱️</div>
+          <span>Kitchen Queue</span>
+        </a>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-title">Catalog</div>
+        <a href="#" class="sidebar-item" onclick="showPage('menu')">
+          <div class="sidebar-icon">🍽️</div>
+          <span>Menu Management</span>
+        </a>
+        <a href="#" class="sidebar-item" onclick="showPage('recipes')">
+          <div class="sidebar-icon">📝</div>
+          <span>Recipes</span>
+        </a>
+        <a href="#" class="sidebar-item" onclick="showPage('ingredients')">
+          <div class="sidebar-icon">🥬</div>
+          <span>Ingredients</span>
+        </a>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-title">Inventory</div>
+        <a href="#" class="sidebar-item" onclick="showPage('inventory')">
+          <div class="sidebar-icon">📦</div>
+          <span>Stock Levels</span>
+        </a>
+        <a href="#" class="sidebar-item" onclick="showPage('suppliers')">
+          <div class="sidebar-icon">🚚</div>
+          <span>Suppliers</span>
+        </a>
+        <a href="#" class="sidebar-item" onclick="showPage('orders-supply')">
+          <div class="sidebar-icon">📥</div>
+          <span>Purchase Orders</span>
+        </a>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-title">Team</div>
+        <a href="#" class="sidebar-item" onclick="showPage('staff')">
+          <div class="sidebar-icon">👥</div>
+          <span>Staff Management</span>
+        </a>
+        <a href="#" class="sidebar-item" onclick="showPage('shifts')">
+          <div class="sidebar-icon">🕐</div>
+          <span>Shift Schedule</span>
+        </a>
+        <a href="#" class="sidebar-item" onclick="showPage('performance')">
+          <div class="sidebar-icon">📈</div>
+          <span>Performance</span>
+        </a>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-title">Reports</div>
+        <a href="#" class="sidebar-item" onclick="showPage('analytics')">
+          <div class="sidebar-icon">📊</div>
+          <span>Analytics</span>
+        </a>
+        <a href="#" class="sidebar-item" onclick="showPage('reports')">
+          <div class="sidebar-icon">📄</div>
+          <span>Reports</span>
+        </a>
+        <a href="#" class="sidebar-item" onclick="showPage('trends')">
+          <div class="sidebar-icon">📈</div>
+          <span>Trends</span>
+        </a>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Dashboard Page -->
+      <div id="dashboard-page" class="page">
+        <div class="page-header">
+          <div class="page-title">
+            <h1>Kitchen Dashboard</h1>
+            <p class="page-subtitle">Real-time overview of your restaurant operations</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn secondary small" onclick="refreshData()">
+              🔄 Refresh
+            </button>
+            <button class="btn small" onclick="exportReport()">
+              📊 Export Report
+            </button>
+          </div>
+        </div>
+
+        <!-- Key Metrics -->
+        <div class="card-grid">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Today's Orders</div>
+                <div class="card-subtitle">Total orders received today</div>
+              </div>
+              <div class="card-icon">📋</div>
+            </div>
+            <div class="card-metric">127</div>
+            <div class="text-success">+15% from yesterday</div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Revenue</div>
+                <div class="card-subtitle">Today's total revenue</div>
+              </div>
+              <div class="card-icon">💰</div>
+            </div>
+            <div class="card-metric">$3,847</div>
+            <div class="text-success">+8% from yesterday</div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Avg Prep Time</div>
+                <div class="card-subtitle">Current average preparation time</div>
+              </div>
+              <div class="card-icon">⏱️</div>
+            </div>
+            <div class="card-metric">12m</div>
+            <div class="text-warning">+2m from target</div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Customer Rating</div>
+                <div class="card-subtitle">Average rating this week</div>
+              </div>
+              <div class="card-icon">⭐</div>
+            </div>
+            <div class="card-metric">4.8</div>
+            <div class="text-success">+0.3 from last week</div>
+          </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="quick-actions">
+          <div class="action-card" onclick="showPage('orders')">
+            <div class="card-icon">📋</div>
+            <h5 class="mb-16">View All Orders</h5>
+            <p>Manage incoming and active orders</p>
+          </div>
+          
+          <div class="action-card" onclick="showPage('menu')">
+            <div class="card-icon">🍽️</div>
+            <h5 class="mb-16">Update Menu</h5>
+            <p>Add or modify menu items</p>
+          </div>
+          
+          <div class="action-card" onclick="showPage('inventory')">
+            <div class="card-icon">📦</div>
+            <h5 class="mb-16">Check Inventory</h5>
+            <p>Monitor stock levels and supplies</p>
+          </div>
+          
+          <div class="action-card" onclick="showPage('staff')">
+            <div class="card-icon">👥</div>
+            <h5 class="mb-16">Manage Staff</h5>
+            <p>Schedule shifts and track performance</p>
+          </div>
+        </div>
+
+        <!-- Recent Orders Table -->
+        <div class="table-container">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Order ID</th>
+                <th>Customer</th>
+                <th>Items</th>
+                <th>Status</th>
+                <th>Time</th>
+                <th>Total</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>#ORD-001</td>
+                <td>John Smith</td>
+                <td>2 items</td>
+                <td><span class="status-badge status-preparing">Preparing</span></td>
+                <td>5 mins ago</td>
+                <td>$28.50</td>
+                <td>
+                  <button class="btn small secondary">View</button>
+                  <button class="btn small">Update</button>
+                </td>
+              </tr>
+              <tr>
+                <td>#ORD-002</td>
+                <td>Sarah Johnson</td>
+                <td>1 item</td>
+                <td><span class="status-badge status-ready">Ready</span></td>
+                <td>8 mins ago</td>
+                <td>$15.75</td>
+                <td>
+                  <button class="btn small secondary">View</button>
+                  <button class="btn small">Update</button>
+                </td>
+              </tr>
+              <tr>
+                <td>#ORD-003</td>
+                <td>Mike Brown</td>
+                <td>3 items</td>
+                <td><span class="status-badge status-pending">Pending</span></td>
+                <td>12 mins ago</td>
+                <td>$42.25</td>
+                <td>
+                  <button class="btn small secondary">View</button>
+                  <button class="btn small">Update</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Orders Page -->
+      <div id="orders-page" class="page hidden">
+        <div class="page-header">
+          <div class="page-title">
+            <h1>Order Management</h1>
+            <p class="page-subtitle">Track and manage all restaurant orders</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn secondary small">Filter</button>
+            <button class="btn small">Create Order</button>
+          </div>
+        </div>
+        <div class="text-center">
+          <h3>Orders Management</h3>
+          <p>Comprehensive order tracking and management system</p>
+          <div class="loading-spinner"></div>
+        </div>
+      </div>
+
+      <!-- Menu Page -->
+      <div id="menu-page" class="page hidden">
+        <div class="page-header">
+          <div class="page-title">
+            <h1>Menu Management</h1>
+            <p class="page-subtitle">Manage menu items, recipes, and pricing</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn secondary small">Import Menu</button>
+            <button class="btn small">Add Item</button>
+          </div>
+        </div>
+        <div class="text-center">
+          <h3>Menu Management</h3>
+          <p>Add, edit, and organize your restaurant menu</p>
+          <div class="loading-spinner"></div>
+        </div>
+      </div>
+
+      <!-- Inventory Page -->
+      <div id="inventory-page" class="page hidden">
+        <div class="page-header">
+          <div class="page-title">
+            <h1>Inventory Management</h1>
+            <p class="page-subtitle">Track stock levels and manage supplies</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn secondary small">Export Inventory</button>
+            <button class="btn small">Add Stock</button>
+          </div>
+        </div>
+        <div class="text-center">
+          <h3>Inventory Management</h3>
+          <p>Monitor and manage your restaurant inventory</p>
+          <div class="loading-spinner"></div>
+        </div>
+      </div>
+
+      <!-- Analytics Page -->
+      <div id="analytics-page" class="page hidden">
+        <div class="page-header">
+          <div class="page-title">
+            <h1>Analytics & Reports</h1>
+            <p class="page-subtitle">Insights and performance metrics</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn secondary small">Export Data</button>
+            <button class="btn small">Generate Report</button>
+          </div>
+        </div>
+        <div class="text-center">
+          <h3>Analytics Dashboard</h3>
+          <p>Comprehensive business intelligence and reporting</p>
+          <div class="loading-spinner"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Page Navigation
+    function showPage(pageId) {
+      // Hide all pages
+      document.querySelectorAll('.page').forEach(page => {
+        page.classList.add('hidden');
+      });
+      
+      // Remove active from all sidebar items
+      document.querySelectorAll('.sidebar-item').forEach(item => {
+        item.classList.remove('active');
+      });
+      
+      // Show selected page
+      const targetPage = document.getElementById(pageId + '-page');
+      if (targetPage) {
+        targetPage.classList.remove('hidden');
+        targetPage.classList.add('fade-in');
+      }
+      
+      // Add active to clicked sidebar item
+      event.target.closest('.sidebar-item')?.classList.add('active');
+    }
+
+    // Dashboard Functions
+    function refreshData() {
+      console.log('Refreshing dashboard data...');
+      // Add refresh logic here
+    }
+
+    function exportReport() {
+      console.log('Exporting report...');
+      // Add export logic here
+    }
+
+    // Initialize dashboard
+    document.addEventListener('DOMContentLoaded', function() {
+      showPage('dashboard');
+      console.log('FreshPunk Kitchen Management Dashboard loaded');
+    });
+  </script>
+</body>
+</html>

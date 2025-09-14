@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 class ConnectivityServiceV3 {
   static Future<bool> hasInternetConnection() async {
     try {
+  // On web, skip dart:io checks and allow Firebase SDK to surface errors
+  if (kIsWeb) return true;
       // Try to resolve a DNS lookup to check connectivity
       final result = await InternetAddress.lookup('google.com');
       return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
@@ -19,6 +21,7 @@ class ConnectivityServiceV3 {
 
   static Future<bool> canReachFirebase() async {
     try {
+  if (kIsWeb) return true;
       // Try to reach Firebase services
       final result = await InternetAddress.lookup('firebase.google.com');
       return result.isNotEmpty && result[0].rawAddress.isNotEmpty;

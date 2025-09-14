@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
+import '../services/meal_service_v3.dart';
 
 class InteractiveMenuPageV3 extends StatefulWidget {
   final String menuType;
@@ -22,11 +23,33 @@ class InteractiveMenuPageV3 extends StatefulWidget {
 
 class _InteractiveMenuPageV3State extends State<InteractiveMenuPageV3> {
   String _selectedMealType = 'Breakfast';
+  List<MealModelV3> _meals = [];
+  bool _isLoading = true;
   
   @override
   void initState() {
     super.initState();
     _selectedMealType = widget.menuType.capitalizeFirst();
+    _loadMeals();
+  }
+  
+  Future<void> _loadMeals() async {
+    try {
+      final meals = await MealServiceV3.getMeals(
+        mealType: _selectedMealType.toLowerCase(),
+        limit: 50,
+      );
+      setState(() {
+        _meals = meals;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading meals: $e');
+      setState(() {
+        _meals = [];
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -87,15 +110,24 @@ class _InteractiveMenuPageV3State extends State<InteractiveMenuPageV3> {
           
           // Menu items list
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _getSampleMeals().length,
-              itemBuilder: (context, index) {
-                final meal = _getSampleMeals()[index];
-                final isSelected = widget.selectedMeal?.id == meal.id;
-                return _buildInteractiveMealCard(meal, isSelected);
-              },
-            ),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _meals.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No meals available for this type',
+                          style: TextStyle(fontSize: 16, color: Colors.grey),
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _meals.length,
+                        itemBuilder: (context, index) {
+                          final meal = _meals[index];
+                          final isSelected = widget.selectedMeal?.id == meal.id;
+                          return _buildInteractiveMealCard(meal, isSelected);
+                        },
+                      ),
           ),
         ],
       ),
@@ -109,7 +141,9 @@ class _InteractiveMenuPageV3State extends State<InteractiveMenuPageV3> {
         onTap: () {
           setState(() {
             _selectedMealType = mealType;
+            _isLoading = true;
           });
+          _loadMeals();
         },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -322,11 +356,7 @@ class _InteractiveMenuPageV3State extends State<InteractiveMenuPageV3> {
     );
   }
 
-  List<MealModelV3> _getSampleMeals() {
-    // Get meals for the currently selected meal type
-    final allMeals = MealModelV3.getSampleMeals();
-    return allMeals.where((meal) => meal.type.toLowerCase() == _selectedMealType.toLowerCase()).toList();
-  }
+
 }
 
 // Extension to capitalize first letter

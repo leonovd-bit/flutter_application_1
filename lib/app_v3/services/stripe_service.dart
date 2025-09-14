@@ -12,7 +12,8 @@ class StripeService {
   static const String _publishableKey = 'pk_test_51Rly3MAQ9rq5N6YJ07JcCml88ysYYunZlcUfEacyfjSjY6DZgoM0HOTCkPBOZLVYg40JzUgT9ykwJjjho3hXADuJ00acajs99Q';
 
   bool _initialized = false;
-  final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(region: 'us-central1');
+  // Match Cloud Functions region
+  final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(region: 'us-east4');
 
   Future<void> init() async {
     if (_initialized) return;
@@ -104,12 +105,13 @@ class StripeService {
 
   Future<bool> setDefaultPaymentMethod(String paymentMethodId) async {
     try {
-  final callable = _functions.httpsCallable('setDefaultPaymentMethod');
-  final result = await callable.call({'payment_method': paymentMethodId});
-  final data = result.data as Map?;
-  return (data?['success'] == true);
+      final callable = _functions.httpsCallable('setDefaultPaymentMethod');
+      final result = await callable.call({'payment_method': paymentMethodId});
+      final data = result.data as Map?;
+      return (data?['success'] == true);
     } catch (_) {
       return false;
     }
   }
+
 }

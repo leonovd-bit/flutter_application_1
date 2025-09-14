@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme_v3.dart';
 import '../services/connectivity_service_v3.dart';
 import '../services/offline_auth_service_v3.dart';
@@ -39,6 +40,103 @@ class _LoginPageV3State extends State<LoginPageV3> {
         MaterialPageRoute(builder: (context) => const WelcomePageV3()),
       );
     }
+  }
+
+  Widget _buildCurrentUserInfo() {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    
+    if (currentUser == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppThemeV3.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppThemeV3.border),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(Icons.account_circle, color: AppThemeV3.accent, size: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Currently signed in as:',
+                      style: AppThemeV3.textTheme.bodyMedium?.copyWith(
+                        color: AppThemeV3.textSecondary,
+                      ),
+                    ),
+                    Text(
+                      currentUser.email ?? 'Unknown user',
+                      style: AppThemeV3.textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () async {
+                    // Mark setup as completed and go to home
+                    try {
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.setBool('setup_completed', true);
+                      if (mounted) {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (context) => const HomePageV3()),
+                        );
+                      }
+                    } catch (e) {
+                      // Handle error
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppThemeV3.accent,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Continue as This User'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () async {
+                    // Sign out and clear all data
+                    await FirebaseAuth.instance.signOut();
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.clear();
+                    if (mounted) {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (context) => const WelcomePageV3()),
+                      );
+                    }
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppThemeV3.textSecondary,
+                    side: BorderSide(color: AppThemeV3.border),
+                  ),
+                  child: const Text('Start Fresh'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -124,7 +222,12 @@ class _LoginPageV3State extends State<LoginPageV3> {
                     ),
                   ),
                 
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 24),
+                  
+                  // Current user info and options
+                  _buildCurrentUserInfo(),
+                  
+                  const SizedBox(height: 24),
                   
                   // Email field
                   TextFormField(

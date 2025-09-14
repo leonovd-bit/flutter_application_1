@@ -5,8 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../pages/home_page_v3.dart';
 import '../pages/login_page_v3.dart';
 import '../pages/splash_page_v3.dart';
-import '../pages/delivery_schedule_page_v4.dart';
-import '../pages/meal_schedule_page_v3_fixed.dart';
 import 'progress_manager.dart';
 import 'firestore_service_v3.dart';
 import 'data_migration_v3.dart';
@@ -25,15 +23,17 @@ class AuthWrapper extends StatefulWidget {
 class _AuthWrapperState extends State<AuthWrapper> {
   bool _isInitialized = false;
   bool _hasSavedSchedules = false;
+  bool _hasSelectedPlan = false;
   bool _explicitUserSetupApproved = false; // set true only after user action in login/signup UI
   DateTime? _bootStartedAt;
-  static const Duration _minSplashDuration = Duration(milliseconds: 1200);
+  // Minimum time to show splash screen
+  static const Duration _minSplashDuration = Duration(seconds: 5);
 
   @override
   void initState() {
     super.initState();
-  _bootStartedAt = DateTime.now();
-  _initializeAuth();
+    _bootStartedAt = DateTime.now();
+    _initializeAuth();
   }
 
   Future<void> _initializeAuth() async {
@@ -74,6 +74,29 @@ class _AuthWrapperState extends State<AuthWrapper> {
               await prefs.setString('selected_meal_plan_display_name', resolved.trim());
             }
           }
+          // 3) Ensure we have a concrete plan id if possible (prefer user-scoped key first)
+          var localPlanId = (prefs.getString('selected_meal_plan_id_${user.uid}') ?? '').trim();
+          debugPrint('[AuthBootstrap] LocalStorage plan for ${user.uid}: "$localPlanId"');
+          if (localPlanId.isEmpty) {
+            localPlanId = (prefs.getString('selected_meal_plan_id') ?? '').trim();
+            debugPrint('[AuthBootstrap] Global localStorage plan: "$localPlanId"');
+          }
+          if (localPlanId.isEmpty) {
+            try {
+              final plan = await FirestoreServiceV3.getCurrentMealPlan(user.uid);
+              debugPrint('[AuthBootstrap] Firestore plan for ${user.uid}: ${plan?.id ?? "null"}');
+              if (plan != null) {
+                await prefs.setString('selected_meal_plan_id', plan.id);
+                await prefs.setString('selected_meal_plan_display_name', plan.displayName.isNotEmpty ? plan.displayName : plan.name);
+                // Also persist a namespaced copy to avoid cross-account carryover
+                await prefs.setString('selected_meal_plan_id_${user.uid}', plan.id);
+                await prefs.setString('selected_meal_plan_display_name_${user.uid}', plan.displayName.isNotEmpty ? plan.displayName : plan.name);
+                localPlanId = plan.id;
+              }
+            } catch (_) {}
+          }
+          _hasSelectedPlan = localPlanId.isNotEmpty;
+          debugPrint('[AuthBootstrap] Final _hasSelectedPlan: $_hasSelectedPlan (planId: "$localPlanId")');
         } catch (_) {
           // Best-effort only; UI has additional fallbacks
         }
@@ -133,30 +156,31 @@ class _AuthWrapperState extends State<AuthWrapper> {
           }
           // Ensure meals are seeded (idempotent upsert). Safe to run anytime.
           try {
-            if (_explicitUserSetupApproved) {
-              final seeded = await MealServiceV3.seedFromJsonAsset();
-              debugPrint('[AuthBootstrap] meals seeded (attempted): $seeded');
-            } else {
-              debugPrint('[AuthBootstrap] Skipping meal seed until explicit approval.');
-            }
+            final seeded = await MealServiceV3.seedFromJsonAsset();
+            debugPrint('[AuthBootstrap] meals seeded (attempted): $seeded');
           } catch (e) {
             debugPrint('[AuthBootstrap] meals seed error: $e');
           }
           // Ensure token plan exists (idempotent)
           try {
-            if (_explicitUserSetupApproved) {
-              await MealServiceV3.seedTokenPlanIfNeeded();
-              debugPrint('[AuthBootstrap] token plan ensured');
-            } else {
-              debugPrint('[AuthBootstrap] Skipping token plan seed until explicit approval.');
-            }
+            await MealServiceV3.seedTokenPlanIfNeeded();
+            debugPrint('[AuthBootstrap] token plan ensured');
           } catch (e) {
             debugPrint('[AuthBootstrap] token plan seed error: $e');
           }
         } catch (_) {}
   final setupCompleted = prefs.getBool('setup_completed') ?? false;
-        final savedSchedules = prefs.getStringList('saved_schedules') ?? const [];
-        _hasSavedSchedules = savedSchedules.isNotEmpty;
+        // Use namespaced schedules list first to avoid cross-account carryover; ignore legacy global key
+        try {
+          final saved = prefs.getStringList('saved_schedules_${user.uid}') ?? const [];
+          final globalSaved = prefs.getStringList('saved_schedules') ?? const [];
+          _hasSavedSchedules = saved.isNotEmpty || globalSaved.isNotEmpty;
+          debugPrint('[AuthBootstrap] Saved schedules for ${user.uid}: ${saved.length} (uid-specific), ${globalSaved.length} (global)');
+          debugPrint('[AuthBootstrap] _hasSavedSchedules: $_hasSavedSchedules');
+        } catch (_) {
+          _hasSavedSchedules = false;
+          debugPrint('[AuthBootstrap] Error checking saved schedules, defaulting to false');
+        }
         
         if (!setupCompleted) {
           // If user has an existing schedule, keep it and allow them to continue without wiping data.
@@ -204,10 +228,22 @@ class _AuthWrapperState extends State<AuthWrapper> {
   Future<bool> _checkSetupCompleted() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getBool('setup_completed') ?? false;
+      final setupCompleted = prefs.getBool('setup_completed') ?? false;
+      debugPrint('[AuthBootstrap] Setup completed check: $setupCompleted');
+      return setupCompleted;
     } catch (e) {
   debugPrint('Error checking setup completion: $e');
       return false;
+    }
+  }
+
+  Future<void> _autoCompleteSetup() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('setup_completed', true);
+      debugPrint('[AuthBootstrap] Auto-completed setup for authenticated user');
+    } catch (e) {
+      debugPrint('Error auto-completing setup: $e');
     }
   }
 
@@ -242,24 +278,28 @@ class _AuthWrapperState extends State<AuthWrapper> {
               }
               
               final setupCompleted = setupSnapshot.data ?? false;
+              debugPrint('Setup completed status: $setupCompleted');
               
               if (setupCompleted) {
+                // User has completed setup - automatically go to home page
+                debugPrint('Setup completed - routing to HomePageV3');
                 return const HomePageV3();
               } else {
-                // Expose a tiny inherited bridge so signup/login pages can mark explicit approval
-                return _ExplicitSetupScope(
-                  onApprove: () {
-                    if (!_explicitUserSetupApproved) {
-                      setState(() => _explicitUserSetupApproved = true);
-                      debugPrint('[AuthBootstrap] Explicit user setup approved via scope.');
-                      // Re-run initialize to perform seeding now that flag is set
-                      _initializeAuth();
-                      DebugState.updateExplicit(true);
+                // User is authenticated but hasn't completed setup
+                // Automatically complete setup and go to home page
+                debugPrint('Setup not completed - auto-completing setup and routing to HomePageV3');
+                return FutureBuilder<void>(
+                  future: _autoCompleteSetup(),
+                  builder: (context, autoSetupSnapshot) {
+                    if (autoSetupSnapshot.connectionState == ConnectionState.waiting) {
+                      return const Scaffold(
+                        body: Center(
+                          child: CircularProgressIndicator(),
+                        ),
+                      );
                     }
+                    return const HomePageV3();
                   },
-                  child: _hasSavedSchedules
-                      ? const MealSchedulePageV3()
-                      : const DeliverySchedulePageV4(),
                 );
               }
             },
@@ -299,8 +339,26 @@ class AuthHelper {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('force_sign_out', true);
+      final uid = FirebaseAuth.instance.currentUser?.uid;
       await FirebaseAuth.instance.signOut();
-      await prefs.clear();
+      // Avoid clearing absolutely everything; remove onboarding-related and user-scoped caches
+      try {
+        await prefs.remove('setup_completed');
+        await prefs.remove('current_step');
+        await prefs.remove('signup_data');
+        await prefs.remove('schedule_data');
+        await prefs.remove('payment_data');
+        await prefs.remove('step_timestamp');
+        await prefs.remove('selected_meal_plan_id');
+        await prefs.remove('selected_meal_plan_name');
+        await prefs.remove('selected_meal_plan_display_name');
+        await prefs.remove('saved_schedules');
+        if (uid != null) {
+          await prefs.remove('saved_schedules_${uid}');
+          await prefs.remove('selected_meal_plan_id_${uid}');
+          await prefs.remove('selected_meal_plan_display_name_${uid}');
+        }
+      } catch (_) {}
   debugPrint('Force sign out completed');
   DebugState.updateUser(null);
   DebugState.updateExplicit(false);

@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geocoding/geocoding.dart' as geocoding;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
 import '../services/firestore_service_v3.dart';
@@ -42,38 +48,148 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
 
   Future<void> _loadUpcomingOrders() async {
     try {
+      setState(() => _isLoading = true);
+      
+      // Get current user ID
+      final userId = FirestoreServiceV3.getCurrentUserId();
+      if (userId == null) {
+        setState(() {
+          _upcomingOrders = [];
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // Load upcoming meals from meal schedule data
+      final upcomingMeals = await _loadUpcomingMealsFromSchedule(userId);
+      
+      // Convert meals to OrderModelV3 objects
+      final List<OrderModelV3> orders = [];
+      for (final mealData in upcomingMeals) {
+        try {
+          final order = OrderModelV3(
+            id: mealData['orderId'] ?? 'meal_${DateTime.now().millisecondsSinceEpoch}',
+            userId: userId,
+            meals: [MealModelV3.fromJson(mealData['meal'])],
+            deliveryAddress: mealData['address'] ?? 'Address not set',
+            orderDate: DateTime.now(),
+            deliveryDate: mealData['deliveryDate'] ?? DateTime.now(),
+            estimatedDeliveryTime: mealData['deliveryDate'] ?? DateTime.now(),
+            status: OrderStatus.confirmed,
+            totalAmount: (mealData['meal']['price'] ?? 12.99).toDouble(),
+            mealPlanType: MealPlanType.nutritious,
+          );
+          orders.add(order);
+        } catch (e) {
+          debugPrint('[UpcomingOrders] Error creating order from meal data: $e');
+        }
+      }
+      
+      setState(() {
+        _upcomingOrders = orders;
+        _isLoading = false;
+      });
+      
+      debugPrint('[UpcomingOrders] Loaded ${orders.length} upcoming meals from schedule');
+      
+    } catch (e) {
+      debugPrint('[UpcomingOrders] Error loading upcoming orders: $e');
+      setState(() {
+        _upcomingOrders = [];
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _loadUpcomingMealsFromSchedule(String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Get current selected schedule
+    final selectedSchedule = prefs.getString('selected_schedule_$userId') ?? 'weekly';
+    
+    // Load meal selections
+    final mealSelectionsJson = prefs.getString('meal_selections_${userId}_$selectedSchedule');
+    if (mealSelectionsJson == null) return [];
+    
+    final mealSelections = json.decode(mealSelectionsJson) as Map<String, dynamic>;
+    
+    // Load delivery schedule to get times and addresses
+    final deliveryScheduleJson = prefs.getString('delivery_schedule_$userId');
+    Map<String, dynamic> deliverySchedule = {};
+    if (deliveryScheduleJson != null) {
+      deliverySchedule = json.decode(deliveryScheduleJson) as Map<String, dynamic>;
+    }
+    
+    final List<Map<String, dynamic>> upcomingMeals = [];
+    final now = DateTime.now();
+    final today = now.weekday;
+    
+    // Get next 7 days of meals
+    final daysToCheck = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    
+    for (int dayOffset = 0; dayOffset < 7; dayOffset++) {
+      final checkDayIndex = (today - 1 + dayOffset) % 7;
+      final checkDayName = daysToCheck[checkDayIndex];
+      final checkDate = now.add(Duration(days: dayOffset));
+      
+      final dayMeals = mealSelections[checkDayName] as Map<String, dynamic>?;
+      if (dayMeals == null) continue;
+      
+      final dayDelivery = deliverySchedule[checkDayName] as Map<String, dynamic>?;
+      
+      // Check each meal type for this day
+      for (final mealType in ['breakfast', 'lunch', 'dinner']) {
+        final mealData = dayMeals[mealType] as Map<String, dynamic>?;
+        if (mealData == null) continue;
+        
+        final deliveryConfig = dayDelivery?[mealType] as Map<String, dynamic>?;
+        final timeStr = deliveryConfig?['time'] as String?;
+        final address = deliveryConfig?['address'] as String?;
+        
+        if (timeStr != null) {
+          final timeParts = timeStr.split(':');
+          if (timeParts.length == 2) {
+            final hour = int.tryParse(timeParts[0]);
+            final minute = int.tryParse(timeParts[1]);
+            
+            if (hour != null && minute != null) {
+              final deliveryDateTime = DateTime(
+                checkDate.year, checkDate.month, checkDate.day, hour, minute
+              );
+              
+              // Only include future meals
+              if (deliveryDateTime.isAfter(now)) {
+                upcomingMeals.add({
+                  'meal': mealData,
+                  'mealType': mealType,
+                  'deliveryDate': deliveryDateTime,
+                  'address': address ?? 'Address not set',
+                  'day': checkDayName,
+                  'orderId': 'meal_${checkDayName}_${mealType}_${checkDate.millisecondsSinceEpoch}',
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    // Sort by delivery time
+    upcomingMeals.sort((a, b) => 
+      (a['deliveryDate'] as DateTime).compareTo(b['deliveryDate'] as DateTime)
+    );
+    
+    return upcomingMeals;
+  }
+
+  void _handleLegacyOrders() async {
+    try {
       // Get current user ID
       final userId = FirestoreServiceV3.getCurrentUserId();
       if (userId != null) {
-        // Load ONLY the next upcoming order from Firebase
+        // Check for any legacy Firestore orders and handle them
         final data = await FirestoreServiceV3.getNextUpcomingOrder(userId);
         if (data != null) {
-          final order = OrderModelV3.fromJson(_normalizeOrderMap(data));
-          // Auto-confirm if within 15 minutes of delivery and not yet confirmed/cancelled/delivered
-          final autoConfirmed = await _autoConfirmIfDue(order);
-          if (autoConfirmed) {
-            // Reload to reflect the new status and avoid scheduling stale notifications
-            await _loadUpcomingOrders();
-            return;
-          }
-          setState(() {
-            _upcomingOrders = [order];
-            _isLoading = false;
-          });
-          // Schedule a one-hour-before notification just for this order
-          final when = order.estimatedDeliveryTime ?? order.deliveryDate;
-          final id = order.id.hashCode & 0x7fffffff;
-          final now = DateTime.now();
-          if (now.isBefore(when.subtract(const Duration(hours: 1)))) {
-            await NotificationServiceV3.instance.scheduleOneHourBefore(
-              id: id,
-              deliveryTime: when,
-              title: 'Upcoming delivery',
-              body: 'Confirm, replace, or cancel your ${_getMealPlanDisplayName(order.mealPlanType)} order.',
-              payload: order.id,
-            );
-          }
-        } else {
           // No upcoming order found; show a mock order for now
           _loadSampleOrders();
         }
@@ -227,8 +343,16 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
       height: 60,
                   color: Colors.grey.shade100,
                   child: (meal != null && meal.imageUrl.isNotEmpty && meal.imageUrl.startsWith('http'))
-                      ? Image.network(meal.imageUrl, fit: BoxFit.cover)
-          : Icon(meal?.icon ?? Icons.fastfood, color: AppThemeV3.accent, size: 30),
+                      ? Image.network(
+                          meal.imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stack) => Icon(
+                            meal.icon,
+                            color: AppThemeV3.accent,
+                            size: 30,
+                          ),
+                        )
+                      : Icon(meal?.icon ?? Icons.fastfood, color: AppThemeV3.accent, size: 30),
                 ),
               ),
         const SizedBox(width: 10),
@@ -547,6 +671,14 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
             ],
           ],
         ),
+        const SizedBox(height: 12),
+        // Live Map (compact) – disabled on web unless configured with Maps API key
+        if (!kIsWeb)
+          _LiveMapTracker(
+            orderId: order.id,
+            deliveryAddress: order.deliveryAddress,
+            isOutForDelivery: order.status == OrderStatus.outForDelivery,
+          ),
       ],
     );
   }
@@ -782,6 +914,153 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
           ],
         ),
       ),
+    );
+  }
+}
+
+class _LiveMapTracker extends StatefulWidget {
+  final String orderId;
+  final String deliveryAddress;
+  final bool isOutForDelivery;
+
+  const _LiveMapTracker({
+    required this.orderId,
+    required this.deliveryAddress,
+    required this.isOutForDelivery,
+  });
+
+  @override
+  State<_LiveMapTracker> createState() => _LiveMapTrackerState();
+}
+
+class _LiveMapTrackerState extends State<_LiveMapTracker> {
+  GoogleMapController? _controller;
+  LatLng? _destination;
+  LatLng? _driver;
+  String _status = 'Fetching location…';
+  StreamSubscription? _driverSub;
+
+  // NYC fallback
+  static const LatLng _nyc = LatLng(40.7589, -73.9851);
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  @override
+  void dispose() {
+    _driverSub?.cancel();
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _init() async {
+    // Geocode destination (best-effort). Skip on web unless configured.
+    try {
+      if (!kIsWeb) {
+        final addr = widget.deliveryAddress.trim();
+        if (addr.isNotEmpty && addr.length > 3) {
+          final results = await geocoding.locationFromAddress(addr);
+          if (results.isNotEmpty) {
+            _destination = LatLng(results.first.latitude, results.first.longitude);
+          }
+        }
+      }
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    // Subscribe to driver location stream
+    _driverSub = FirestoreServiceV3.trackOrderDriverLocation(widget.orderId).listen((p) {
+      if (!mounted) return;
+      setState(() {
+        _driver = (p != null) ? LatLng(p.lat, p.lng) : null;
+        _status = _driver != null
+            ? (widget.isOutForDelivery ? 'Driver en route' : 'Driver assigned')
+            : 'Waiting for driver…';
+      });
+      _fitBounds();
+    });
+    setState(() {});
+  }
+
+  void _onMapCreated(GoogleMapController c) {
+    _controller = c;
+    _fitBounds();
+  }
+
+  void _fitBounds() {
+    final controller = _controller;
+    if (controller == null) return;
+    final points = <LatLng>[
+      if (_destination != null) _destination!,
+      if (_driver != null) _driver!,
+    ];
+    if (points.isEmpty) return;
+    if (points.length == 1) {
+      controller.animateCamera(CameraUpdate.newCameraPosition(CameraPosition(target: points.first, zoom: 13)));
+    } else {
+      final lats = points.map((e) => e.latitude);
+      final lngs = points.map((e) => e.longitude);
+      final sw = LatLng(lats.reduce((a, b) => a < b ? a : b), lngs.reduce((a, b) => a < b ? a : b));
+      final ne = LatLng(lats.reduce((a, b) => a > b ? a : b), lngs.reduce((a, b) => a > b ? a : b));
+      controller.animateCamera(CameraUpdate.newLatLngBounds(LatLngBounds(southwest: sw, northeast: ne), 60));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final markers = <Marker>{};
+    if (_destination != null) {
+      markers.add(Marker(
+        markerId: const MarkerId('dest'),
+        position: _destination!,
+        infoWindow: const InfoWindow(title: 'Destination'),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+      ));
+    }
+    if (_driver != null) {
+      markers.add(Marker(
+        markerId: const MarkerId('driver'),
+        position: _driver!,
+        infoWindow: const InfoWindow(title: 'Driver'),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+      ));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.map, size: 18, color: Colors.grey),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Live Map (beta) • $_status',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            height: 180,
+            child: GoogleMap(
+              onMapCreated: _onMapCreated,
+              initialCameraPosition: const CameraPosition(target: _nyc, zoom: 12),
+              markers: markers,
+              myLocationButtonEnabled: false,
+              zoomControlsEnabled: false,
+              mapToolbarEnabled: false,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

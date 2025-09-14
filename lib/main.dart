@@ -1,15 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'dart:ui';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'app_v3/pages/splash_page_v3.dart';
+import 'app_v3/pages/home_page_v3.dart';
+import 'app_v3/services/auth_wrapper.dart';
 import 'app_v3/theme/app_theme_v3.dart';
 import 'app_v3/services/memory_optimizer.dart';
-import 'app_v3/debug/build_badge.dart';
 import 'app_v3/config/feature_flags.dart';
 import 'app_v3/debug/debug_overlay.dart';
 import 'app_v3/debug/debug_state.dart';
+import 'app_v3/services/fcm_service_v3.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+
+// Background message handler (must be top-level)
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  debugPrint('[FCM] Background message: ${message.messageId}');
+}
 
 void main() {
   runZonedGuarded(() async {
@@ -30,9 +40,15 @@ void main() {
       options: DefaultFirebaseOptions.currentPlatform,
     );
 
+    // Set background message handler
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
     // MemoryOptimizer.optimizeImageCache(); // Disabled for web compatibility
 
-    runApp(const MyApp());
+    // Initialize enhanced FCM service (FREE push notifications)
+    await FCMServiceV3.instance.initAndRegisterToken();
+
+  runApp(const MyApp());
   }, (error, stack) {
     // ignore: avoid_print
     print('Uncaught error during app startup: $error\n$stack');
@@ -48,10 +64,18 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final _routeObserver = RouteObserver<PageRoute>();
+  
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    
+    // Debug: Check initial route
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final currentRoute = ModalRoute.of(context)?.settings.name;
+      debugPrint('[InitialRoute] Current route: $currentRoute');
+      debugPrint('[InitialRoute] Window location: ${Uri.base}');
+    });
   }
 
   @override
@@ -72,13 +96,46 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    // Check if we're starting with a kitchen route
+    String initialRoute = '/';
+    
+    if (kIsWeb) {
+      final currentUri = Uri.base;
+      final fragment = currentUri.fragment;
+      
+      debugPrint('[AppStart] URI: $currentUri');
+      debugPrint('[AppStart] Fragment: $fragment');
+      
+      if (fragment.isNotEmpty) {
+        if (fragment.startsWith('/kitchen-access') || fragment.startsWith('/kitchen-login')) {
+          initialRoute = '/kitchen-access';
+        } else if (fragment.startsWith('/kitchen-dashboard') || fragment.startsWith('/kitchen')) {
+          initialRoute = '/kitchen-dashboard';
+        }
+      }
+    }
+    
+    debugPrint('[AppStart] Initial route: $initialRoute');
+    
     return MaterialApp(
       title: 'FreshPunk',
       theme: AppThemeV3.lightTheme,
-      home: const SplashPageV3(),
       debugShowCheckedModeBanner: false,
+      initialRoute: initialRoute,
+      routes: {
+        '/': (context) => const AuthWrapper(),
+        '/home': (context) => const HomePageV3(),
+        // Kitchen routes temporarily disabled
+        // '/kitchen-access': (context) => const KitchenAccessPage(),
+        // '/kitchen-login': (context) => const KitchenAccessPage(),
+        // '/kitchen-dashboard': (context) => const KitchenDashboardPage(),
+        // '/kitchen': (context) => const KitchenDashboardPage(),
+      },
       onGenerateRoute: (settings) {
         final name = settings.name ?? '';
+        debugPrint('[Route] Generating route for: $name');
+        
+        // Block legacy routes
         if (name.contains('V1') || name.contains('_v1')) {
           debugPrint('[RouteBlock] Attempted navigation to legacy route: $name');
           return MaterialPageRoute(builder: (_) => const SplashPageV3());
@@ -90,19 +147,39 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         _RouteLogger(),
       ],
       builder: (context, child) {
-        final wrapped = MediaQuery(
+        // Normalize text scaling across platforms
+        final baseApp = MediaQuery(
           data: MediaQuery.of(context).copyWith(
             textScaler: const TextScaler.linear(1.0),
           ),
           child: child!,
         );
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            wrapped, // main app content
-            const BuildBadge(label: 'REFINED • OneDrive'),
-            if (FeatureFlags.showDebugOverlay) const DebugOverlay(),
-          ],
+
+        // On web, center and constrain to an iPhone 13 width (390px)
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            const phoneWidth = 390.0; // iPhone 13 logical width
+            Widget content = baseApp;
+
+            if (kIsWeb && constraints.maxWidth > phoneWidth) {
+              content = Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: phoneWidth,
+                  ),
+                  child: content,
+                ),
+              );
+            }
+
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                content, // main app content (optionally constrained on web)
+                if (FeatureFlags.showDebugOverlay) const DebugOverlay(),
+              ],
+            );
+          },
         );
       },
     );

@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/meal_model_v3.dart';
+import 'dart:async';
 
 class FirestoreServiceV3 {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -25,7 +26,13 @@ class FirestoreServiceV3 {
     String? phoneNumber,
   }) async {
     try {
-      await _firestore.collection(_usersCollection).doc(userId).set({
+      // Delete any existing user document to ensure a clean profile
+      final userDoc = _firestore.collection(_usersCollection).doc(userId);
+      final existing = await userDoc.get();
+      if (existing.exists) {
+        await userDoc.delete();
+      }
+      await userDoc.set({
         'id': userId,
         'email': email,
         'fullName': fullName,
@@ -39,7 +46,7 @@ class FirestoreServiceV3 {
           'emailUpdates': true,
           'smsUpdates': false,
         },
-      });
+      }, SetOptions(merge: false));
     } catch (e) {
       throw Exception('Failed to create user profile: $e');
     }
@@ -281,12 +288,16 @@ class FirestoreServiceV3 {
   // Activate the given meal plan for the user (and deactivate others)
   static Future<void> setActiveMealPlan(String userId, MealPlanModelV3 plan) async {
     try {
+      debugPrint('[FirestoreServiceV3] Setting active meal plan ${plan.id} for user $userId');
+      
       final userPlans = await _firestore
           .collection(_usersCollection)
           .doc(userId)
           .collection(_mealPlansCollection)
           .limit(100)
           .get();
+
+      debugPrint('[FirestoreServiceV3] Found ${userPlans.docs.length} existing meal plans');
 
       final batch = _firestore.batch();
       for (final d in userPlans.docs) {
@@ -303,8 +314,11 @@ class FirestoreServiceV3 {
         'isActive': true,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+      
+      debugPrint('[FirestoreServiceV3] Committing batch write for meal plan');
       await batch.commit();
 
+      debugPrint('[FirestoreServiceV3] Updating user profile with active plan');
       // Denormalize the active plan onto the user profile for quick lookups
       await _firestore.collection(_usersCollection).doc(userId).set({
         'currentMealPlanId': plan.id,
@@ -313,7 +327,10 @@ class FirestoreServiceV3 {
         'currentPricePerMeal': plan.pricePerMeal,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+      
+      debugPrint('[FirestoreServiceV3] Successfully set active meal plan');
     } catch (e) {
+      debugPrint('[FirestoreServiceV3] Error setting active meal plan: $e');
       throw Exception('Failed to set active meal plan: $e');
     }
   }
@@ -329,6 +346,45 @@ class FirestoreServiceV3 {
           .set(schedule.toFirestore());
     } catch (e) {
       throw Exception('Failed to save delivery schedule: $e');
+    }
+  }
+
+  // Replace all active delivery schedules for a user with the provided set (batch, idempotent-ish)
+  static Future<void> replaceActiveDeliverySchedules(String userId, List<DeliveryScheduleModelV3> schedules) async {
+    try {
+      final col = _firestore
+          .collection(_usersCollection)
+          .doc(userId)
+          .collection(_deliverySchedulesCollection);
+
+      // 1) Load current schedules (limit to a reasonable amount)
+      final existing = await col.limit(200).get();
+
+      // 2) Build batch to deactivate existing and upsert new
+      final batch = _firestore.batch();
+      for (final d in existing.docs) {
+        final data = d.data();
+        final wasActive = (data['isActive'] == true);
+        if (wasActive) {
+          batch.update(d.reference, {
+            'isActive': false,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
+      for (final s in schedules) {
+        final ref = col.doc(s.id);
+        final payload = s.toFirestore();
+        payload['isActive'] = true; // ensure active
+        payload['updatedAt'] = FieldValue.serverTimestamp();
+        payload['createdAt'] = FieldValue.serverTimestamp();
+        batch.set(ref, payload, SetOptions(merge: true));
+      }
+
+      await batch.commit();
+    } catch (e) {
+      throw Exception('Failed to replace delivery schedules: $e');
     }
   }
 
@@ -663,6 +719,26 @@ class FirestoreServiceV3 {
     }
   }
 
+  // Live driver location for an order. Expects documents under:
+  // orders/{orderId}/tracking/current { lat: double, lng: double, updatedAt: TS }
+  // If the doc or fields are missing, emits null.
+  static Stream<_LatLng?> trackOrderDriverLocation(String orderId) {
+    final ref = _firestore
+        .collection(_ordersCollection)
+        .doc(orderId)
+        .collection('tracking')
+        .doc('current');
+    return ref.snapshots().map((doc) {
+      if (!doc.exists) return null;
+      final data = doc.data();
+      if (data == null) return null;
+      final lat = (data['lat'] as num?)?.toDouble();
+      final lng = (data['lng'] as num?)?.toDouble();
+      if (lat == null || lng == null) return null;
+      return _LatLng(lat, lng);
+    });
+  }
+
   // Replace the next upcoming order of a given meal type with a new meal.
   // Respects the 60-minute lock and skips terminal/out-for-delivery statuses.
   static Future<bool> replaceNextUpcomingOrderMealOfType({
@@ -912,4 +988,11 @@ class FirestoreServiceV3 {
         .limit(20)
         .snapshots();
   }
+}
+
+// Lightweight internal Point type for map streaming
+class _LatLng {
+  final double lat;
+  final double lng;
+  const _LatLng(this.lat, this.lng);
 }

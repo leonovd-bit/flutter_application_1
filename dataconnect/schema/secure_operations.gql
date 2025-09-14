@@ -1,0 +1,267 @@
+# Data Connect Operations with Security
+# This file defines secure operations for the FreshPunk app
+
+# User Operations - self-service only
+query GetMyProfile @auth(level: USER_EMAIL_VERIFIED) {
+  user(id_expr: "auth.uid") {
+    id
+    displayName
+    email
+    photoUrl
+    preferredDeliveryNotes
+    targetCalories
+    targetProtein
+    targetCarbs
+    targetFat
+    createdAt
+  }
+}
+
+mutation UpdateMyProfile @auth(level: USER_EMAIL_VERIFIED) {
+  user_update(
+    id_expr: "auth.uid"
+    data: {
+      displayName: $displayName
+      photoUrl: $photoUrl
+      preferredDeliveryNotes: $preferredDeliveryNotes
+      targetCalories: $targetCalories
+      targetProtein: $targetProtein
+      targetCarbs: $targetCarbs
+      targetFat: $targetFat
+    }
+  ) {
+    id
+    displayName
+    email
+  }
+}
+
+# Address Operations - user-scoped
+query GetMyAddresses @auth(level: USER_EMAIL_VERIFIED) {
+  deliveryAddresses(where: {user: {id_expr: "auth.uid"}}) {
+    id
+    street
+    city
+    state
+    zipCode
+    aptSuite
+    isDefault
+    createdAt
+  }
+}
+
+mutation CreateMyAddress @auth(level: USER_EMAIL_VERIFIED) {
+  deliveryAddress_insert(data: {
+    user_expr: "auth.uid"
+    street: $street
+    city: $city
+    state: $state
+    zipCode: $zipCode
+    aptSuite: $aptSuite
+    isDefault: $isDefault
+    createdAt_expr: "request.time"
+  }) {
+    id
+    street
+    city
+    state
+    zipCode
+  }
+}
+
+# Meal Operations - public read
+query GetMeals @auth(level: USER) {
+  meals(limit: $limit, offset: $offset, where: $where, orderBy: $orderBy) {
+    id
+    name
+    description
+    calories
+    protein
+    carbs
+    fat
+    cuisineType
+    imageURL
+    ingredients
+    prepTimeMinutes
+    createdAt
+  }
+}
+
+query GetMealById @auth(level: USER) {
+  meal(id: $mealId) {
+    id
+    name
+    description
+    calories
+    protein
+    carbs
+    fat
+    cuisineType
+    imageURL
+    ingredients
+    prepTimeMinutes
+    createdAt
+    mealDietaryTags_on_meal {
+      dietaryTag {
+        name
+        description
+      }
+    }
+  }
+}
+
+# Admin-only meal management
+mutation CreateMeal @auth(expr: "auth.uid != null && auth.token.admin == true") {
+  meal_insert(data: {
+    name: $name
+    description: $description
+    calories: $calories
+    protein: $protein
+    carbs: $carbs
+    fat: $fat
+    cuisineType: $cuisineType
+    imageURL: $imageURL
+    ingredients: $ingredients
+    prepTimeMinutes: $prepTimeMinutes
+    createdAt_expr: "request.time"
+  }) {
+    id
+    name
+    description
+  }
+}
+
+mutation UpdateMeal @auth(expr: "auth.uid != null && auth.token.admin == true") {
+  meal_update(
+    id: $mealId
+    data: {
+      name: $name
+      description: $description
+      calories: $calories
+      protein: $protein
+      carbs: $carbs
+      fat: $fat
+      cuisineType: $cuisineType
+      imageURL: $imageURL
+      ingredients: $ingredients
+      prepTimeMinutes: $prepTimeMinutes
+    }
+  ) {
+    id
+    name
+    description
+  }
+}
+
+mutation DeleteMeal @auth(expr: "auth.uid != null && auth.token.admin == true") {
+  meal_delete(id: $mealId) {
+    id
+  }
+}
+
+# Subscription Operations - user-scoped
+query GetMySubscriptions @auth(level: USER_EMAIL_VERIFIED) {
+  userSubscriptions(where: {user: {id_expr: "auth.uid"}}) {
+    id
+    subscriptionType {
+      name
+      mealsPerDelivery
+      deliveryFrequency
+      basePrice
+      description
+    }
+    startDate
+    endDate
+    status
+    preferredDeliveryDay
+    preferredDeliveryTimeSlot
+    shippingAddress {
+      street
+      city
+      state
+      zipCode
+    }
+    createdAt
+  }
+}
+
+mutation CreateMySubscription @auth(level: USER_EMAIL_VERIFIED) {
+  userSubscription_insert(data: {
+    user_expr: "auth.uid"
+    subscriptionType: $subscriptionTypeId
+    startDate: $startDate
+    status: "active"
+    preferredDeliveryDay: $preferredDeliveryDay
+    preferredDeliveryTimeSlot: $preferredDeliveryTimeSlot
+    shippingAddress: $shippingAddressId
+    createdAt_expr: "request.time"
+  }) {
+    id
+    status
+    startDate
+  }
+}
+
+# Kitchen Operations - kitchen partner access
+query GetOrdersForKitchen @auth(expr: "auth.uid != null && (auth.token.kitchen == true || auth.token.admin == true)") {
+  # This would require a custom implementation since we need to filter by kitchen
+  # For now, kitchen partners would use Cloud Functions
+}
+
+# Admin Operations - comprehensive access
+query GetAllUsers @auth(expr: "auth.uid != null && auth.token.admin == true") {
+  users(limit: $limit, offset: $offset, orderBy: [{createdAt: DESC}]) {
+    id
+    displayName
+    email
+    photoUrl
+    createdAt
+    deliveryAddresses_on_user {
+      id
+      street
+      city
+      state
+      isDefault
+    }
+    userSubscriptions_on_user {
+      id
+      status
+      subscriptionType {
+        name
+      }
+    }
+  }
+}
+
+query GetSubscriptionMetrics @auth(expr: "auth.uid != null && auth.token.admin == true") {
+  userSubscriptions(where: {status: {eq: "active"}}) {
+    id
+    status
+    subscriptionType {
+      name
+      basePrice
+    }
+    startDate
+    user {
+      id
+      email
+    }
+  }
+}
+
+# Security validation operations
+mutation ValidateUserAccess @auth(level: USER_EMAIL_VERIFIED) {
+  # Dummy operation to validate user has proper access
+  query {
+    user(id_expr: "auth.uid") {
+      id
+      email
+    }
+  }
+}
+
+# Audit logging operation (system use)
+mutation LogSecurityEvent @auth(expr: "false") {
+  # This operation can only be called from Admin SDK
+  # Used for audit logging from Cloud Functions
+}

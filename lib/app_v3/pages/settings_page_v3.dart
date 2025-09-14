@@ -8,16 +8,22 @@ import 'welcome_page_v3.dart';
 import 'address_page_v3.dart';
 import 'profile_page_v3.dart';
 import 'payment_methods_page_v3.dart';
-import 'delivery_schedule_page_v4.dart';
-import 'meal_schedule_page_v3.dart';
-import 'plan_subscription_page_v3.dart';
-import '../services/firestore_service_v3.dart';
-import 'change_password_page_v3.dart';
-import 'help_support_page_v3.dart';
+import 'delivery_schedule_overview_page_v2.dart';
+import 'meal_schedule_overview_page_v2.dart';
+import 'manage_subscription_page_v3.dart';
 import 'about_page_v3.dart';
 import 'terms_of_service_page_v3.dart';
 import 'privacy_policy_page_v3.dart';
 // Removed Circle of Health from Settings
+import '../services/order_functions_service.dart';
+import '../services/firestore_service_v3.dart';
+import '../services/account_deletion_service.dart';
+import 'change_password_page_v3.dart';
+import '../services/meal_service_v3.dart';
+import 'help_support_page_v3.dart';
+import 'delivery_schedule_page_v4.dart';
+import 'meal_schedule_page_v3.dart';
+import '../services/fcm_service_v3.dart';
 
 class SettingsPageV3 extends StatefulWidget {
   const SettingsPageV3({super.key});
@@ -42,6 +48,17 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
   bool _orderUpdates = true;
   bool _promotionalEmails = false;
   bool _isLoading = true;
+  bool _isAdmin = false;
+  bool _adminSeeding = false;
+  String? _adminSeedMsg;
+  bool _adminFixing = false;
+  String? _adminFixMsg;
+  bool _adminSwitching = false;
+  String? _adminSwitchMsg;
+  bool _adminSwitchingJfif = false;
+  String? _adminSwitchJfifMsg;
+  bool _adminSwitchingAuto = false;
+  String? _adminSwitchAutoMsg;
 
   @override
   void initState() {
@@ -69,6 +86,12 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
 
       final subscription = await FirestoreServiceV3.getActiveSubscription(user.uid);
       final mealPlan = await FirestoreServiceV3.getCurrentMealPlan(user.uid);
+      bool isAdmin = false;
+      try {
+        final token = await user.getIdTokenResult(true);
+        final claims = token.claims;
+        isAdmin = claims != null && claims['admin'] == true;
+      } catch (_) {}
   // Address summary removed from Settings; still fetchable elsewhere if needed
 
       setState(() {
@@ -78,7 +101,8 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
         _planMonthlyAmount = (subscription?['monthlyAmount'] as num?)?.toDouble();
         final ts = subscription?['nextBillingDate'];
         _nextBillingDate = ts is Timestamp ? ts.toDate() : ts is int ? DateTime.fromMillisecondsSinceEpoch(ts) : null;
-        _isLoading = false;
+  _isLoading = false;
+  _isAdmin = isAdmin;
       });
     } catch (_) {
       setState(() {
@@ -86,6 +110,66 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
         _accountEmail = user.email;
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _adminSeedMeals() async {
+    setState(() { _adminSeeding = true; _adminSeedMsg = null; });
+    try {
+      final n = await MealServiceV3.seedFromJsonAsset();
+      setState(() { _adminSeedMsg = 'Seeded $n meals'; });
+    } catch (e) {
+      setState(() { _adminSeedMsg = 'Error: $e'; });
+    } finally {
+      setState(() { _adminSeeding = false; });
+    }
+  }
+
+  Future<void> _adminFixImages() async {
+    setState(() { _adminFixing = true; _adminFixMsg = null; });
+    try {
+      final n = await MealServiceV3.updateImagesFromJsonAsset();
+      setState(() { _adminFixMsg = 'Updated images for $n meals'; });
+    } catch (e) {
+      setState(() { _adminFixMsg = 'Error: $e'; });
+    } finally {
+      setState(() { _adminFixing = false; });
+    }
+  }
+
+  Future<void> _adminSwitchImagesToAssets() async {
+    setState(() { _adminSwitching = true; _adminSwitchMsg = null; });
+    try {
+      final n = await MealServiceV3.updateImagesToBundledAssets(ext: 'jpg');
+      setState(() { _adminSwitchMsg = 'Pointed $n meals to assets/images/meals/*.jpg'; });
+    } catch (e) {
+      setState(() { _adminSwitchMsg = 'Error: $e'; });
+    } finally {
+      setState(() { _adminSwitching = false; });
+    }
+  }
+
+  Future<void> _adminSwitchImagesToAssetsJfif() async {
+    setState(() { _adminSwitchingJfif = true; _adminSwitchJfifMsg = null; });
+    try {
+      final n = await MealServiceV3.updateImagesToBundledAssets(ext: 'jfif');
+      setState(() { _adminSwitchJfifMsg = 'Pointed $n meals to assets/images/meals/*.jfif'; });
+    } catch (e) {
+      setState(() { _adminSwitchJfifMsg = 'Error: $e'; });
+    } finally {
+      setState(() { _adminSwitchingJfif = false; });
+    }
+  }
+
+  Future<void> _adminSwitchImagesToAssetsAuto() async {
+    setState(() { _adminSwitchingAuto = true; _adminSwitchAutoMsg = null; });
+    try {
+      final n = await MealServiceV3.updateImagesToExistingBundledAssetsFlexible();
+      setState(() { _adminSwitchAutoMsg = 'Auto-detected and pointed $n meals to matching assets'; });
+    } catch (e) {
+      setState(() { _adminSwitchAutoMsg = 'Error: $e'; });
+    } finally {
+      setState(() { _adminSwitchingAuto = false; });
     }
   }
 
@@ -157,12 +241,25 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
               Navigator.pop(dialogContext);
               
               try {
+                // Capture UID before sign-out for proper cleanup
+                final prevUid = _auth.currentUser?.uid;
                 // Sign out from Firebase
                 await FirebaseAuth.instance.signOut();
                 
                 // Reset the welcome flag so user sees welcome page again
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.setBool('has_seen_welcome', false);
+                // Cleanup local schedule lists to avoid cross-account leakage
+                try {
+                  // Remove legacy global list
+                  await prefs.remove('saved_schedules');
+                  // Remove namespaced list for previous user
+                  if (prevUid != null) {
+                    await prefs.remove('saved_schedules_${prevUid}');
+                    await prefs.remove('selected_meal_plan_id_${prevUid}');
+                    await prefs.remove('selected_meal_plan_display_name_${prevUid}');
+                  }
+                } catch (_) {}
                 if (!mounted) return;
                 // Navigate to welcome page and clear all previous routes
                 Navigator.of(context).pushAndRemoveUntil(
@@ -184,6 +281,195 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
         ],
       ),
     );
+  }
+
+  Future<void> _deleteAccount() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      _showSnackBar('No user is currently signed in');
+      return;
+    }
+
+    // First, check if user has active subscriptions
+    bool hasActiveSubscriptions = false;
+    List<Map<String, dynamic>> subscriptions = [];
+    
+    try {
+      hasActiveSubscriptions = await AccountDeletionService.hasActiveSubscriptions(user.uid);
+      if (hasActiveSubscriptions) {
+        subscriptions = await AccountDeletionService.getUserSubscriptions(user.uid);
+      }
+    } catch (e) {
+      _showSnackBar('Error checking subscriptions: $e');
+      return;
+    }
+
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.red, size: 28),
+            const SizedBox(width: 12),
+            const Text('Delete Account'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'This action cannot be undone. Deleting your account will:',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 12),
+              const Text('• Delete all your personal data'),
+              const Text('• Cancel all active subscriptions'),
+              const Text('• Remove all delivery addresses'),
+              const Text('• Delete order history'),
+              const Text('• Remove meal preferences'),
+              
+              if (hasActiveSubscriptions) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.subscriptions, color: Colors.orange, size: 20),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Active Subscriptions',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      ...subscriptions.map((sub) => Text(
+                        '• ${sub['planName'] ?? 'Unknown Plan'} - \$${sub['monthlyAmount'] ?? 0}/month',
+                        style: const TextStyle(fontSize: 12),
+                      )),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'These will be canceled immediately.',
+                        style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              
+              const SizedBox(height: 16),
+              const Text(
+                'Are you absolutely sure you want to delete your account?',
+                style: TextStyle(fontWeight: FontWeight.w600, color: Colors.red),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete Account'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Deleting account...'),
+            SizedBox(height: 8),
+            Text(
+              'This may take a few moments',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      // Delete the account
+      await AccountDeletionService.deleteUserAccount();
+      
+      if (!mounted) return;
+      
+      // Close loading dialog
+      Navigator.pop(context);
+      
+      // Show success message and navigate to welcome
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Account deleted successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      
+      // Navigate to welcome page
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const WelcomePageV3()),
+        (route) => false,
+      );
+      
+    } catch (e) {
+      if (!mounted) return;
+      
+      // Close loading dialog
+      Navigator.pop(context);
+      
+      // Show error message
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.error, color: Colors.red),
+              const SizedBox(width: 8),
+              const Text('Deletion Failed'),
+            ],
+          ),
+          content: Text(
+            'Failed to delete account: $e\n\n'
+            'Please contact support if this issue persists.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   @override
@@ -218,6 +504,82 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // Admin tools section hidden for clean UI
+          // if (_isAdmin) ...[
+            // _buildSectionHeader('Admin Tools'),
+            // Card(
+              // elevation: 0,
+              // color: const Color(0xFFF6FFF8),
+              // child: Padding(
+                // padding: const EdgeInsets.all(12.0),
+                // child: Column(
+                  // crossAxisAlignment: CrossAxisAlignment.stretch,
+                  // children: [
+                    // ElevatedButton(
+                      // onPressed: _adminSeeding ? null : _adminSeedMeals,
+                      // style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange, foregroundColor: Colors.white),
+                      // child: _adminSeeding
+                          // ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          // : const Text('Seed Meals to Firestore'),
+                    // ),
+                    // const SizedBox(height: 8),
+                    // ElevatedButton(
+                      // onPressed: _adminFixing ? null : _adminFixImages,
+                      // style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+                      // child: _adminFixing
+                          // ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          // : const Text('Fix Meal Images Only'),
+                    // ),
+                    // const SizedBox(height: 8),
+                    // ElevatedButton(
+                      // onPressed: _adminSwitching ? null : _adminSwitchImagesToAssets,
+                      // style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+                      // child: _adminSwitching
+                          // ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          // : const Text('Use Bundled Asset Images for Meals'),
+                    // ),
+                    // const SizedBox(height: 8),
+                    // ElevatedButton(
+                      // onPressed: _adminSwitchingJfif ? null : _adminSwitchImagesToAssetsJfif,
+                      // style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white),
+                      // child: _adminSwitchingJfif
+                          // ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          // : const Text('Use Bundled Asset Images (.jfif)'),
+                    // ),
+                    // const SizedBox(height: 8),
+                    // ElevatedButton(
+                      // onPressed: _adminSwitchingAuto ? null : _adminSwitchImagesToAssetsAuto,
+                      // style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey, foregroundColor: Colors.white),
+                      // child: _adminSwitchingAuto
+                          // ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          // : const Text('Use Bundled Asset Images (Auto detect)'),
+                    // ),
+                    // if (_adminSeedMsg != null) ...[
+                      // const SizedBox(height: 8),
+                      // Text(_adminSeedMsg!, style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                    // ],
+                    // if (_adminFixMsg != null) ...[
+                      // const SizedBox(height: 4),
+                      // Text(_adminFixMsg!, style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                    // ],
+                    // if (_adminSwitchMsg != null) ...[
+                      // const SizedBox(height: 4),
+                      // Text(_adminSwitchMsg!, style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                    // ],
+                    // if (_adminSwitchJfifMsg != null) ...[
+                      // const SizedBox(height: 4),
+                      // Text(_adminSwitchJfifMsg!, style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                    // ],
+                    // if (_adminSwitchAutoMsg != null) ...[
+                      // const SizedBox(height: 4),
+                      // Text(_adminSwitchAutoMsg!, style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                    // ],
+                  // ],
+                // ),
+              // ),
+            // ),
+            // const SizedBox(height: 24),
+          // ],
           if (_accountEmail != null || _accountName != null)
             _buildAccountSummary(),
 
@@ -241,6 +603,12 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
             subtitle: 'Manage cards and billing',
             onTap: () => _navigateToPayment(),
           ),
+          _buildSettingsTile(
+            icon: Icons.subscriptions_outlined,
+            title: 'Manage Subscription',
+            subtitle: 'View and manage your meal plan subscription',
+            onTap: _navigateToManageSubscription,
+          ),
 
           const SizedBox(height: 24),
 
@@ -248,22 +616,28 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
           _buildSectionHeader('Orders & Schedules'),
           // Circle of Health removed from Settings per request
           _buildSettingsTile(
-            icon: Icons.subscriptions_outlined,
-            title: 'Meal Plan Subscription',
-            subtitle: 'Change your meal plan',
-            onTap: _navigateToPlanSubscription,
-          ),
-          _buildSettingsTile(
             icon: Icons.calendar_month_outlined,
             title: 'Delivery Schedule',
-            subtitle: 'Create or edit your delivery schedule',
-            onTap: _navigateToDeliverySchedule,
+            subtitle: 'Create a new delivery schedule',
+            onTap: _navigateToDeliveryScheduleBuilder,
           ),
           _buildSettingsTile(
             icon: Icons.restaurant_menu_outlined,
             title: 'Meal Schedule',
-            subtitle: 'Customize meals for each delivery',
-            onTap: _navigateToMealSchedule,
+            subtitle: 'Create a new meal schedule',
+            onTap: _navigateToMealScheduleBuilder,
+          ),
+          _buildSettingsTile(
+            icon: Icons.calendar_view_month_outlined,
+            title: 'Delivery Schedule Overview',
+            subtitle: 'View saved delivery schedules',
+            onTap: _navigateToDeliveryScheduleOverview,
+          ),
+          _buildSettingsTile(
+            icon: Icons.view_list_outlined,
+            title: 'Meal Schedule Overview',
+            subtitle: 'View meals selected per delivery',
+            onTap: _navigateToMealScheduleOverview,
           ),
 
           const SizedBox(height: 24),
@@ -298,6 +672,13 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
                 _pushNotifications = value;
               });
             },
+          ),
+          // Test Push Notification Button
+          _buildSettingsTile(
+            icon: Icons.notification_add_outlined,
+            title: 'Test Push Notification',
+            subtitle: 'Send a test notification to verify setup',
+            onTap: _testPushNotification,
           ),
           _buildSwitchTile(
             icon: Icons.email_outlined,
@@ -337,6 +718,12 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
 
           // Support Section
           _buildSectionHeader('Support'),
+          _buildSettingsTile(
+            icon: Icons.wifi_tethering,
+            title: 'Ping backend',
+            subtitle: 'Connectivity check to Cloud Functions',
+            onTap: _pingBackend,
+          ),
           _buildSettingsTile(
             icon: Icons.help_outline,
             title: 'Help & FAQ',
@@ -391,6 +778,36 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
               ),
               child: const Text(
                 'Sign Out',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Clean settings interface - admin buttons removed for user experience
+
+          const SizedBox(height: 16),
+
+          // Delete Account Button
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            child: OutlinedButton(
+              onPressed: _deleteAccount,
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.red, width: 2),
+                foregroundColor: Colors.red,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                'Delete Account',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -467,7 +884,7 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
                   ),
                 ),
                 TextButton(
-                  onPressed: _navigateToMealSchedule,
+                  onPressed: _navigateToManageSubscription,
                   child: const Text('Manage'),
                 ),
               ],
@@ -622,25 +1039,41 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
     );
   }
 
-  void _navigateToDeliverySchedule() {
+  // Direct edit routes are still available if needed elsewhere
+
+  void _navigateToDeliveryScheduleOverview() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const DeliveryScheduleOverviewPageV2()),
+    );
+  }
+
+  void _navigateToMealScheduleOverview() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const MealScheduleOverviewPageV2()),
+    );
+  }
+
+  void _navigateToDeliveryScheduleBuilder() {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const DeliverySchedulePageV4()),
     );
   }
 
-  void _navigateToMealSchedule() {
+  void _navigateToMealScheduleBuilder() {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const MealSchedulePageV3()),
     );
   }
 
-  // Separate entry for changing the meal plan subscription (uses existing page)
-  void _navigateToPlanSubscription() {
+  // Manage subscription hub (plan + billing)
+  void _navigateToManageSubscription() {
     Navigator.push(
       context,
-  MaterialPageRoute(builder: (context) => const PlanSubscriptionPageV3()),
+      MaterialPageRoute(builder: (context) => const ManageSubscriptionPageV3()),
     );
   }
 
@@ -651,6 +1084,35 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
+  }
+
+  Future<void> _pingBackend() async {
+    try {
+      final res = await OrderFunctionsService.instance.ping();
+      _showSnackBar('Ping ok=${res['ok']} time=${res['time']}');
+    } catch (e) {
+      _showSnackBar('Ping failed: $e');
+    }
+  }
+
+  Future<void> _testPushNotification() async {
+    try {
+      // Check if FCM is initialized and has permissions
+      final hasPermission = await FCMServiceV3.instance.hasPermission();
+      if (!hasPermission) {
+        final granted = await FCMServiceV3.instance.requestPermission();
+        if (!granted) {
+          _showSnackBar('Push notification permission denied');
+          return;
+        }
+      }
+
+      // Send test notification
+      await FCMServiceV3.instance.sendTestNotification();
+      _showSnackBar('✅ Test notification sent! Check your device notifications.');
+    } catch (e) {
+      _showSnackBar('❌ Test notification failed: $e');
+    }
   }
 
   void _navigateToChangePassword() {

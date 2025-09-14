@@ -7,7 +7,9 @@ class ProductionConfig {
   
   // Production API Keys (REPLACE WITH YOUR PRODUCTION KEYS)
   static const String stripePublishableKey = 'pk_live_YOUR_PRODUCTION_STRIPE_KEY';
-  static const String googleMapsApiKey = 'YOUR_PRODUCTION_GOOGLE_MAPS_KEY';
+  static const String googleMapsApiKey = 'AIzaSyCi_mKaxg-CRH3UJ5LVHGWTd7TUcl1H4qg';
+  static const String googleMapsAndroidKey = 'YOUR_PRODUCTION_GOOGLE_MAPS_ANDROID_KEY';
+  static const String googleMapsIosKey = 'YOUR_PRODUCTION_GOOGLE_MAPS_IOS_KEY';
   
   // Firebase Configuration
   static const String firebaseProjectId = 'your-production-firebase-project';
@@ -39,7 +41,9 @@ class DevelopmentConfig {
   
   // Development/Test API Keys
   static const String stripePublishableKey = 'pk_test_YOUR_TEST_STRIPE_KEY';
-  static const String googleMapsApiKey = 'YOUR_DEVELOPMENT_GOOGLE_MAPS_KEY';
+  static const String googleMapsApiKey = 'AIzaSyCi_mKaxg-CRH3UJ5LVHGWTd7TUcl1H4qg';
+  static const String googleMapsAndroidKey = 'YOUR_DEVELOPMENT_GOOGLE_MAPS_ANDROID_KEY';
+  static const String googleMapsIosKey = 'YOUR_DEVELOPMENT_GOOGLE_MAPS_IOS_KEY';
   
   static const String firebaseProjectId = 'your-development-firebase-project';
   
@@ -66,6 +70,14 @@ class Environment {
   static String get googleMapsApiKey => _isProduction 
     ? ProductionConfig.googleMapsApiKey 
     : DevelopmentConfig.googleMapsApiKey;
+    
+  static String get googleMapsAndroidKey => _isProduction 
+    ? ProductionConfig.googleMapsAndroidKey 
+    : DevelopmentConfig.googleMapsAndroidKey;
+    
+  static String get googleMapsIosKey => _isProduction 
+    ? ProductionConfig.googleMapsIosKey 
+    : DevelopmentConfig.googleMapsIosKey;
     
   static String get firebaseProjectId => _isProduction 
     ? ProductionConfig.firebaseProjectId 

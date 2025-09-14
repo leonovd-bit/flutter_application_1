@@ -1,0 +1,6 @@
+{
+	"stripe.publishableKey": "pk_test_51Rly3MAQ9rq5N6YJ07JcCml88ysYYunZlcUfEacyfjSjY6DZgoM0HOTCkPBOZLVYg40JzUgT9ykwJjjho3hXADuJ00acajs99Q",
+	"stripe.priceIds.oneMealPerDay": "price_1Rul7jAQ9rq5N6YJzg3FifiU",
+	"stripe.priceIds.twoMealsPerDay": "price_1Rul7CAQ9rq5N6YJiPVfjVnC",
+	"stripe.priceIds.threeMealsPerDay": "price_1Rul31AQ9rq5N6YJ0dxoW8a9"
+}

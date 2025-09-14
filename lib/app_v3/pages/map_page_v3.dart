@@ -3,6 +3,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../theme/app_theme_v3.dart';
+import '../services/google_maps_test_service.dart';
 
 class MapPageV3 extends StatefulWidget {
   const MapPageV3({super.key});
@@ -28,6 +29,7 @@ class _MapPageV3State extends State<MapPageV3> {
   @override
   void initState() {
     super.initState();
+    GoogleMapsTestService.testMapsIntegration();
     _initializeMap();
   }
 
@@ -288,6 +290,7 @@ class _MapPageV3State extends State<MapPageV3> {
 
   void _onMapCreated(GoogleMapController controller) {
     _mapController = controller;
+    GoogleMapsTestService.logMapSuccess();
     
     // Move camera to user's location if available
     if (_currentPosition != null) {

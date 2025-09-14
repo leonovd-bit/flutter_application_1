@@ -51,5 +51,9 @@
 	<string>This app needs access to location to automatically fill your delivery address.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>This app needs access to location to automatically fill your delivery address.</string>
+	
+	<!-- Google Maps API Key - Replace with your iOS API key -->
+	<key>GoogleMapsAPIKey</key>
+	<string>AIzaSyBCR1rEwwgZrhAOV1BI-thuCUjqHLYhRUA</string>
 </dict>
 </plist>

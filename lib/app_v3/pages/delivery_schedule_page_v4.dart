@@ -2,16 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/firestore_service_v3.dart';
+import '../services/simple_google_maps_service.dart';
+import '../services/order_notification_service.dart';
 import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
+import '../widgets/simple_address_input_widget.dart';
 import 'meal_schedule_page_v3_fixed.dart';
 import 'address_page_v3.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
-import 'plan_subscription_page_v3.dart';
+import 'manage_subscription_page_v3.dart';
+import 'choose_meal_plan_page_v3.dart';
 
 class DeliverySchedulePageV4 extends StatefulWidget {
-  const DeliverySchedulePageV4({super.key});
+  final String? initialScheduleName;
+  final bool isSignupFlow;
+  const DeliverySchedulePageV4({
+    super.key, 
+    this.initialScheduleName,
+    this.isSignupFlow = false,
+  });
 
   @override
   State<DeliverySchedulePageV4> createState() => _DeliverySchedulePageV4State();
@@ -51,10 +61,24 @@ class _DeliverySchedulePageV4State extends State<DeliverySchedulePageV4> {
   void initState() {
     super.initState();
   // No default schedule name; require user input
-  _scheduleName = '';
-  _scheduleNameController.text = '';
+  _scheduleName = widget.initialScheduleName ?? '';
+  _scheduleNameController.text = widget.initialScheduleName ?? '';
   _loadUserAddresses();
   _loadCurrentPlan();
+  if ((widget.initialScheduleName ?? '').isNotEmpty) {
+    _prefillFromSaved(widget.initialScheduleName!);
+  }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Refresh meal plan when page becomes active (e.g., when returning from meal plan selection)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadCurrentPlan();
+      }
+    });
   }
 
   @override
@@ -62,13 +86,90 @@ class _DeliverySchedulePageV4State extends State<DeliverySchedulePageV4> {
     _scheduleNameController.dispose();
     super.dispose();
   }
+  Future<void> _prefillFromSaved(String name) async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      final prefs = await SharedPreferences.getInstance();
+      final key = uid == null ? 'delivery_schedule_$name' : 'delivery_schedule_${uid}_$name';
+      final raw = prefs.getString(key);
+      if (raw == null) return;
+      final data = json.decode(raw) as Map<String, dynamic>;
+      // Resolve meal plan
+      try {
+        final mealPlanId = (data['mealPlanId'] ?? '').toString();
+        if (mealPlanId.isNotEmpty) {
+          final plans = MealPlanModelV3.getAvailablePlans();
+          final plan = plans.firstWhere((p) => p.id == mealPlanId, orElse: () => plans.first);
+          setState(() => _selectedMealPlan = plan);
+          if (plan.mealsPerDay >= 3) {
+            _selectedMealTypes
+              ..clear()
+              ..addAll(_mealOptions);
+          } else {
+            final types = List<String>.from(data['selectedMealTypes'] ?? const <String>[]);
+            _selectedMealTypes
+              ..clear()
+              ..addAll(types);
+          }
+        }
+      } catch (_) {}
+      // Weekly schedule -> _dayConfigurations (convert HH:mm to TimeOfDay)
+      final weekly = data['weeklySchedule'] as Map<String, dynamic>? ?? {};
+      final Map<String, Map<String, Map<String, dynamic>>> rebuilt = {};
+      TimeOfDay? _parse(String? hhmm) {
+        if (hhmm == null || hhmm.isEmpty) return null;
+        final parts = hhmm.split(':');
+        if (parts.length != 2) return null;
+        final h = int.tryParse(parts[0]);
+        final m = int.tryParse(parts[1]);
+        if (h == null || m == null) return null;
+        return TimeOfDay(hour: h, minute: m);
+      }
+      weekly.forEach((day, mtVal) {
+        final mtMap = Map<String, dynamic>.from(mtVal as Map);
+        rebuilt[day] = {};
+        mtMap.forEach((mt, cfg) {
+          final c = Map<String, dynamic>.from(cfg as Map);
+          rebuilt[day]![mt] = {
+            'time': _parse((c['time'] ?? '').toString()),
+            'address': (c['address'] ?? '').toString().trim().isEmpty ? null : (c['address'] ?? '').toString(),
+          };
+        });
+      });
+      if (mounted) {
+        setState(() {
+          _dayConfigurations = rebuilt;
+        });
+      }
+    } catch (_) {}
+  }
 
   Future<void> _loadCurrentPlan() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
     try {
-      // 1) Try the user's current active plan document
-      MealPlanModelV3? plan = await FirestoreServiceV3.getCurrentMealPlan(uid);
+      MealPlanModelV3? plan;
+      
+      // First check SharedPreferences for onboarding flow
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final planId = prefs.getString('selected_meal_plan_id');
+        if (planId != null && planId.isNotEmpty) {
+          final available = MealPlanModelV3.getAvailablePlans();
+          plan = available.firstWhere(
+            (p) => p.id == planId,
+            orElse: () => available.first,
+          );
+          debugPrint('[DeliverySchedule] Loaded plan from SharedPreferences: ${plan.displayName}');
+        }
+      } catch (e) {
+        debugPrint('[DeliverySchedule] Error loading from SharedPreferences: $e');
+      }
+
+      // If not found in SharedPreferences, try Firestore
+      if (plan == null) {
+        plan = await FirestoreServiceV3.getCurrentMealPlan(uid);
+      }
 
       // 2) Fallback: resolve from active subscription (set up during payment)
       if (plan == null) {
@@ -416,16 +517,211 @@ class _DeliverySchedulePageV4State extends State<DeliverySchedulePageV4> {
   }
 
   // Helpers for address dropdown rendering
-  List<Map<String, String>> _getDedupedAddresses() {
-    final seen = <String>{};
-    final list = <Map<String, String>>[];
-    for (final a in _savedAddresses) {
-      final addr = (a['address'] ?? '').trim();
-      if (addr.isEmpty || seen.contains(addr)) continue;
-      seen.add(addr);
-      list.add({'name': (a['name'] ?? 'Address').trim(), 'address': addr});
+
+  /// Enhanced address selection with Google Places autocomplete
+  Widget _buildEnhancedAddressSelection(String mealType) {
+    final currentAddress = _tempAddresses[mealType];
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Show saved addresses if any exist
+        if (_savedAddresses.isNotEmpty) ...[
+          const Text(
+            'Choose from saved addresses:',
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            height: 120,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _savedAddresses.length,
+              itemBuilder: (context, index) {
+                final address = _savedAddresses[index];
+                final addressValue = address['address'] ?? '';
+                final isSelected = currentAddress == addressValue;
+                
+                return Container(
+                  width: 200,
+                  margin: const EdgeInsets.only(right: 12),
+                  child: Card(
+                    elevation: isSelected ? 4 : 1,
+                    color: isSelected ? AppThemeV3.accent.withOpacity(0.1) : null,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () {
+                        setState(() {
+                          _tempAddresses[mealType] = addressValue;
+                        });
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  isSelected ? Icons.check_circle : Icons.location_on,
+                                  color: isSelected ? AppThemeV3.accent : Colors.grey,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    address['name'] ?? 'Address',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: isSelected ? AppThemeV3.accent : null,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Expanded(
+                              child: Text(
+                                addressValue,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppThemeV3.textSecondary,
+                                ),
+                                overflow: TextOverflow.fade,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Divider(),
+          const SizedBox(height: 16),
+        ],
+        
+        // Simple address input
+        Row(
+          children: [
+            const Icon(Icons.add_location_alt, size: 18),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'Or add a new address:',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AddressPageV3()),
+                ).then((_) => _loadUserAddresses());
+              },
+              child: const Text('Manage'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        
+        SimpleAddressInputWidget(
+          hintText: 'Enter delivery address...',
+          label: null, // We have our own label above
+          onAddressValidated: (addressResult) async {
+            // Save the new address and select it
+            final newAddress = addressResult.formattedAddress;
+            final addressName = _generateAddressName(addressResult);
+            
+            setState(() {
+              _tempAddresses[mealType] = newAddress;
+            });
+            
+            // Save to user's address list
+            await _saveNewAddress(addressName, addressResult);
+          },
+          onTextChanged: (text) {
+            // Store text as it's being typed
+            setState(() {
+              _tempAddresses[mealType] = text;
+            });
+          },
+        ),
+      ],
+    );
+  }
+  
+  /// Generate a user-friendly name for an address
+  String _generateAddressName(AddressResult addressResult) {
+    // Try to create a meaningful name from address components
+    final city = addressResult.city;
+    final formattedAddress = addressResult.formattedAddress;
+    
+    // Extract street from formatted address
+    final parts = formattedAddress.split(',');
+    if (parts.isNotEmpty) {
+      final streetPart = parts.first.trim();
+      if (streetPart.isNotEmpty && !streetPart.toLowerCase().contains('unnamed')) {
+        return streetPart;
+      }
     }
-    return list;
+    
+    if (city.isNotEmpty) {
+      return '$city Address';
+    }
+    
+    return 'New Address';
+  }
+  
+  /// Save a new address from Simple Google Maps
+  Future<void> _saveNewAddress(String name, AddressResult addressResult) async {
+    try {
+      // Add to local list immediately
+      final newAddressMap = {
+        'name': name,
+        'address': addressResult.formattedAddress,
+      };
+      
+      if (!_savedAddresses.any((a) => a['address'] == addressResult.formattedAddress)) {
+        setState(() {
+          _savedAddresses.add(newAddressMap);
+        });
+      }
+      
+      // Save to Firestore if user is authenticated
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        // Create AddressModelV3 from Simple Google Maps data
+        final addressModel = AddressModelV3(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          userId: user.uid,
+          label: name,
+          streetAddress: addressResult.formattedAddress,
+          apartment: '', // User can edit this later if needed
+          city: addressResult.city,
+          state: addressResult.state,
+          zipCode: addressResult.zipCode,
+          isDefault: _savedAddresses.length == 1, // First address is default
+          createdAt: DateTime.now(),
+        );
+        
+        await FirestoreServiceV3.saveAddress(addressModel);
+      } else {
+        // Save to SharedPreferences for unauthenticated users
+        final prefs = await SharedPreferences.getInstance();
+        final existingList = prefs.getStringList('user_addresses') ?? [];
+        existingList.add(json.encode(newAddressMap));
+        await prefs.setStringList('user_addresses', existingList);
+      }
+      
+      debugPrint('[DeliverySchedule] Saved new address: $name');
+    } catch (e) {
+      debugPrint('[DeliverySchedule] Error saving address: $e');
+    }
   }
 
   // (No-op) Removed unused name lookup; selectedItemBuilder provides compact display.
@@ -439,6 +735,18 @@ class _DeliverySchedulePageV4State extends State<DeliverySchedulePageV4> {
         title: const Text('Delivery Schedule'),
         centerTitle: true,
         elevation: 2,
+        leading: widget.isSignupFlow 
+          ? IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () {
+                // Navigate back to choose meal plan page during signup
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ChooseMealPlanPageV3()),
+                );
+              },
+            )
+          : null, // Use default back button for settings flow
       ),
       body: Center(
         child: ConstrainedBox(
@@ -508,10 +816,12 @@ class _DeliverySchedulePageV4State extends State<DeliverySchedulePageV4> {
                 ],
               ),
             ),
-            TextButton(
+            // Only show Manage Plan button if NOT in signup flow
+            if (!widget.isSignupFlow)
+              TextButton(
         onPressed: _navigateToPlanSubscription,
         child: const Text('Manage Plan'),
-            ),
+              ),
           ],
         ),
       ),
@@ -521,7 +831,7 @@ class _DeliverySchedulePageV4State extends State<DeliverySchedulePageV4> {
   void _navigateToPlanSubscription() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const PlanSubscriptionPageV3()),
+      MaterialPageRoute(builder: (context) => const ManageSubscriptionPageV3()),
     ).then((_) => _loadCurrentPlan());
   }
 
@@ -817,122 +1127,7 @@ class _DeliverySchedulePageV4State extends State<DeliverySchedulePageV4> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        // Guard value: ensure exactly one item matches
-                        value: () {
-                          final current = _tempAddresses[mealType];
-                          if (current == null) return null;
-                          final matches = _savedAddresses
-                              .where((a) => (a['address'] ?? '').trim() == current)
-                              .length;
-                          return matches == 1 ? current : null;
-                        }(),
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
-                          labelText: 'Delivery Address',
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        ),
-                        isExpanded: true,
-                        selectedItemBuilder: (context) {
-                          // Build compact selected widgets matching the items order
-                          final deduped = _getDedupedAddresses();
-                          final widgets = deduped
-                              .map((addr) => Text(
-                                    (addr['name'] ?? 'Address').trim(),
-                                    overflow: TextOverflow.ellipsis,
-                                  ))
-                              .toList();
-                          widgets.add(const Text('Add New Address', overflow: TextOverflow.ellipsis));
-                          widgets.add(const Text('Manage Addresses…', overflow: TextOverflow.ellipsis));
-                          return widgets;
-                        },
-                        items: () {
-                          // Build a deduped list of DropdownMenuItems
-                          final items = <DropdownMenuItem<String>>[];
-                          final deduped = _getDedupedAddresses();
-                          for (final addr in deduped) {
-                            final value = (addr['address'] ?? '').trim();
-                            items.add(DropdownMenuItem<String>(
-                              value: value,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    (addr['name'] ?? '').trim(),
-                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                                  ),
-                                  Text(
-                                    value,
-                                    style: TextStyle(fontSize: 11, color: AppThemeV3.textSecondary),
-                                    overflow: TextOverflow.ellipsis,
-                                    maxLines: 1,
-                                    softWrap: false,
-                                  ),
-                                ],
-                              ),
-                            ));
-                          }
-                          // Trailing "Add New" action
-                          items.add(
-                            DropdownMenuItem<String>(
-                              value: 'add_new',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.add, color: AppThemeV3.accent, size: 18),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Add New Address',
-                                    style: TextStyle(
-                                      color: AppThemeV3.accent,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                          // Manage Addresses action
-                          items.add(
-                            DropdownMenuItem<String>(
-                              value: 'manage_addresses',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.edit_location_alt, color: AppThemeV3.accent, size: 18),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Manage Addresses…',
-                                    style: TextStyle(
-                                      color: AppThemeV3.accent,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                          return items;
-                        }(),
-                        onChanged: (value) {
-                          if (value == 'add_new') {
-                            _navigateToAddAddress(forMealType: mealType);
-                            // Do not keep 'add_new' as selected value
-                            return;
-                          } else if (value == 'manage_addresses') {
-                            // Open address page for editing; reload saved addresses on return
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (context) => const AddressPageV3()),
-                            ).then((_) => _loadUserAddresses());
-                            return;
-                          } else {
-                            setState(() {
-                              _tempAddresses[mealType] = value;
-                            });
-                          }
-                        },
-                      ),
+                      _buildEnhancedAddressSelection(mealType),
                     ],
                   ),
                 )),
@@ -1127,10 +1322,12 @@ class _DeliverySchedulePageV4State extends State<DeliverySchedulePageV4> {
 
   Future<void> _saveScheduleLocally(Map<String, Map<String, dynamic>> weeklySchedule) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+  final prefs = await SharedPreferences.getInstance();
+  final uid = FirebaseAuth.instance.currentUser?.uid;
       // Ensure name is trimmed and unique in the list
       final name = _scheduleName.trim();
-      final existing = prefs.getStringList('saved_schedules') ?? [];
+  final listKey = uid == null ? 'saved_schedules' : 'saved_schedules_${uid}';
+  final existing = prefs.getStringList(listKey) ?? [];
       final seen = <String>{};
       final cleaned = <String>[];
       for (final s in existing) {
@@ -1141,7 +1338,7 @@ class _DeliverySchedulePageV4State extends State<DeliverySchedulePageV4> {
       if (!seen.contains(name)) {
         cleaned.add(name);
       }
-      await prefs.setStringList('saved_schedules', cleaned);
+  await prefs.setStringList(listKey, cleaned);
 
       // Serialize weekly schedule with time as "HH:mm"
       String _timeToStr(dynamic t) {
@@ -1168,49 +1365,16 @@ class _DeliverySchedulePageV4State extends State<DeliverySchedulePageV4> {
         'mealPlanId': _selectedMealPlan!.id,
         // Prefer the current meal types used in the UI if available
         'selectedMealTypes': _getMealTypesForPlan(),
+  // Save human-friendly plan names for overviews
+  'mealPlanName': _selectedMealPlan!.name,
+  'mealPlanDisplayName': _selectedMealPlan!.displayName,
         'weeklySchedule': serializable,
       };
-      await prefs.setString('delivery_schedule_$name', json.encode(data));
+  final key = uid == null ? 'delivery_schedule_$name' : 'delivery_schedule_${uid}_$name';
+  await prefs.setString(key, json.encode(data));
   debugPrint('[DeliverySchedule] Saved schedule "$name" locally with ${serializable.length} days');
     } catch (e) {
   debugPrint('[DeliverySchedule] Failed to save schedule locally: $e');
-    }
-  }
-
-  // Navigate to the full Address page and return the selected address
-  Future<void> _navigateToAddAddress({required String forMealType}) async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const AddressPageV3()),
-    );
-    if (result is Map && result['fullAddress'] is String && (result['fullAddress'] as String).isNotEmpty) {
-      final trimmed = (result['fullAddress'] as String).trim();
-      final label = (result['label'] as String?)?.trim();
-      setState(() {
-        _tempAddresses[forMealType] = trimmed;
-        // Show it immediately in the dropdown list (UI-first), dedup by address
-        final exists = _savedAddresses.any((a) => (a['address'] ?? '').trim() == trimmed);
-        if (!exists) {
-          _savedAddresses = List.of(_savedAddresses)
-            ..add({'name': (label?.isNotEmpty == true ? label! : 'Address'), 'address': trimmed});
-        }
-      });
-      // If not already saved, persist to Firestore (fallback label)
-      if (!_savedAddresses.any((a) => (a['address'] ?? '').trim() == trimmed)) {
-        final uid = FirebaseAuth.instance.currentUser?.uid;
-        if (uid != null) {
-          try {
-            await FirestoreServiceV3.addUserAddressPair(
-              userId: uid,
-              name: (label?.isNotEmpty == true ? label! : 'Address'),
-              address: trimmed,
-            );
-          } catch (e) {
-            // Keep silent but the UI already shows the address in-memory
-          }
-        }
-      }
-      await _loadUserAddresses();
     }
   }
 

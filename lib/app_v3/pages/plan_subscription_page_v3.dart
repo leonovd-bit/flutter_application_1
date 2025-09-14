@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/meal_model_v3.dart';
 import '../services/firestore_service_v3.dart';
+import '../services/simple_meal_plan_service.dart';
 import '../theme/app_theme_v3.dart';
 
 class PlanSubscriptionPageV3 extends StatefulWidget {
@@ -43,8 +45,18 @@ class _PlanSubscriptionPageV3State extends State<PlanSubscriptionPageV3> {
     final plan = _plans.firstWhere((p) => p.id == _selectedPlanId);
     setState(() => _saving = true);
     try {
+      // Test authentication first
+      await SimpleMealPlanService.testAuth();
+      
+      // Try the simplified approach first
+      debugPrint('Attempting simplified meal plan save...');
+      await SimpleMealPlanService.setActiveMealPlanSimple(uid, plan);
+      
+      // If that works, try the complex approach
+      debugPrint('Attempting full meal plan save...');
       await FirestoreServiceV3.setActiveMealPlan(uid, plan);
       await FirestoreServiceV3.updateActiveSubscriptionPlan(uid, plan);
+      
       // Persist local fallbacks for display
       try {
         final prefs = await SharedPreferences.getInstance();
@@ -59,9 +71,21 @@ class _PlanSubscriptionPageV3State extends State<PlanSubscriptionPageV3> {
         Navigator.pop(context);
       }
     } catch (e) {
+      debugPrint('Plan selection error: $e');
       if (mounted) {
+        String errorMessage = 'Failed to save selection: $e';
+        // Provide more specific error messages
+        if (e.toString().contains('permission-denied')) {
+          errorMessage = 'Permission denied. Please ensure you are logged in and try again.';
+        } else if (e.toString().contains('network')) {
+          errorMessage = 'Network error. Please check your connection and try again.';
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update: $e')),
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
         );
       }
     } finally {

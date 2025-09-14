@@ -11,10 +11,7 @@
 				"emulator-5554"
 			],
 			"group": "build",
-			"isBackground": true,
-			"problemMatcher": [
-				"$dart-flutter"
-			]
+			"isBackground": true
 		},
 		{
 			"label": "Run Flutter",
@@ -24,10 +21,72 @@
 				"run"
 			],
 			"group": "build",
+			"isBackground": true
+		},
+		{
+			"label": "Run Flutter (Windows Desktop)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"run",
+				"-d",
+				"windows"
+			],
+			"group": "build",
+			"isBackground": true
+		},
+		{
+			"label": "Run Flutter (Chrome)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"run",
+				"-d",
+				"chrome"
+			],
+			"group": "build",
+			"isBackground": true
+		},
+		{
+			"label": "Start Android Emulator (Pixel_API_35)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-Command",
+				"$env:ANDROID_SDK_ROOT=\"$env:LOCALAPPDATA\\Android\\Sdk\"; $emu=\"$env:LOCALAPPDATA\\Android\\Sdk\\emulator\\emulator.exe\"; if (Test-Path $emu) { Start-Process -FilePath $emu -ArgumentList '-avd','Pixel_API_35','-no-snapshot','-gpu','swiftshader_indirect','-accel','off','-no-boot-anim' } else { Write-Error 'emulator.exe not found' }"
+			],
+			"group": "build",
+			"isBackground": true
+		},
+		{
+			"label": "Run Flutter (with Stripe prices)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"run",
+				"--dart-define=STRIPE_PRICE_1_MEAL=${input:stripePrice1}",
+				"--dart-define=STRIPE_PRICE_2_MEAL=${input:stripePrice2}",
+				"--dart-define=STRIPE_PRICE_3_MEAL=${input:stripePrice3}"
+			],
 			"isBackground": true,
-			"problemMatcher": [
-				"$dart-flutter"
-			]
+			"group": "build"
+		},
+		{
+			"label": "Run Flutter (with Stripe prices from settings)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"run",
+				"--dart-define=STRIPE_PUBLISHABLE_KEY=${config:stripe.publishableKey}",
+				"--dart-define=STRIPE_PRICE_1_MEAL=${config:stripe.priceIds.oneMealPerDay}",
+				"--dart-define=STRIPE_PRICE_2_MEAL=${config:stripe.priceIds.twoMealsPerDay}",
+				"--dart-define=STRIPE_PRICE_3_MEAL=${config:stripe.priceIds.threeMealsPerDay}"
+			],
+			"isBackground": true,
+			"group": "build"
 		},
 		{
 			"label": "Flutter Analyze",
@@ -36,6 +95,115 @@
 			"args": [
 				"analyze",
 				"--no-fatal-infos"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flutter Build Web (release)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"build",
+				"web",
+				"--release"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Firebase Deploy Hosting (live)",
+			"type": "shell",
+			"command": "firebase",
+			"args": [
+				"deploy",
+				"--only",
+				"hosting"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Firebase: Set STRIPE_SECRET_KEY",
+			"type": "shell",
+			"command": "firebase",
+			"args": [
+				"functions:secrets:set",
+				"STRIPE_SECRET_KEY",
+				"--project",
+				"freshpunk-48db1",
+				"--data",
+				"${input:stripeSk}"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Firebase: Set STRIPE_WEBHOOK_SECRET",
+			"type": "shell",
+			"command": "firebase",
+			"args": [
+				"functions:secrets:set",
+				"STRIPE_WEBHOOK_SECRET",
+				"--project",
+				"freshpunk-48db1",
+				"--data",
+				"${input:stripeWebhook}"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Firebase: Deploy Functions",
+			"type": "shell",
+			"command": "firebase",
+			"args": [
+				"deploy",
+				"--only",
+				"functions",
+				"--project",
+				"freshpunk-48db1"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Firebase: Describe stripeWebhook",
+			"type": "shell",
+			"command": "firebase",
+			"args": [
+				"functions:describe",
+				"stripeWebhook",
+				"--project",
+				"freshpunk-48db1"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Firebase: List Functions URLs",
+			"type": "shell",
+			"command": "firebase",
+			"args": [
+				"functions:list",
+				"--project",
+				"freshpunk-48db1"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Firebase Preview Hosting (demo channel)",
+			"type": "shell",
+			"command": "firebase",
+			"args": [
+				"hosting:channel:deploy",
+				"demo"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Firebase Preview Hosting (script)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}/deploy_preview.ps1"
 			],
 			"group": "build"
 		},
@@ -110,9 +278,6 @@
 				"--no-fatal-infos"
 			],
 			"isBackground": false,
-			"problemMatcher": [
-				"$dart-json"
-			],
 			"group": "build"
 		},
 		{
@@ -195,9 +360,7 @@
 			"args": [
 				"analyze"
 			],
-			"problemMatcher": [
-				"$dart-json"
-			],
+			"problemMatcher": [],
 			"group": "build"
 		},
 		{
@@ -208,9 +371,7 @@
 				"analyze",
 				"--no-fatal-infos"
 			],
-			"problemMatcher": [
-				"$dart-json"
-			],
+			"problemMatcher": [],
 			"group": "build"
 		},
 		{
@@ -521,6 +682,442 @@
 				"--no-fatal-warnings"
 			],
 			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Analyze Flutter (app 1)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze (after home listener tweak)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze (after manage tidy)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze (after home plan resolve)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze (fix manage syntax)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze (after manage fixes)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze (after class restore)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Firebase Preview Hosting",
+			"type": "shell",
+			"command": "firebase",
+			"args": [
+				"hosting:channel:deploy",
+				"preview",
+				"--project",
+				"freshpunk-48db1"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Firebase Preview Hosting (fixed)",
+			"type": "shell",
+			"command": "firebase",
+			"args": [
+				"hosting:channel:deploy",
+				"preview",
+				"--project",
+				"freshpunk-48db1"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"problemMatcher": [
+				"$dart"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Build Flutter Web (release)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"build",
+				"web",
+				"--release"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$dart"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Build Flutter Web (release)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"build",
+				"web",
+				"--release"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$dart"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Build Flutter Web (release)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"build",
+				"web",
+				"--release"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$dart"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Build Flutter Web (release)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"build",
+				"web",
+				"--release"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$dart"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Build Flutter Web (release)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"build",
+				"web",
+				"--release"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$dart"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Build Flutter Web (release)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"build",
+				"web",
+				"--release"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$dart"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Build Flutter Web (release)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"build",
+				"web",
+				"--release"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$dart"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Build Flutter Web (release)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"build",
+				"web",
+				"--release"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$dart"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Build Flutter Web (release)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"build",
+				"web",
+				"--release"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$dart"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flutter Web Build",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"build",
+				"web",
+				"--release"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$dart-analysis"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"problemMatcher": [
+				"$dart"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Run Flutter (Web)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"run",
+				"-d",
+				"chrome"
+			],
+			"isBackground": true,
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Run Flutter (Web)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"run",
+				"-d",
+				"chrome"
+			],
+			"isBackground": true,
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
+		}
+	],
+	"inputs": [
+		{
+			"id": "stripeSk",
+			"type": "promptString",
+			"description": "Enter STRIPE_SECRET_KEY (starts with sk_)",
+			"password": true
+		},
+		{
+			"id": "stripeWebhook",
+			"type": "promptString",
+			"description": "Enter STRIPE_WEBHOOK_SECRET (whsec_...)",
+			"password": true
+		},
+		{
+			"id": "stripePrice1",
+			"type": "promptString",
+			"description": "Stripe Price ID for 1 meal/day (e.g., price_...)",
+			"default": ""
+		},
+		{
+			"id": "stripePrice2",
+			"type": "promptString",
+			"description": "Stripe Price ID for 2 meals/day (e.g., price_...)",
+			"default": ""
+		},
+		{
+			"id": "stripePrice3",
+			"type": "promptString",
+			"description": "Stripe Price ID for 3 meals/day (e.g., price_...)",
+			"default": ""
 		}
 	]
 }

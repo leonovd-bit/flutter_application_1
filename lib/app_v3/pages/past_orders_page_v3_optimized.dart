@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
 import '../services/firestore_service_v3.dart';
+import '../services/order_lifecycle_service.dart';
 import 'reorder_history_page_v3.dart';
 
 class PastOrdersPageV3Optimized extends StatefulWidget {
@@ -52,28 +53,65 @@ class _PastOrdersPageV3OptimizedState extends State<PastOrdersPageV3Optimized> {
     });
 
     try {
-      final userId = FirestoreServiceV3.getCurrentUserId();
-      if (userId != null) {
-        // Load with pagination to save memory
-        final ordersData = await FirestoreServiceV3.getUserOrders(
-          userId, 
-          limit: _pageSize,
-        );
-        final orders = ordersData.map((data) => OrderModelV3.fromJson(data)).toList();
-        
-        setState(() {
-          if (refresh) {
-            _pastOrders = orders;
-          } else {
-            _pastOrders.addAll(orders);
-          }
-          _hasMoreData = orders.length == _pageSize;
-          _isLoading = false;
-        });
-      } else {
-        _loadSampleOrders();
+      // Load completed orders from OrderLifecycleService
+      final completedOrdersData = await OrderLifecycleService.getCompletedOrders();
+      
+      if (completedOrdersData.isEmpty) {
+        // Create some sample completed orders for demonstration
+        await OrderLifecycleService.createSampleCompletedOrders();
+        final newCompletedOrdersData = await OrderLifecycleService.getCompletedOrders();
+        completedOrdersData.addAll(newCompletedOrdersData);
       }
+      
+      // Convert to OrderModelV3 objects
+      final List<OrderModelV3> orders = [];
+      for (final orderData in completedOrdersData) {
+        try {
+          final mealData = orderData['meal'] as Map<String, dynamic>;
+          final meal = MealModelV3.fromJson(mealData);
+          
+          final order = OrderModelV3(
+            id: orderData['id'] ?? 'order_${DateTime.now().millisecondsSinceEpoch}',
+            userId: FirestoreServiceV3.getCurrentUserId() ?? 'user',
+            meals: [meal],
+            deliveryAddress: orderData['deliveryAddress'] ?? 'Address not set',
+            deliveryDate: DateTime.parse(orderData['deliveryTime']),
+            estimatedDeliveryTime: DateTime.parse(orderData['deliveryTime']),
+            status: OrderStatus.delivered,
+            totalAmount: (orderData['totalAmount'] ?? meal.price).toDouble(),
+            mealPlanType: orderData['mealType'] ?? meal.mealType,
+            createdAt: DateTime.parse(orderData['completedAt']),
+            updatedAt: DateTime.parse(orderData['completedAt']),
+          );
+          
+          orders.add(order);
+        } catch (e) {
+          debugPrint('[PastOrders] Error parsing completed order: $e');
+        }
+      }
+      
+      // Apply pagination
+      final startIndex = refresh ? 0 : _pastOrders.length;
+      final endIndex = (startIndex + _pageSize).clamp(0, orders.length);
+      final paginatedOrders = orders.sublist(
+        startIndex.clamp(0, orders.length), 
+        endIndex
+      );
+      
+      setState(() {
+        if (refresh) {
+          _pastOrders = paginatedOrders;
+        } else {
+          _pastOrders.addAll(paginatedOrders);
+        }
+        _hasMoreData = endIndex < orders.length;
+        _isLoading = false;
+      });
+      
+      debugPrint('[PastOrders] Loaded ${paginatedOrders.length} completed orders');
+      
     } catch (e) {
+      debugPrint('[PastOrders] Error loading past orders: $e');
       _loadSampleOrders();
     }
   }

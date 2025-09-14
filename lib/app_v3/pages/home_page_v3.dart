@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:convert';
+import 'dart:async';
 import 'dart:math' as math;
 import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
@@ -13,6 +15,8 @@ import 'past_orders_page_v3.dart';
 import 'address_page_v3.dart';
 import 'menu_page_v3.dart';
 import '../services/firestore_service_v3.dart';
+import '../services/order_service_v3.dart';
+import '../widgets/app_image.dart';
 
 class HomePageV3 extends StatefulWidget {
   const HomePageV3({super.key});
@@ -30,64 +34,251 @@ class _HomePageV3State extends State<HomePageV3> {
   // Lazy-loaded next order data
   Map<String, dynamic>? _nextOrder;
   
-  // Mock past orders
-  final List<Map<String, dynamic>> _recentOrders = [
-    {
-      'name': 'Greek Yogurt Parfait',
-      'image': 'breakfast_2',
-      'date': '2025-07-26',
-    },
-    {
-      'name': 'Quinoa Buddha Bowl',
-      'image': 'lunch_1',
-      'date': '2025-07-25',
-    },
-    {
-      'name': 'Salmon Dinner',
-      'image': 'dinner_1',
-      'date': '2025-07-24',
-    },
-  ];
+  // Real past orders from user data
+  List<Map<String, dynamic>> _recentOrders = [];
+  bool _isLoadingOrders = false;
   
   // User addresses (loaded from Firestore)
   List<AddressModelV3> _userAddresses = [];
   bool _isLoadingAddresses = false;
   String? _addressesError;
+  StreamSubscription<QuerySnapshot>? _subActiveSub;
 
   @override
   void initState() {
     super.initState();
     _loadCurrentMealPlan();
     _loadOrderData();
-  _loadAddresses();
+    _loadAddresses();
+    _listenPlanFromFirestore();
+  }
+
+  @override
+  void dispose() {
+    _subActiveSub?.cancel();
+    super.dispose();
   }
 
   void _loadOrderData() {
-    // Load order data only when needed
-    _nextOrder = {
-      'mealType': 'Keto',
-      'mealName': 'Avocado Toast Bowl', 
-      'deliveryTime': '8:30 AM',
-      'calories': 320,
-      'protein': 12,
-      'type': 'High Protein',
-      'image': 'breakfast_1',
-    };
+    // Load real user order data
+    _loadNextUpcomingOrder();
+    _loadRecentOrders();
+  }
+
+  // Load recent orders from Firebase
+  Future<void> _loadRecentOrders() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    setState(() {
+      _isLoadingOrders = true;
+    });
+
+    try {
+      final orders = await OrderServiceV3.getUserRecentOrders(user.uid, limit: 3);
+      if (mounted) {
+        setState(() {
+          _recentOrders = orders;
+          _isLoadingOrders = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingOrders = false;
+          // Keep empty list if there's an error
+          _recentOrders = [];
+        });
+      }
+    }
+  }
+
+  Future<void> _loadNextUpcomingOrder() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        setState(() => _nextOrder = null);
+        return;
+      }
+
+      // Load from meal schedule data instead of Firestore orders
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Get current selected schedule from SharedPreferences
+      final selectedSchedule = prefs.getString('selected_schedule_${user.uid}') ?? 'weekly';
+      
+      // Load meal selections
+      final mealSelectionsJson = prefs.getString('meal_selections_${user.uid}_$selectedSchedule');
+      if (mealSelectionsJson == null) {
+        setState(() => _nextOrder = null);
+        return;
+      }
+      
+      final mealSelections = json.decode(mealSelectionsJson) as Map<String, dynamic>;
+      
+      // Load delivery schedule to get times and addresses
+      final deliveryScheduleJson = prefs.getString('delivery_schedule_${user.uid}');
+      Map<String, dynamic> deliverySchedule = {};
+      if (deliveryScheduleJson != null) {
+        deliverySchedule = json.decode(deliveryScheduleJson) as Map<String, dynamic>;
+      }
+      
+      // Find the next upcoming meal delivery
+      final now = DateTime.now();
+      final today = now.weekday;
+      final currentTime = TimeOfDay.fromDateTime(now);
+      
+      MealModelV3? nextMeal;
+      String? nextMealType;
+      String? nextDeliveryTime;
+      String? nextDeliveryAddress;
+      String nextDay = '';
+      
+      // Check today first, then future days
+      final daysToCheck = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+      final todayName = daysToCheck[today - 1];
+      
+      for (int dayOffset = 0; dayOffset < 7; dayOffset++) {
+        final checkDayIndex = (today - 1 + dayOffset) % 7;
+        final checkDayName = daysToCheck[checkDayIndex];
+        
+        final dayMeals = mealSelections[checkDayName] as Map<String, dynamic>?;
+        if (dayMeals == null) continue;
+        
+        final dayDelivery = deliverySchedule[checkDayName] as Map<String, dynamic>?;
+        
+        // Check breakfast, lunch, dinner in chronological order
+        for (final mealType in ['breakfast', 'lunch', 'dinner']) {
+          final mealData = dayMeals[mealType] as Map<String, dynamic>?;
+          if (mealData == null) continue;
+          
+          final deliveryConfig = dayDelivery?[mealType] as Map<String, dynamic>?;
+          final timeStr = deliveryConfig?['time'] as String?;
+          
+          if (timeStr != null) {
+            final timeParts = timeStr.split(':');
+            if (timeParts.length == 2) {
+              final hour = int.tryParse(timeParts[0]);
+              final minute = int.tryParse(timeParts[1]);
+              
+              if (hour != null && minute != null) {
+                final mealTime = TimeOfDay(hour: hour, minute: minute);
+                
+                // If this is today, check if the time hasn't passed yet
+                if (dayOffset == 0) {
+                  final mealMinutes = mealTime.hour * 60 + mealTime.minute;
+                  final currentMinutes = currentTime.hour * 60 + currentTime.minute;
+                  
+                  if (mealMinutes <= currentMinutes) {
+                    continue; // This meal time has already passed today
+                  }
+                }
+                
+                // Found the next upcoming meal
+                try {
+                  nextMeal = MealModelV3.fromJson(mealData);
+                  nextMealType = mealType;
+                  nextDeliveryTime = timeStr;
+                  nextDeliveryAddress = deliveryConfig?['address'] as String? ?? 'Address not set';
+                  nextDay = checkDayName;
+                  break;
+                } catch (e) {
+                  debugPrint('[HomePage] Error parsing meal data: $e');
+                }
+              }
+            }
+          }
+        }
+        
+        if (nextMeal != null) break;
+      }
+      
+      if (nextMeal != null && nextDeliveryTime != null) {
+        setState(() {
+          _nextOrder = {
+            'mealType': nextMealType ?? 'lunch',
+            'mealName': nextMeal!.name,
+            'deliveryTime': nextDeliveryTime,
+            'imageUrl': nextMeal!.imageUrl,
+            'calories': nextMeal!.calories,
+            'protein': nextMeal!.protein,
+            'deliveryAddress': nextDeliveryAddress ?? 'Address not set',
+            'orderId': 'meal_${nextDay}_${nextMealType}',
+            'day': nextDay,
+          };
+        });
+        debugPrint('[HomePage] Found next meal: ${nextMeal!.name} on $nextDay at $nextDeliveryTime');
+      } else {
+        setState(() => _nextOrder = null);
+        debugPrint('[HomePage] No upcoming meals found in schedule');
+      }
+      
+    } catch (e) {
+      debugPrint('[HomePage] Error loading upcoming meal from schedule: $e');
+      setState(() => _nextOrder = null);
+    }
   }
 
   // Load the selected meal plan from storage
   Future<void> _loadCurrentMealPlan() async {
     try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        final serverName = await FirestoreServiceV3.getDisplayPlanName(uid);
+        if (serverName != null && serverName.isNotEmpty) {
+          if (!mounted) return;
+          setState(() => _currentMealPlan = serverName);
+          return;
+        }
+      }
+      // Fallback to local preference
       final prefs = await SharedPreferences.getInstance();
-      final selectedPlanName = prefs.getString('selected_meal_plan_display_name');
-      if (selectedPlanName != null && selectedPlanName.isNotEmpty) {
-        setState(() {
-          _currentMealPlan = selectedPlanName;
-        });
+      final prefName = prefs.getString('selected_meal_plan_display_name') ?? prefs.getString('selected_meal_plan_name');
+      if (prefName != null && prefName.isNotEmpty) {
+        if (!mounted) return;
+        setState(() => _currentMealPlan = prefName);
       }
     } catch (e) {
       debugPrint('Error loading meal plan: $e');
     }
+  }
+
+  void _listenPlanFromFirestore() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    // Listen to the user's active subscription doc and reflect plan changes immediately
+    final col = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('subscriptions');
+    _subActiveSub = col
+        .where('status', isEqualTo: 'active')
+        .limit(1)
+        .snapshots()
+        .listen((snap) {
+      if (!mounted) return;
+      if (snap.docs.isEmpty) return;
+      final data = snap.docs.first.data();
+      final planName = (data['planName'] as String?)?.trim();
+      if (planName != null && planName.isNotEmpty) {
+        setState(() {
+          _currentMealPlan = planName;
+        });
+        return;
+      }
+      // Derive from mealPlanId if planName missing
+      final mealPlanId = (data['mealPlanId'] as String?)?.trim();
+      if (mealPlanId != null && mealPlanId.isNotEmpty) {
+        final plans = MealPlanModelV3.getAvailablePlans();
+        final match = plans.firstWhere(
+          (p) => p.id == mealPlanId,
+          orElse: () => plans.first,
+        );
+        setState(() {
+          _currentMealPlan = match.displayName.isNotEmpty ? match.displayName : match.name;
+        });
+      }
+    });
   }
 
   Future<void> _loadAddresses() async {
@@ -97,29 +288,48 @@ class _HomePageV3State extends State<HomePageV3> {
     });
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        // Try offline cache when not signed in
-        final cached = await _loadCachedAddresses();
-        setState(() {
-          _userAddresses = cached;
-          _addressesError = cached.isEmpty ? 'Not signed in' : null;
-          _isLoadingAddresses = false;
-        });
-        return;
+      if (user == null) return;
+      
+      // Load addresses from SharedPreferences (where delivery schedule saves them)
+      final prefs = await SharedPreferences.getInstance();
+      final addressList = prefs.getStringList('user_addresses') ?? [];
+      
+      final List<AddressModelV3> loadedAddresses = [];
+      for (final jsonStr in addressList) {
+        try {
+          final data = json.decode(jsonStr) as Map<String, dynamic>;
+          final address = AddressModelV3(
+            id: data['id'] ?? 'addr_${DateTime.now().millisecondsSinceEpoch}',
+            userId: user.uid,
+            label: (data['label'] ?? 'Address').toString(),
+            streetAddress: (data['streetAddress'] ?? '').toString(),
+            apartment: (data['apartment'] ?? '').toString(),
+            city: (data['city'] ?? '').toString(),
+            state: (data['state'] ?? '').toString(),
+            zipCode: (data['zipCode'] ?? '').toString(),
+            isDefault: data['isDefault'] == true,
+            createdAt: DateTime.now(),
+          );
+          loadedAddresses.add(address);
+        } catch (e) {
+          debugPrint('[HomePage] Error parsing address: $e');
+        }
       }
-      final addresses = await FirestoreServiceV3.getUserAddresses(user.uid);
-      // Default address first
-      addresses.sort((a, b) {
+      
+      // Sort default address first
+      loadedAddresses.sort((a, b) {
         if (a.isDefault == b.isDefault) return 0;
         return a.isDefault ? -1 : 1;
       });
+      
       if (!mounted) return;
       setState(() {
-        _userAddresses = addresses;
+        _userAddresses = loadedAddresses;
+        _addressesError = loadedAddresses.isEmpty ? 'No addresses saved' : null;
         _isLoadingAddresses = false;
       });
-      // Cache for offline fallback
-      await _cacheAddresses(addresses);
+      
+      debugPrint('[HomePage] Loaded ${loadedAddresses.length} addresses from SharedPreferences');
     } catch (e) {
       // On failure, attempt to use cached addresses
       final cached = await _loadCachedAddresses();
@@ -288,8 +498,22 @@ class _HomePageV3State extends State<HomePageV3> {
                   ),
                 );
               },
-              child: SizedBox(
-                height: 100,
+              child: Container(
+                height: 120,
+                width: 120,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppThemeV3.accent.withValues(alpha: 0.15),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
                 child: Image.asset(
                   'assets/images/freshpunk_logo.png',
                   fit: BoxFit.contain,
@@ -760,26 +984,14 @@ class _HomePageV3State extends State<HomePageV3> {
                           child: SizedBox(
                             width: 64,
                             height: 64,
-                            child: Builder(
-                              builder: (context) {
-                                final img = (_nextOrder!['imageUrl'] ?? '').toString();
-                                if (img.startsWith('http')) {
-                                  return Image.network(
-                                    img,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (ctx, err, st) => Container(
-                                      color: AppThemeV3.accent.withValues(alpha: 0.1),
-                                      alignment: Alignment.center,
-                                      child: Icon(Icons.fastfood, color: AppThemeV3.accent),
-                                    ),
-                                  );
-                                }
-                                return Container(
-                                  color: AppThemeV3.accent.withValues(alpha: 0.1),
-                                  alignment: Alignment.center,
-                                  child: Icon(Icons.fastfood, color: AppThemeV3.accent),
-                                );
-                              },
+                            child: AppImage(
+                              (_nextOrder!['imageUrl'] ?? '').toString(),
+                              width: 64,
+                              height: 64,
+                              borderRadius: BorderRadius.circular(12),
+                              fallbackIcon: Icons.fastfood,
+                              fallbackBg: AppThemeV3.accent.withValues(alpha: 0.1),
+                              fallbackIconColor: AppThemeV3.accent,
                             ),
                           ),
                         ),

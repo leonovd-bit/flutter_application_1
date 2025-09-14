@@ -3,7 +3,14 @@ import '../theme/app_theme_v3.dart';
 import '../services/stripe_service.dart';
 
 class PaymentMethodsPageV3 extends StatefulWidget {
-  const PaymentMethodsPageV3({super.key});
+  final VoidCallback? onPaymentComplete;
+  final bool isOnboarding;
+  
+  const PaymentMethodsPageV3({
+    super.key,
+    this.onPaymentComplete,
+    this.isOnboarding = false,
+  });
 
   @override
   State<PaymentMethodsPageV3> createState() => _PaymentMethodsPageV3State();
@@ -48,6 +55,11 @@ class _PaymentMethodsPageV3State extends State<PaymentMethodsPageV3> {
     if (ok) {
       _showSnackBar('Payment method added');
       await _loadPaymentMethods();
+      
+      // If this is during onboarding, call the completion callback
+      if (widget.isOnboarding && widget.onPaymentComplete != null) {
+        widget.onPaymentComplete!();
+      }
     }
   }
 

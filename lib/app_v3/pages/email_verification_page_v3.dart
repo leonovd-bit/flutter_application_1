@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import '../theme/app_theme_v3.dart';
-import 'delivery_schedule_page_v3.dart';
+import 'onboarding_choice_page_v3.dart';
 
 class EmailVerificationPageV3 extends StatefulWidget {
   final String email;
@@ -38,7 +38,7 @@ class _EmailVerificationPageV3State extends State<EmailVerificationPageV3> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => const DeliverySchedulePageV3(),
+              builder: (context) => const OnboardingChoicePageV3(),
             ),
           );
         }
@@ -292,7 +292,7 @@ class _EmailVerificationPageV3State extends State<EmailVerificationPageV3> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => const DeliverySchedulePageV3(),
+            builder: (context) => const OnboardingChoicePageV3(),
           ),
         );
       }

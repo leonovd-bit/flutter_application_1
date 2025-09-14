@@ -479,6 +479,12 @@ class AddressModelV3 {
     return address;
   }
 
+  // For AI compatibility - provide these getters
+  String get type => label.toLowerCase();
+  String get street => streetAddress;
+  String get displayAddress => fullAddress;
+  String get specialInstructions => '';
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,

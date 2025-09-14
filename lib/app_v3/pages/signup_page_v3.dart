@@ -7,7 +7,7 @@ import '../services/progress_manager.dart';
 import '../services/auth_wrapper.dart' show ExplicitSetupApproval; // approve explicit setup
 import 'email_verification_page_v3.dart';
 import 'login_page_v3.dart';
-import 'delivery_schedule_page_v3.dart';
+import 'choose_meal_plan_page_v3.dart';
 import 'welcome_page_v3.dart';
 
 class SignUpPageV3 extends StatefulWidget {
@@ -44,20 +44,6 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
     _nameController.addListener(() => setState(() {}));
     _passwordController.addListener(() => setState(() {}));
     _confirmPasswordController.addListener(() => setState(() {}));
-    
-    // Load any existing signup progress
-    _loadExistingProgress();
-  }
-
-  Future<void> _loadExistingProgress() async {
-    final signupData = await ProgressManager.getSignupProgress();
-    if (signupData != null) {
-      setState(() {
-        _emailController.text = signupData['email'] ?? '';
-        _phoneController.text = signupData['phone'] ?? '';
-        _nameController.text = signupData['name'] ?? '';
-      });
-    }
   }
 
   @override
@@ -685,15 +671,6 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
     setState(() => _isLoading = true);
 
     try {
-      // Save signup step progress
-      await ProgressManager.saveCurrentStep(OnboardingStep.signup);
-      await ProgressManager.saveSignupProgress(
-        email: _emailController.text.trim(),
-        phone: _phoneController.text.trim(),
-        name: _nameController.text.trim(),
-        authMethod: 'email',
-      );
-
   // Test Firebase connectivity first
   debugPrint('Testing Firebase connectivity...'); // Debug
   final currentUser = FirebaseAuth.instance.currentUser;
@@ -721,15 +698,8 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
       }
   debugPrint('Email verification sent'); // Debug
 
-      // Update progress to email verification step
+  // Update progress to email verification step (explicit setup approved)
       await ProgressManager.saveCurrentStep(OnboardingStep.emailVerification);
-      await ProgressManager.saveSignupProgress(
-        email: _emailController.text.trim(),
-        phone: _phoneController.text.trim(),
-        name: _nameController.text.trim(),
-        authMethod: 'email',
-        isEmailVerified: false,
-      );
 
       if (mounted) {
         Navigator.pushReplacement(
@@ -790,9 +760,6 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
     setState(() => _isLoading = true);
 
     try {
-      // Save signup step progress
-      await ProgressManager.saveCurrentStep(OnboardingStep.signup);
-      
   debugPrint('Starting Google sign-in process...'); // Debug
       
   final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
@@ -818,22 +785,14 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
       final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
   debugPrint('Firebase sign-in successful: ${userCredential.user?.uid}'); // Debug
 
-      // Save progress with Google auth data
-      await ProgressManager.saveSignupProgress(
-        email: userCredential.user?.email,
-        name: userCredential.user?.displayName,
-        authMethod: 'google',
-        isEmailVerified: userCredential.user?.emailVerified ?? false,
-      );
-
-      // Move to delivery schedule step
-      await ProgressManager.saveCurrentStep(OnboardingStep.deliverySchedule);
+  // Move to choose plan step after SSO signup
+  await ProgressManager.saveCurrentStep(OnboardingStep.signup);
 
       if (mounted) {
-        // Navigate to delivery schedule
+        // Navigate to choose meal plan first
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const DeliverySchedulePageV3()),
+          MaterialPageRoute(builder: (context) => const ChooseMealPlanPageV3()),
         );
       }
     } on FirebaseAuthException catch (e) {
@@ -884,11 +843,14 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
 
       await FirebaseAuth.instance.signInWithCredential(oauthCredential);
 
+  // Move to choose plan step after successful Apple sign-in
+  await ProgressManager.saveCurrentStep(OnboardingStep.signup);
+
       if (mounted) {
-        // Navigate to delivery schedule
+        // Navigate to choose meal plan first
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const DeliverySchedulePageV3()),
+          MaterialPageRoute(builder: (context) => const ChooseMealPlanPageV3()),
         );
       }
     } catch (e) {

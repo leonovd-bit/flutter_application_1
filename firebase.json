@@ -1,1 +1,91 @@
-{"emulators":{"dataconnect":{"dataDir":"dataconnect/.dataconnect/pgliteData"}},"dataconnect":{"source":"dataconnect"},"firestore":{"database":"(default)","location":"us-east4","rules":"firestore.rules","indexes":"firestore.indexes.json"},"functions":[{"source":"functions","codebase":"default","predeploy":["npm --prefix \"$RESOURCE_DIR\" run lint","npm --prefix \"$RESOURCE_DIR\" run build"]},{"source":"genkit-functions","codebase":"functions","ignore":["node_modules",".git","firebase-debug.log","firebase-debug.*.log","*.local"],"predeploy":["npm --prefix \"$RESOURCE_DIR\" run lint","npm --prefix \"$RESOURCE_DIR\" run build"]}],"apphosting":{"backendId":"my-web-app","rootDir":"/","ignore":["node_modules",".git","firebase-debug.log","firebase-debug.*.log","functions"]},"hosting":{"public":"web","ignore":["firebase.json","**/.*","**/node_modules/**"],"rewrites":[{"source":"**","destination":"/index.html"}]},"flutter":{"platforms":{"android":{"default":{"projectId":"freshpunk-48db1","appId":"1:433852717304:android:aa920e65bae76c5fc0c30d","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"freshpunk-48db1","configurations":{"android":"1:433852717304:android:aa920e65bae76c5fc0c30d","ios":"1:433852717304:ios:7d8efe18144cb9f6c0c30d","macos":"1:433852717304:ios:7d8efe18144cb9f6c0c30d","web":"1:433852717304:web:318fdb802f7ff7f7c0c30d","windows":"1:433852717304:web:6aaa448afbe20548c0c30d"}}}}}}
+{
+	"emulators": {
+		"dataconnect": { "dataDir": "dataconnect/.dataconnect/pgliteData" }
+	},
+	"dataconnect": { "source": "dataconnect" },
+	"firestore": {
+		"database": "(default)",
+		"location": "us-east4",
+		"rules": "firestore.rules",
+		"indexes": "firestore.indexes.json"
+	},
+	"functions": [
+		{
+			"source": "functions",
+			"codebase": "default",
+			"predeploy": [
+				"npm --prefix \"$RESOURCE_DIR\" run lint",
+				"npm --prefix \"$RESOURCE_DIR\" run build"
+			]
+		},
+		{
+			"source": "genkit-functions",
+			"codebase": "functions",
+			"ignore": [
+				"node_modules",
+				".git",
+				"firebase-debug.log",
+				"firebase-debug.*.log",
+				"*.local"
+			],
+			"predeploy": [
+				"npm --prefix \"$RESOURCE_DIR\" run lint",
+				"npm --prefix \"$RESOURCE_DIR\" run build"
+			]
+		}
+	],
+	"apphosting": {
+		"backendId": "my-web-app",
+		"rootDir": "/",
+		"ignore": [
+			"node_modules",
+			".git",
+			"firebase-debug.log",
+			"firebase-debug.*.log",
+			"functions"
+		]
+	},
+	"hosting": {
+		"public": "build/web",
+		"ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+		"headers": [
+			{ "source": "/**", "headers": [{ "key": "Cache-Control", "value": "public, max-age=600" }] },
+			{ "source": "/flutter_bootstrap.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
+			{ "source": "/main.dart.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
+			{ "source": "/index.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
+			{ "source": "/kitchen.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
+			{ "source": "/kitchen_backup.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
+			{ "source": "/kitchen_pro.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
+			{ "source": "/kitchen_organized.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
+		],
+		"rewrites": [
+			{ "source": "!/kitchen.html", "destination": "/index.html" },
+			{ "source": "!/kitchen_backup.html", "destination": "/index.html" },
+			{ "source": "!/kitchen_pro.html", "destination": "/index.html" },
+			{ "source": "!/kitchen_organized.html", "destination": "/index.html" }
+		]
+	},
+	"flutter": {
+		"platforms": {
+			"android": {
+				"default": {
+					"projectId": "freshpunk-48db1",
+					"appId": "1:433852717304:android:aa920e65bae76c5fc0c30d",
+					"fileOutput": "android/app/google-services.json"
+				}
+			},
+			"dart": {
+				"lib/firebase_options.dart": {
+					"projectId": "freshpunk-48db1",
+					"configurations": {
+						"android": "1:433852717304:android:aa920e65bae76c5fc0c30d",
+						"ios": "1:433852717304:ios:7d8efe18144cb9f6c0c30d",
+						"macos": "1:433852717304:ios:7d8efe18144cb9f6c0c30d",
+						"web": "1:433852717304:web:318fdb802f7ff7f7c0c30d",
+						"windows": "1:433852717304:web:6aaa448afbe20548c0c30d"
+					}
+				}
+			}
+		}
+	}
+}
