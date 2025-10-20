@@ -1,7 +1,4 @@
-import 'package:flutter/mater    PageInfo('Home', () => const HomePageV3()),
-    PageInfo('Choose Meal Plan', () => const ChooseMealPlanPageV3()),
-    PageInfo('Delivery Schedule', () => const DeliverySchedulePageV5()),
-    PageInfo('Address', () => const AddressPageV3());dart';
+import 'package:flutter/material.dart';
 import '../pages/about_page_v3.dart';
 import '../pages/address_page_v3.dart';
 import '../pages/choose_meal_plan_page_v3.dart';
@@ -32,7 +29,7 @@ class _PageViewerV3State extends State<PageViewerV3> {
     PageInfo('Email Verification', () => const EmailVerificationPageV3(email: 'demo@example.com')),
     PageInfo('Home', () => const HomePageV3()),
     PageInfo('Choose Meal Plan', () => const ChooseMealPlanPageV3()),
-    PageInfo('Delivery Schedule', () => const DeliverySchedulePageV4()),
+    PageInfo('Delivery Schedule', () => const DeliverySchedulePageV5()),
     PageInfo('Address', () => const AddressPageV3()),
     PageInfo('Settings', () => const SettingsPageV3()),
     PageInfo('About', () => const AboutPageV3()),
