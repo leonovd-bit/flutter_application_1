@@ -8,8 +8,6 @@ import 'welcome_page_v3.dart';
 import 'address_page_v3.dart';
 import 'profile_page_v3.dart';
 import 'payment_methods_page_v3.dart';
-import 'delivery_schedule_overview_page_v2.dart';
-import 'meal_schedule_overview_page_v2.dart';
 import 'manage_subscription_page_v3.dart';
 import 'about_page_v3.dart';
 import 'terms_of_service_page_v3.dart';
@@ -1225,19 +1223,20 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
     );
   }
 
-  // Direct edit routes are still available if needed elsewhere
+  // Direct edit routes redirect to manage subscription
+  // The overview pages were archived - use ManageSubscriptionPageV3 instead
 
   void _navigateToDeliveryScheduleOverview() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const DeliveryScheduleOverviewPageV2()),
+      MaterialPageRoute(builder: (context) => const ManageSubscriptionPageV3()),
     );
   }
 
   void _navigateToMealScheduleOverview() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const MealScheduleOverviewPageV2()),
+      MaterialPageRoute(builder: (context) => const ManageSubscriptionPageV3()),
     );
   }
 

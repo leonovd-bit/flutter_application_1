@@ -1,9 +1,12 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/mater    PageInfo('Home', () => const HomePageV3()),
+    PageInfo('Choose Meal Plan', () => const ChooseMealPlanPageV3()),
+    PageInfo('Delivery Schedule', () => const DeliverySchedulePageV5()),
+    PageInfo('Address', () => const AddressPageV3());dart';
 import '../pages/about_page_v3.dart';
 import '../pages/address_page_v3.dart';
 import '../pages/choose_meal_plan_page_v3.dart';
 import '../pages/circle_of_health_page_v3.dart';
-import '../pages/delivery_schedule_page_v4.dart';
+import '../pages/delivery_schedule_page_v5.dart';
 import '../pages/email_verification_page_v3.dart';
 import '../pages/home_page_v3.dart';
 import '../pages/login_page_v3.dart';

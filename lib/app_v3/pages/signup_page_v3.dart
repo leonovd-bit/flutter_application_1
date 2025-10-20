@@ -7,7 +7,7 @@ import '../services/progress_manager.dart';
 import '../services/auth_wrapper.dart' show ExplicitSetupApproval; // approve explicit setup
 import 'email_verification_page_v3.dart';
 import 'login_page_v3.dart';
-import 'choose_meal_plan_page_v3_new.dart';
+import 'choose_meal_plan_page_v3.dart';
 import 'welcome_page_v3.dart';
 
 class SignUpPageV3 extends StatefulWidget {
@@ -801,7 +801,7 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
         // Navigate to choose meal plan first
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const ChooseMealPlanPageV3New(isSignupFlow: true)),
+          MaterialPageRoute(builder: (context) => const ChooseMealPlanPageV3()),
         );
       }
     } on FirebaseAuthException catch (e) {
@@ -859,7 +859,7 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
         // Navigate to choose meal plan first
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const ChooseMealPlanPageV3New(isSignupFlow: true)),
+          MaterialPageRoute(builder: (context) => const ChooseMealPlanPageV3()),
         );
       }
     } catch (e) {
