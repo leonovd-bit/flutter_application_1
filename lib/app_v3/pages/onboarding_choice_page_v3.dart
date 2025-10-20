@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme_v3.dart';
-import 'choose_meal_plan_page_v3_new.dart';
+import 'choose_meal_plan_page_v3.dart';
 
 class OnboardingChoicePageV3 extends StatelessWidget {
   const OnboardingChoicePageV3({super.key});
@@ -352,7 +352,7 @@ class OnboardingChoicePageV3 extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const ChooseMealPlanPageV3New(),
+        builder: (context) => const ChooseMealPlanPageV3(),
       ),
     );
   }

@@ -6,3 +6,4 @@ analyzer:
     - build/**
     - "**/*.g.dart"
     - "**/*.freezed.dart"
+    - lib/app_v3/_archive/**

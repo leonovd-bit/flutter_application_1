@@ -6,8 +6,8 @@ import '../models/meal_model_v3.dart';
 import '../models/protein_model_v3.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
-import 'choose_meal_plan_page_v3_new.dart';
-import 'meal_schedule_page_v3_fixed.dart';
+import 'choose_meal_plan_page_v3.dart';
+import 'meal_schedule_page_v3.dart';
 import '../services/simple_google_maps_service.dart';
 
 extension StringExtension on String {
@@ -1211,7 +1211,7 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
                       await Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const ChooseMealPlanPageV3New(isSignupFlow: false),
+                          builder: (context) => const ChooseMealPlanPageV3(),
                         ),
                       );
                       // Always reload plan after returning to pick up any changes
