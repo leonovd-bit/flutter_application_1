@@ -52,9 +52,9 @@ class _ChangePasswordPageV3State extends State<ChangePasswordPageV3> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('Password changed successfully'),
-            backgroundColor: Colors.green,
+            backgroundColor: Colors.black,
           ),
         );
         Navigator.pop(context);
@@ -80,7 +80,7 @@ class _ChangePasswordPageV3State extends State<ChangePasswordPageV3> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(message),
-            backgroundColor: Colors.red,
+            backgroundColor: Colors.black,
           ),
         );
       }
@@ -89,7 +89,7 @@ class _ChangePasswordPageV3State extends State<ChangePasswordPageV3> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: Colors.black,
           ),
         );
       }

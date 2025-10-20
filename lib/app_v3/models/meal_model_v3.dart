@@ -25,6 +25,21 @@ class MealModelV3 {
   // Getter for compatibility with interactive menu
   String get type => mealType;
 
+  // Get image path - returns asset path if imageUrl is empty
+  String get imagePath {
+    if (imageUrl.isNotEmpty) {
+      return imageUrl;
+    }
+    
+    // Generate asset path from meal name using slug logic
+    final slug = name
+        .toLowerCase()
+        .replaceAll(RegExp(r"[^a-z0-9]+"), '-')
+        .replaceAll(RegExp(r"(^-|-$)"), '');
+    
+    return 'assets/images/meals/$slug.jpg';
+  }
+
   MealModelV3({
     required this.id,
     required this.name,
@@ -68,9 +83,16 @@ class MealModelV3 {
   }
 
   factory MealModelV3.fromJson(Map<String, dynamic> json) {
-    return MealModelV3(
+    final name = json['name'] ?? '';
+    final imageUrl = json['imageUrl'] ?? '';
+    
+    // Debug what we're getting from Firestore
+    print('🔄 Loading meal from JSON: $name');
+    print('   📦 Raw imageUrl from Firestore: "$imageUrl"');
+    
+    final meal = MealModelV3(
       id: json['id'] ?? '',
-      name: json['name'] ?? '',
+      name: name,
       description: json['description'] ?? '',
       calories: json['calories'] ?? 0,
       protein: json['protein'] ?? 0,
@@ -78,11 +100,14 @@ class MealModelV3 {
       fat: json['fat'] ?? 0,
       ingredients: List<String>.from(json['ingredients'] ?? []),
       allergens: List<String>.from(json['allergens'] ?? []),
-      imageUrl: json['imageUrl'] ?? '',
+      imageUrl: imageUrl,
       mealType: json['mealType'] ?? 'breakfast',
       price: json['price']?.toDouble() ?? 0.0,
       icon: Icons.fastfood, // Default icon since IconData can't be serialized
     );
+    
+    print('   📁 Final imagePath: "${meal.imagePath}"');
+    return meal;
   }
 
   static List<MealModelV3> getSampleMeals() {

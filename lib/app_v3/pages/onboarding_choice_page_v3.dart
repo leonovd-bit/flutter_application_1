@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme_v3.dart';
-import 'ai_onboarding_page_v3.dart';
-import 'ai_chat_page_v3.dart';
-import 'choose_meal_plan_page_v3.dart';
+import 'choose_meal_plan_page_v3_new.dart';
 
 class OnboardingChoicePageV3 extends StatelessWidget {
   const OnboardingChoicePageV3({super.key});
 
   @override
   Widget build(BuildContext context) {
+    print('[OnboardingChoice] Building OnboardingChoicePageV3');
+    
     return Scaffold(
       backgroundColor: AppThemeV3.background,
       body: SafeArea(
@@ -22,11 +22,11 @@ class OnboardingChoicePageV3 extends StatelessWidget {
               children: [
                 // Header
                 SizedBox(
-                  height: MediaQuery.of(context).size.height * 0.3,
+                  height: MediaQuery.of(context).size.height * 0.35,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // FreshPunk Logo/Icon
+                    // Victus Logo/Icon
                     Container(
                       width: 100,
                       height: 100,
@@ -44,7 +44,7 @@ class OnboardingChoicePageV3 extends StatelessWidget {
                     const SizedBox(height: 24),
                     
                     Text(
-                      'Welcome to FreshPunk!',
+                      'Welcome to Victus!',
                       style: AppThemeV3.textTheme.displayMedium?.copyWith(
                         fontWeight: FontWeight.w700,
                         color: AppThemeV3.textPrimary,
@@ -66,22 +66,18 @@ class OnboardingChoicePageV3 extends StatelessWidget {
               ),
               
               // Choice Cards  
-              SizedBox(
-                height: MediaQuery.of(context).size.height * 0.6,
+              Expanded(
                 child: Column(
                   children: [
                     // AI Setup Option
-                    Flexible(
+                    Expanded(
+                      flex: 6,
                       child: GestureDetector(
                         onTap: () => _navigateToAISetup(context),
                         child: Container(
                           width: double.infinity,
-                          constraints: const BoxConstraints(
-                            minHeight: 180,
-                            maxHeight: 220,
-                          ),
                           margin: const EdgeInsets.only(bottom: 16),
-                          padding: const EdgeInsets.all(20),
+                          padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
@@ -167,16 +163,18 @@ class OnboardingChoicePageV3 extends StatelessWidget {
                                     size: 16,
                                   ),
                                   const SizedBox(width: 8),
-                                  const Text(
-                                    'Personalized recommendations',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.white,
+                                  const Expanded(
+                                    child: Text(
+                                      'Personalized recommendations',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.white,
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 8),
                               Row(
                                 children: [
                                   Icon(
@@ -185,11 +183,13 @@ class OnboardingChoicePageV3 extends StatelessWidget {
                                     size: 16,
                                   ),
                                   const SizedBox(width: 8),
-                                  const Text(
-                                    'Smart meal scheduling',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.white,
+                                  const Expanded(
+                                    child: Text(
+                                      'Smart meal scheduling',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.white,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -201,16 +201,13 @@ class OnboardingChoicePageV3 extends StatelessWidget {
                     ),
                     
                     // Manual Setup Option
-                    Flexible(
+                    Expanded(
+                      flex: 4,
                       child: GestureDetector(
                         onTap: () => _navigateToManualSetup(context),
                         child: Container(
                           width: double.infinity,
-                          constraints: const BoxConstraints(
-                            minHeight: 180,
-                            maxHeight: 220,
-                          ),
-                          padding: const EdgeInsets.all(20),
+                          padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
                             color: AppThemeV3.surface,
                             borderRadius: BorderRadius.circular(20),
@@ -284,16 +281,18 @@ class OnboardingChoicePageV3 extends StatelessWidget {
                                     size: 16,
                                   ),
                                   const SizedBox(width: 8),
-                                  Text(
-                                    'Full control over selections',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: AppThemeV3.textSecondary,
+                                  const Expanded(
+                                    child: Text(
+                                      'Full control over selections',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 8),
                               Row(
                                 children: [
                                   Icon(
@@ -302,11 +301,13 @@ class OnboardingChoicePageV3 extends StatelessWidget {
                                     size: 16,
                                   ),
                                   const SizedBox(width: 8),
-                                  Text(
-                                    'Traditional setup process',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: AppThemeV3.textSecondary,
+                                  const Expanded(
+                                    child: Text(
+                                      'Traditional setup process',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -330,19 +331,28 @@ class OnboardingChoicePageV3 extends StatelessWidget {
   }
 
   void _navigateToAISetup(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const AIChatPageV3(),
+    // For now, just redirect to manual setup
+    // AI setup is coming soon
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('AI Setup coming soon! Redirecting to manual setup...'),
+        duration: Duration(seconds: 2),
       ),
     );
+    
+    // Navigate to manual setup after a brief delay
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (context.mounted) {
+        _navigateToManualSetup(context);
+      }
+    });
   }
 
   void _navigateToManualSetup(BuildContext context) {
-    Navigator.pushReplacement(
+    Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const ChooseMealPlanPageV3(),
+        builder: (context) => const ChooseMealPlanPageV3New(),
       ),
     );
   }

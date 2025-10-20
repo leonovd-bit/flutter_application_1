@@ -6,6 +6,10 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'app_v3/pages/splash_page_v3.dart';
 import 'app_v3/pages/home_page_v3.dart';
+import 'app_v3/pages/page_viewer_v3.dart';
+import 'app_v3/pages/restaurant_onboarding_page_v3.dart';
+import 'app_v3/pages/square_restaurant_onboarding_page_v3.dart';
+import 'app_v3/pages/combined_restaurant_portal_page.dart';
 import 'app_v3/services/auth_wrapper.dart';
 import 'app_v3/theme/app_theme_v3.dart';
 import 'app_v3/services/memory_optimizer.dart';
@@ -13,6 +17,7 @@ import 'app_v3/config/feature_flags.dart';
 import 'app_v3/debug/debug_overlay.dart';
 import 'app_v3/debug/debug_state.dart';
 import 'app_v3/services/fcm_service_v3.dart';
+import 'app_v3/services/environment_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 // Background message handler (must be top-level)
@@ -39,6 +44,14 @@ void main() {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+
+    // Initialize environment variables from .env file
+    await EnvironmentService.init();
+    
+    // Print API configuration status in debug mode
+    if (kDebugMode) {
+      EnvironmentService.printStatus();
+    }
 
     // Set background message handler
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
@@ -96,22 +109,39 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    // Check if we're starting with a kitchen route
+    // Check if we're starting with a specific route
     String initialRoute = '/';
     
     if (kIsWeb) {
       final currentUri = Uri.base;
       final fragment = currentUri.fragment;
+      final path = currentUri.path;
       
       debugPrint('[AppStart] URI: $currentUri');
       debugPrint('[AppStart] Fragment: $fragment');
+      debugPrint('[AppStart] Path: $path');
       
+      // Check fragment first (Flutter web default routing)
       if (fragment.isNotEmpty) {
         if (fragment.startsWith('/kitchen-access') || fragment.startsWith('/kitchen-login')) {
           initialRoute = '/kitchen-access';
         } else if (fragment.startsWith('/kitchen-dashboard') || fragment.startsWith('/kitchen')) {
           initialRoute = '/kitchen-dashboard';
+        } else if (fragment.startsWith('/restaurant-portal')) {
+          initialRoute = '/restaurant-portal';
+        } else if (fragment.startsWith('/restaurant-onboarding')) {
+          initialRoute = '/restaurant-onboarding';
+        } else if (fragment.startsWith('/restaurant-partner')) {
+          initialRoute = '/restaurant-partner';
         }
+      }
+      // Also check path (Firebase hosting routing)
+      else if (path.startsWith('/restaurant-portal')) {
+        initialRoute = '/restaurant-portal';
+      } else if (path.startsWith('/restaurant-onboarding')) {
+        initialRoute = '/restaurant-onboarding';
+      } else if (path.startsWith('/restaurant-partner')) {
+        initialRoute = '/restaurant-partner';
       }
     }
     
@@ -125,6 +155,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       routes: {
         '/': (context) => const AuthWrapper(),
         '/home': (context) => const HomePageV3(),
+        '/page-viewer': (context) => const PageViewerV3(),
+        '/restaurant-onboarding': (context) => const RestaurantOnboardingPageV3(),
+        '/restaurant-partner': (context) => const SquareRestaurantOnboardingPageV3(),
+        '/restaurant-portal': (context) => const CombinedRestaurantPortalPage(),
         // Kitchen routes temporarily disabled
         // '/kitchen-access': (context) => const KitchenAccessPage(),
         // '/kitchen-login': (context) => const KitchenAccessPage(),

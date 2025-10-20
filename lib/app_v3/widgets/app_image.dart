@@ -33,8 +33,8 @@ class AppImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final radius = borderRadius ?? BorderRadius.circular(12);
     
-    // Debug logging
-    print('AppImage: path="$path", _isAsset=$_isAsset, _isNetwork=$_isNetwork');
+    // Critical debugging for meal images
+    print('🖼️ AppImage: path="$path", width=$width, height=$height, _isAsset=$_isAsset, _isNetwork=$_isNetwork');
     
     Widget child;
     if (path != null && path!.isNotEmpty) {
@@ -45,34 +45,41 @@ class AppImage extends StatelessWidget {
           height: height,
           fit: fit,
           errorBuilder: (context, error, stack) {
-            print('AppImage Network Error for "$path": $error');
+            print('❌ AppImage Network Error for "$path": $error');
             return _fallback(context);
           },
           loadingBuilder: (context, child, loadingProgress) {
             if (loadingProgress == null) {
-              print('AppImage Network Success for "$path"');
+              print('✅ AppImage Network Success for "$path"');
               return child;
             }
-            return _fallback(context);
+            return Center(child: CircularProgressIndicator(strokeWidth: 2));
           },
         );
       } else if (_isAsset) {
+        print('📁 AppImage: Attempting to load asset "$path"');
         child = Image.asset(
           path!,
           width: width,
           height: height,
           fit: fit,
+          frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+            if (frame != null) {
+              print('✅ AppImage Asset Success for "$path"');
+            }
+            return child;
+          },
           errorBuilder: (context, error, stack) {
-            print('AppImage Asset Error for "$path": $error');
+            print('❌ AppImage Asset Error for "$path": $error');
             return _fallback(context);
           },
         );
       } else {
-        print('AppImage: Unknown format for "$path"');
+        print('⚠️ AppImage: Unknown path format for "$path"');
         child = _fallback(context);
       }
     } else {
-      print('AppImage: Empty/null path');
+      print('⚠️ AppImage: Empty/null path provided');
       child = _fallback(context);
     }
 

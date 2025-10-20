@@ -2,11 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/firestore_service_v3.dart';
-import '../services/simple_google_maps_service.dart';
-import '../services/order_notification_service.dart';
 import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
-import '../widgets/simple_address_input_widget.dart';
 import 'meal_schedule_page_v3_fixed.dart';
 import 'address_page_v3.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -605,14 +602,14 @@ class _DeliverySchedulePageV4State extends State<DeliverySchedulePageV4> {
           const SizedBox(height: 16),
         ],
         
-        // Simple address input
+        // Address management
         Row(
           children: [
-            const Icon(Icons.add_location_alt, size: 18),
+            const Icon(Icons.location_on, size: 18),
             const SizedBox(width: 8),
             const Expanded(
               child: Text(
-                'Or add a new address:',
+                'Delivery address:',
                 style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
               ),
             ),
@@ -629,99 +626,27 @@ class _DeliverySchedulePageV4State extends State<DeliverySchedulePageV4> {
         ),
         const SizedBox(height: 8),
         
-        SimpleAddressInputWidget(
-          hintText: 'Enter delivery address...',
-          label: null, // We have our own label above
-          onAddressValidated: (addressResult) async {
-            // Save the new address and select it
-            final newAddress = addressResult.formattedAddress;
-            final addressName = _generateAddressName(addressResult);
-            
-            setState(() {
-              _tempAddresses[mealType] = newAddress;
-            });
-            
-            // Save to user's address list
-            await _saveNewAddress(addressName, addressResult);
-          },
-          onTextChanged: (text) {
-            // Store text as it's being typed
-            setState(() {
-              _tempAddresses[mealType] = text;
-            });
-          },
+        // Show current selected address or prompt to add one
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey[300]!),
+            borderRadius: BorderRadius.circular(8),
+            color: Colors.grey[50],
+          ),
+          child: _savedAddresses.isNotEmpty
+              ? Text(
+                  _savedAddresses.first['address'] ?? 'No address selected',
+                  style: const TextStyle(fontSize: 14),
+                )
+              : const Text(
+                  'Please add a delivery address using the Manage button above',
+                  style: TextStyle(fontSize: 14, color: Colors.grey),
+                ),
         ),
       ],
     );
-  }
-  
-  /// Generate a user-friendly name for an address
-  String _generateAddressName(AddressResult addressResult) {
-    // Try to create a meaningful name from address components
-    final city = addressResult.city;
-    final formattedAddress = addressResult.formattedAddress;
-    
-    // Extract street from formatted address
-    final parts = formattedAddress.split(',');
-    if (parts.isNotEmpty) {
-      final streetPart = parts.first.trim();
-      if (streetPart.isNotEmpty && !streetPart.toLowerCase().contains('unnamed')) {
-        return streetPart;
-      }
-    }
-    
-    if (city.isNotEmpty) {
-      return '$city Address';
-    }
-    
-    return 'New Address';
-  }
-  
-  /// Save a new address from Simple Google Maps
-  Future<void> _saveNewAddress(String name, AddressResult addressResult) async {
-    try {
-      // Add to local list immediately
-      final newAddressMap = {
-        'name': name,
-        'address': addressResult.formattedAddress,
-      };
-      
-      if (!_savedAddresses.any((a) => a['address'] == addressResult.formattedAddress)) {
-        setState(() {
-          _savedAddresses.add(newAddressMap);
-        });
-      }
-      
-      // Save to Firestore if user is authenticated
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        // Create AddressModelV3 from Simple Google Maps data
-        final addressModel = AddressModelV3(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          userId: user.uid,
-          label: name,
-          streetAddress: addressResult.formattedAddress,
-          apartment: '', // User can edit this later if needed
-          city: addressResult.city,
-          state: addressResult.state,
-          zipCode: addressResult.zipCode,
-          isDefault: _savedAddresses.length == 1, // First address is default
-          createdAt: DateTime.now(),
-        );
-        
-        await FirestoreServiceV3.saveAddress(addressModel);
-      } else {
-        // Save to SharedPreferences for unauthenticated users
-        final prefs = await SharedPreferences.getInstance();
-        final existingList = prefs.getStringList('user_addresses') ?? [];
-        existingList.add(json.encode(newAddressMap));
-        await prefs.setStringList('user_addresses', existingList);
-      }
-      
-      debugPrint('[DeliverySchedule] Saved new address: $name');
-    } catch (e) {
-      debugPrint('[DeliverySchedule] Error saving address: $e');
-    }
   }
 
   // (No-op) Removed unused name lookup; selectedItemBuilder provides compact display.

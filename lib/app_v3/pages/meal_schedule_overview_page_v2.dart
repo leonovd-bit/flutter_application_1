@@ -102,7 +102,7 @@ class _MealScheduleOverviewPageV2State extends State<MealScheduleOverviewPageV2>
           )
         ],
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -121,13 +121,10 @@ class _MealScheduleOverviewPageV2State extends State<MealScheduleOverviewPageV2>
                 },
               ),
               const SizedBox(height: 12),
-              Expanded(
-                child: _weekly.isEmpty
-                    ? const Center(child: Text('No schedule details to show.'))
-                    : ListView(
-                        children: _buildWeeklyCards(),
-                      ),
-              ),
+              if (_weekly.isEmpty)
+                const Center(child: Text('No schedule details to show.'))
+              else
+                ..._buildWeeklyCards(),
             ],
           ],
         ),
@@ -178,13 +175,85 @@ class _MealScheduleOverviewPageV2State extends State<MealScheduleOverviewPageV2>
               final addr = info?['address']?.toString() ?? '-';
               final mealName = info?['mealName']?.toString() ?? '—';
               return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SizedBox(width: 100, child: Text(mt, style: const TextStyle(fontWeight: FontWeight.w600))),
-                    Expanded(child: Text('Time: $time')),
-                    Expanded(child: Text('Address: $addr')),
-                    Expanded(child: Text('Meal: $mealName')),
+                    // Meal type header
+                    Text(
+                      mt,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    // Time row
+                    Row(
+                      children: [
+                        Icon(Icons.access_time, size: 14, color: AppThemeV3.textSecondary),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Time:',
+                          style: TextStyle(
+                            color: AppThemeV3.textSecondary,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(time, style: const TextStyle(fontSize: 13)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    // Address row
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.location_on, size: 14, color: AppThemeV3.textSecondary),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Address:',
+                          style: TextStyle(
+                            color: AppThemeV3.textSecondary,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            addr,
+                            style: const TextStyle(fontSize: 13),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    // Meal name row
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.restaurant, size: 14, color: AppThemeV3.textSecondary),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Meal:',
+                          style: TextStyle(
+                            color: AppThemeV3.textSecondary,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            mealName,
+                            style: const TextStyle(fontSize: 13),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
 import '../services/meal_service_v3.dart';
+import '../widgets/app_image.dart';
 
 class InteractiveMenuPageV3 extends StatefulWidget {
   final String menuType;
@@ -184,20 +185,14 @@ class _InteractiveMenuPageV3State extends State<InteractiveMenuPageV3> {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                // Meal image placeholder
-                Container(
+                // Meal image
+                AppImage(
+                  meal.imagePath,
                   width: 80,
                   height: 80,
-                  decoration: BoxDecoration(
-                    color: AppThemeV3.surfaceElevated,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppThemeV3.border),
-                  ),
-                  child: Icon(
-                    meal.icon,
-                    size: 40,
-                    color: AppThemeV3.accent,
-                  ),
+                  fit: BoxFit.cover,
+                  borderRadius: BorderRadius.circular(12),
+                  fallbackIcon: meal.icon,
                 ),
                 
                 const SizedBox(width: 16),

@@ -11,7 +11,7 @@ class SimpleGoogleMapsService {
   // Google Maps API key - Geocoding API enabled
   // Get it from: https://console.cloud.google.com/apis/credentials
   // Only need to enable "Geocoding API"
-  static const String _apiKey = 'AIzaSyBCLGFwYrqYaZdSjQYHDJ7aLxeqd63h0dY';
+  static const String _apiKey = 'AIzaSyCi_mKaxg-CRH3UJ5LVHGWTd7TUcl1H4qg';
   
   SimpleGoogleMapsService._();
   static final SimpleGoogleMapsService instance = SimpleGoogleMapsService._();
@@ -31,12 +31,25 @@ class SimpleGoogleMapsService {
 
       final response = await http.get(url);
       
+      debugPrint('[SimpleGoogleMaps] API Call to: $url');
+      debugPrint('[SimpleGoogleMaps] Response status: ${response.statusCode}');
+      debugPrint('[SimpleGoogleMaps] Response body: ${response.body}');
+      
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        
+        debugPrint('[SimpleGoogleMaps] API Status: ${data['status']}');
+        if (data['error_message'] != null) {
+          debugPrint('[SimpleGoogleMaps] API Error: ${data['error_message']}');
+        }
         
         if (data['status'] == 'OK' && data['results'].isNotEmpty) {
           final result = data['results'][0];
           return AddressResult.fromGoogleMaps(result);
+        } else if (data['status'] == 'REQUEST_DENIED') {
+          debugPrint('[SimpleGoogleMaps] REQUEST DENIED - API key restrictions issue!');
+          debugPrint('[SimpleGoogleMaps] Error: ${data['error_message']}');
+          throw Exception('API key restricted: ${data['error_message']}');
         } else {
           debugPrint('[SimpleGoogleMaps] No results for: $address');
           return null;

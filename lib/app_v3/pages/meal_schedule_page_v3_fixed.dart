@@ -6,7 +6,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/meal_model_v3.dart';
 import '../theme/app_theme_v3.dart';
-import 'delivery_schedule_page_v4.dart';
+import '../widgets/app_image.dart';
+import 'delivery_schedule_page_v5.dart';
 import '../services/meal_service_v3.dart';
 import 'interactive_menu_page_v3.dart';
 import 'payment_page_v3.dart';
@@ -87,13 +88,25 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
     _loadAvailableSchedules();
 
     if (widget.mealPlan != null && widget.weeklySchedule != null) {
+      debugPrint('[MealSchedule] ========== INIT START ==========');
+      debugPrint('[MealSchedule] Meal Plan: ${widget.mealPlan?.name}, mealsPerDay: ${widget.mealPlan?.mealsPerDay}');
+      debugPrint('[MealSchedule] WeeklySchedule keys: ${widget.weeklySchedule!.keys.toList()}');
+      debugPrint('[MealSchedule] WeeklySchedule: ${ widget.weeklySchedule}');
+      
       _currentMealPlan = widget.mealPlan;
       _currentWeeklySchedule = widget.weeklySchedule!;
       _currentMealTypes = _deriveMealTypes();
       _selectedSchedule = widget.initialScheduleName;
       _initSelectedMeals();
+      
+      debugPrint('[MealSchedule] Current meal types: $_currentMealTypes');
+      debugPrint('[MealSchedule] Configured days: $_configuredDays');
+      debugPrint('[MealSchedule] Selected meal type: $_selectedMealType');
+      
       if (_currentMealTypes.isNotEmpty) _selectedMealType = _currentMealTypes.first;
       _dayThenApplySelectedDay = _configuredDays.isNotEmpty ? _configuredDays.first : null;
+      
+      debugPrint('[MealSchedule] ========== INIT END ==========');
     }
   }
 
@@ -176,6 +189,25 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
 
   List<String> _deriveMealTypes() {
     if (_currentMealPlan == null) return [];
+    
+    // First, try to extract meal types from the weeklySchedule
+    if (_currentWeeklySchedule.isNotEmpty) {
+      final Set<String> mealTypesFromSchedule = {};
+      for (final daySchedule in _currentWeeklySchedule.values) {
+        mealTypesFromSchedule.addAll(daySchedule.keys);
+      }
+      if (mealTypesFromSchedule.isNotEmpty) {
+        // Capitalize meal types: 'lunch' -> 'Lunch'
+        final capitalizedTypes = mealTypesFromSchedule.map((mt) {
+          if (mt.isEmpty) return mt;
+          return mt[0].toUpperCase() + mt.substring(1);
+        }).toList();
+        debugPrint('[MealSchedule] Derived meal types from schedule: $capitalizedTypes');
+        return capitalizedTypes;
+      }
+    }
+    
+    // Fallback to deriving from mealsPerDay
     return _currentMealTypes.isNotEmpty
         ? _currentMealTypes
         : switch (_currentMealPlan!.mealsPerDay) {
@@ -212,7 +244,10 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
   Future<void> _saveMealSelections() async {
     if (_selectedSchedule == null) return;
     final prefs = await SharedPreferences.getInstance();
-  final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final userId = uid ?? 'local_user';
+    
+    // Save in existing format for meal schedule functionality
     final out = <String, Map<String, Map<String, dynamic>>>{};
     _selectedMeals.forEach((day, mtMap) {
       out[day] = {};
@@ -220,10 +255,127 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
         if (meal != null) out[day]![mt] = meal.toJson();
       });
     });
-  final key = uid == null
-    ? 'meal_selections_${_selectedSchedule}'
-    : 'meal_selections_${uid}_${_selectedSchedule}';
-  await prefs.setString(key, json.encode(out));
+    final key = uid == null
+      ? 'meal_selections_${_selectedSchedule}'
+      : 'meal_selections_${uid}_${_selectedSchedule}';
+    await prefs.setString(key, json.encode(out));
+    
+    // ALSO save in format expected by UpcomingOrdersPageV3
+    try {
+      final selectedMealsList = <Map<String, dynamic>>[];
+      final mealTypes = _deriveMealTypes();
+      
+      // Extract unique meals from the selected meals
+      final uniqueMeals = <String, Map<String, dynamic>>{};
+      _selectedMeals.forEach((day, mtMap) {
+        mtMap.forEach((mt, meal) {
+          if (meal != null) {
+            try {
+              final mealJson = meal.toJson();
+              // Test if it can be encoded to JSON
+              json.encode(mealJson);
+              uniqueMeals[meal.id] = mealJson;
+            } catch (e) {
+              debugPrint('[MealScheduleFixed] Error serializing meal ${meal.id}: $e');
+              debugPrint('[MealScheduleFixed] Meal data: $meal');
+              // Create a safe version with only basic properties
+              uniqueMeals[meal.id] = {
+                'id': meal.id,
+                'name': meal.name,
+                'description': meal.description,
+                'calories': meal.calories,
+                'protein': meal.protein,
+                'carbs': meal.carbs,
+                'fat': meal.fat,
+                'ingredients': meal.ingredients,
+                'allergens': meal.allergens,
+                'imageUrl': meal.imageUrl,
+                'mealType': meal.mealType,
+                'price': meal.price,
+              };
+            }
+          }
+        });
+      });
+      
+      selectedMealsList.addAll(uniqueMeals.values);
+      
+      // Get a delivery address from the schedule
+      String? deliveryAddress;
+      final weeklySchedule = widget.weeklySchedule;
+      if (weeklySchedule != null && weeklySchedule.isNotEmpty) {
+        for (final daySchedule in weeklySchedule.values) {
+          for (final mealConfig in daySchedule.values) {
+            if (mealConfig['address'] != null && mealConfig['address'].toString().isNotEmpty) {
+              deliveryAddress = mealConfig['address'].toString();
+              break;
+            }
+          }
+          if (deliveryAddress != null) break;
+        }
+      }
+      
+      if (selectedMealsList.isNotEmpty) {
+        try {
+          // Test if the meals list can be encoded before saving
+          json.encode(selectedMealsList);
+          
+          // Save data in format expected by upcoming orders
+          await prefs.setString('user_meal_selections_$userId', json.encode(selectedMealsList));
+          debugPrint('[MealScheduleFixed] Successfully saved ${selectedMealsList.length} meal selections');
+          
+          if (deliveryAddress != null) {
+            await prefs.setString('user_delivery_address_$userId', deliveryAddress);
+            debugPrint('[MealScheduleFixed] Saved delivery address: $deliveryAddress');
+          }
+          
+          await prefs.setInt('user_meals_per_day_$userId', mealTypes.length);
+          debugPrint('[MealScheduleFixed] Saved meals per day: ${mealTypes.length}');
+          
+        } catch (e) {
+          debugPrint('[MealScheduleFixed] Error encoding meals list: $e');
+          debugPrint('[MealScheduleFixed] Meals list: $selectedMealsList');
+        }
+        
+        // Save delivery schedule in format expected by upcoming orders
+        final weeklySchedule = widget.weeklySchedule;
+        if (weeklySchedule != null) {
+          try {
+            // Convert TimeOfDay objects to strings for JSON serialization
+            final serializableSchedule = <String, Map<String, dynamic>>{};
+            weeklySchedule.forEach((day, daySchedule) {
+              serializableSchedule[day] = <String, dynamic>{};
+              daySchedule.forEach((mealType, config) {
+                serializableSchedule[day]![mealType] = <String, dynamic>{};
+                config.forEach((key, value) {
+                  if (value is TimeOfDay) {
+                    // Convert TimeOfDay to string format "HH:mm"
+                    final hour = value.hour.toString().padLeft(2, '0');
+                    final minute = value.minute.toString().padLeft(2, '0');
+                    serializableSchedule[day]![mealType]![key] = '$hour:$minute';
+                  } else {
+                    serializableSchedule[day]![mealType]![key] = value;
+                  }
+                });
+              });
+            });
+            
+            // Test encoding before saving
+            json.encode(serializableSchedule);
+            
+            await prefs.setString('delivery_schedule_$userId', json.encode(serializableSchedule));
+            debugPrint('[MealScheduleFixed] Successfully saved delivery schedule for ${serializableSchedule.keys.length} days');
+          } catch (e) {
+            debugPrint('[MealScheduleFixed] Error saving delivery schedule: $e');
+            debugPrint('[MealScheduleFixed] Original schedule: $weeklySchedule');
+          }
+        }
+        
+        debugPrint('[MealScheduleFixed] Saved meal selections for upcoming orders: ${selectedMealsList.length} meals');
+      }
+    } catch (e) {
+      debugPrint('[MealScheduleFixed] Error saving for upcoming orders: $e');
+    }
   }
 
   TimeOfDay? _parseTime(dynamic val) {
@@ -499,7 +651,7 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
                     },
                     onAddNew: () {
                       _hideScheduleDropdown();
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const DeliverySchedulePageV4()));
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const DeliverySchedulePageV5()));
                       },
                     ),
                   ),
@@ -658,7 +810,38 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: AppThemeV3.border),
                     ),
-                    child: Icon(selectedMeal.icon, size: 30, color: AppThemeV3.accent),
+                    child: Builder(
+                      builder: (context) {
+                        print('🍽️ Meal: ${selectedMeal.name}');
+                        print('🔗 ImagePath: "${selectedMeal.imagePath}"');
+                        print('🔗 ImageUrl: "${selectedMeal.imageUrl}"');
+                        print('📏 Path Empty? ${selectedMeal.imagePath.isEmpty}');
+                        
+                        return (selectedMeal.imagePath.isNotEmpty)
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: AppImage(
+                                  selectedMeal.imagePath,
+                                  width: 60,
+                                  height: 60,
+                                  fit: BoxFit.cover,
+                                ),
+                              )
+                            : Container(
+                                width: 60,
+                                height: 60,
+                                decoration: BoxDecoration(
+                                  color: AppThemeV3.primaryGreen.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  selectedMeal.icon, 
+                                  size: 30, 
+                                  color: AppThemeV3.accent
+                                ),
+                              );
+                      },
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(

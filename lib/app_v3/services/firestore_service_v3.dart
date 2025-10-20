@@ -217,6 +217,23 @@ class FirestoreServiceV3 {
   static Future<MealPlanModelV3?> getCurrentMealPlan(String userId) async {
     try {
       debugPrint('[getCurrentMealPlan] V2 start for user=$userId');
+      
+      // First check the user document for current plan info (from onboarding)
+      final userDoc = await _firestore.collection(_usersCollection).doc(userId).get();
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        final currentPlanId = userData['currentMealPlanId'] as String?;
+        if (currentPlanId != null && currentPlanId.isNotEmpty) {
+          debugPrint('[getCurrentMealPlan] Found currentMealPlanId in user doc: $currentPlanId');
+          final available = MealPlanModelV3.getAvailablePlans();
+          final plan = available.firstWhere(
+            (p) => p.id == currentPlanId,
+            orElse: () => available.first,
+          );
+          return plan;
+        }
+      }
+      
       // Avoid composite index by fetching a reasonable number and filtering client-side
       final querySnapshot = await _firestore
           .collection(_usersCollection)

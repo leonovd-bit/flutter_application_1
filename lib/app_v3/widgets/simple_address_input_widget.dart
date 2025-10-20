@@ -85,6 +85,8 @@ class _SimpleAddressInputWidgetState extends State<SimpleAddressInputWidget> {
   Future<void> _validateAddress(String address) async {
     if (!mounted) return;
     
+    debugPrint('[AddressWidget] Starting validation for: $address');
+    
     setState(() {
       _isValidating = true;
       _errorMessage = null;
@@ -93,6 +95,8 @@ class _SimpleAddressInputWidgetState extends State<SimpleAddressInputWidget> {
     try {
       final result = await SimpleGoogleMapsService.instance.validateAddress(address);
       
+      debugPrint('[AddressWidget] Validation result: ${result?.formattedAddress ?? 'null'}');
+      
       if (mounted) {
         setState(() {
           _validatedAddress = result;
@@ -100,19 +104,27 @@ class _SimpleAddressInputWidgetState extends State<SimpleAddressInputWidget> {
           
           if (result == null) {
             _errorMessage = 'Address not found. Please check and try again.';
+            debugPrint('[AddressWidget] No address found');
           } else if (!result.isInDeliveryArea) {
             _errorMessage = 'Sorry, we don\'t deliver to this area yet.';
+            debugPrint('[AddressWidget] Address outside delivery area');
           } else {
             _errorMessage = null;
+            debugPrint('[AddressWidget] Address validated successfully, calling callback');
             widget.onAddressValidated?.call(result);
           }
         });
       }
     } catch (e) {
+      debugPrint('[AddressWidget] Validation error: $e');
       if (mounted) {
         setState(() {
           _isValidating = false;
-          _errorMessage = 'Unable to validate address. Please try again.';
+          if (e.toString().contains('API key restricted')) {
+            _errorMessage = 'API key issue - check console for details';
+          } else {
+            _errorMessage = 'Unable to validate address. Please try again.';
+          }
         });
       }
     }
@@ -219,6 +231,21 @@ class _SimpleAddressInputWidgetState extends State<SimpleAddressInputWidget> {
                   return null;
                 }
               : null,
+        ),
+        
+        // Manual validation button for testing
+        const SizedBox(height: 12),
+        ElevatedButton(
+          onPressed: () => _validateAddress(_controller.text),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          child: const Text('Validate Address'),
         ),
         
         // Show validation result

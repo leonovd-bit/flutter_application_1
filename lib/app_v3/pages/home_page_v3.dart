@@ -7,6 +7,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
+import '../models/protein_model_v3.dart';
 import 'map_page_v3.dart';
 import 'settings_page_v3.dart';
 import 'circle_of_health_page_v3.dart';
@@ -25,7 +26,7 @@ class HomePageV3 extends StatefulWidget {
   State<HomePageV3> createState() => _HomePageV3State();
 }
 
-class _HomePageV3State extends State<HomePageV3> {
+class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
   // Optimized state management - reduce static data
   String _currentMealPlan = 'DietKnight';
   final Map<String, int> _todayStats = {'calories': 850, 'protein': 45};
@@ -44,9 +45,18 @@ class _HomePageV3State extends State<HomePageV3> {
   String? _addressesError;
   StreamSubscription<QuerySnapshot>? _subActiveSub;
 
+  // Timeline orders - expanded state
+  String? _expandedOrderId;
+  List<Map<String, dynamic>> _cachedTimelineOrders = []; // Cache timeline orders
+
+  // Protein logging
+  bool _proteinSectionExpanded = false;
+  Map<String, Set<int>> _loggedProteinServings = {}; // proteinId -> Set of serving numbers (1-21)
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadCurrentMealPlan();
     _loadOrderData();
     _loadAddresses();
@@ -55,14 +65,168 @@ class _HomePageV3State extends State<HomePageV3> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _subActiveSub?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Reload data when app comes to foreground
+    if (state == AppLifecycleState.resumed) {
+      _loadAddresses();
+      _loadOrderData();
+    }
   }
 
   void _loadOrderData() {
     // Load real user order data
     _loadNextUpcomingOrder();
     _loadRecentOrders();
+    
+    // Fallback: Try loading from SharedPreferences after delay
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        _loadUpcomingOrderFromLocalData();
+      }
+    });
+  }
+
+  /// Loads upcoming order data directly from SharedPreferences
+  /// This serves as a fallback when Firebase data loading fails
+  Future<void> _loadUpcomingOrderFromLocalData() async {
+    try {
+      debugPrint('[HomePage] Loading upcoming order from local data...');
+      
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        debugPrint('[HomePage] No user logged in');
+        return;
+      }
+      
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Find meal selections data
+      final mealData = _findMealSelectionsData(prefs, user.uid);
+      if (mealData == null) {
+        debugPrint('[HomePage] No meal selections found');
+        return;
+      }
+      
+      // Find delivery schedule data  
+      final scheduleData = _findDeliveryScheduleData(prefs, user.uid);
+      if (scheduleData == null) {
+        debugPrint('[HomePage] No delivery schedule found');
+        return;
+      }
+      
+      // Parse and set upcoming order
+      _parseAndSetUpcomingOrder(mealData, scheduleData);
+      
+    } catch (e) {
+      debugPrint('[HomePage] Error loading from local data: $e');
+    }
+  }
+
+  /// Finds meal selections data in SharedPreferences
+  Map<String, dynamic>? _findMealSelectionsData(SharedPreferences prefs, String userId) {
+    final allKeys = prefs.getKeys();
+    
+    for (final key in allKeys) {
+      if (key.contains('meal_selections_${userId}_')) {
+        final jsonString = prefs.getString(key);
+        if (jsonString != null) {
+          try {
+            return json.decode(jsonString) as Map<String, dynamic>;
+          } catch (e) {
+            debugPrint('[HomePage] Error parsing meal selections: $e');
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  /// Finds delivery schedule data in SharedPreferences
+  Map<String, dynamic>? _findDeliveryScheduleData(SharedPreferences prefs, String userId) {
+    final jsonString = prefs.getString('delivery_schedule_$userId');
+    if (jsonString != null) {
+      try {
+        return json.decode(jsonString) as Map<String, dynamic>;
+      } catch (e) {
+        debugPrint('[HomePage] Error parsing delivery schedule: $e');
+      }
+    }
+    return null;
+  }
+
+  /// Parses meal and schedule data and sets the upcoming order
+  void _parseAndSetUpcomingOrder(Map<String, dynamic> mealSelections, Map<String, dynamic> deliverySchedule) {
+    for (final day in mealSelections.keys) {
+      final dayMeals = mealSelections[day] as Map<String, dynamic>?;
+      if (dayMeals == null) continue;
+      
+      for (final mealType in dayMeals.keys) {
+        final mealData = dayMeals[mealType] as Map<String, dynamic>?;
+        if (mealData == null) continue;
+        
+        // Get delivery time for this meal
+        final timeStr = _getDeliveryTime(deliverySchedule, day, mealType);
+        if (timeStr == null) continue;
+        
+        // Create meal object
+        try {
+          final meal = MealModelV3.fromJson(mealData);
+          final formattedTime = _formatTimeOnly(timeStr);
+          
+          setState(() {
+            _nextOrder = {
+              'meal': meal,
+              'mealName': meal.name,
+              'deliveryTime': formattedTime, // Store formatted time string
+              'imageUrl': meal.imageUrl,
+              'calories': meal.calories,
+              'protein': meal.protein,
+              'deliveryAddress': 'Your Address',
+              'orderId': 'upcoming_${day}_$mealType',
+              'day': day,
+            };
+          });
+          
+          debugPrint('[HomePage] ✅ Set upcoming meal: ${meal.name} at $formattedTime');
+          return; // Found and set the first available meal
+          
+        } catch (e) {
+          debugPrint('[HomePage] Error creating meal object: $e');
+        }
+      }
+    }
+  }
+
+  /// Extracts delivery time from schedule data
+  String? _getDeliveryTime(Map<String, dynamic> deliverySchedule, String day, String mealType) {
+    final daySchedule = deliverySchedule[day] as Map<String, dynamic>?;
+    final mealSchedule = daySchedule?[mealType] as Map<String, dynamic>?;
+    return mealSchedule?['time'] as String?;
+  }
+
+  /// Formats time string (HH:MM) to display format (H:MM AM/PM)
+  String _formatTimeOnly(String timeStr) {
+    try {
+      final parts = timeStr.split(':');
+      final hour = int.parse(parts[0]);
+      final minute = int.parse(parts[1]);
+      
+      final period = hour >= 12 ? 'PM' : 'AM';
+      final displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+      final displayMinute = minute.toString().padLeft(2, '0');
+      
+      return '$displayHour:$displayMinute $period';
+    } catch (e) {
+      debugPrint('[HomePage] Error formatting time $timeStr: $e');
+      return timeStr; // Return original if formatting fails
+    }
   }
 
   // Load recent orders from Firebase
@@ -294,9 +458,13 @@ class _HomePageV3State extends State<HomePageV3> {
       final prefs = await SharedPreferences.getInstance();
       final addressList = prefs.getStringList('user_addresses') ?? [];
       
+      debugPrint('[HomePage] Loading addresses from SharedPreferences...');
+      debugPrint('[HomePage] Found ${addressList.length} address entries');
+      
       final List<AddressModelV3> loadedAddresses = [];
       for (final jsonStr in addressList) {
         try {
+          debugPrint('[HomePage] Parsing address: $jsonStr');
           final data = json.decode(jsonStr) as Map<String, dynamic>;
           final address = AddressModelV3(
             id: data['id'] ?? 'addr_${DateTime.now().millisecondsSinceEpoch}',
@@ -392,6 +560,39 @@ class _HomePageV3State extends State<HomePageV3> {
     }
   }
 
+  /// Build smart address display - only show non-empty parts
+  String _buildSmartAddress(AddressModelV3 address) {
+    final parts = <String>[];
+    
+    // Add street address
+    if (address.streetAddress.isNotEmpty) {
+      parts.add(address.streetAddress);
+    }
+    
+    // Add apartment if present
+    if (address.apartment.isNotEmpty) {
+      parts.add(address.apartment);
+    }
+    
+    // Build city, state, zip line
+    final locationParts = <String>[];
+    if (address.city.isNotEmpty) {
+      locationParts.add(address.city);
+    }
+    if (address.state.isNotEmpty) {
+      locationParts.add(address.state);
+    }
+    if (address.zipCode.isNotEmpty) {
+      locationParts.add(address.zipCode);
+    }
+    
+    if (locationParts.isNotEmpty) {
+      parts.add(locationParts.join(', '));
+    }
+    
+    return parts.join(', ');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -412,6 +613,11 @@ class _HomePageV3State extends State<HomePageV3> {
                 ),
                 
                 const SizedBox(height: 48), // More space after circle
+                
+                // Log Extra Protein Section
+                _buildLogExtraProteinSection(),
+                
+                const SizedBox(height: 24),
                 
                 // Addresses Section
                 _buildAddressesSection(),
@@ -444,22 +650,13 @@ class _HomePageV3State extends State<HomePageV3> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(24, 50, 24, 20),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              AppThemeV3.surface,
-              AppThemeV3.surface.withValues(alpha: 0.95),
-            ],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-              spreadRadius: 2,
+          color: Colors.white,
+          border: Border(
+            bottom: BorderSide(
+              color: Colors.black,
+              width: 2,
             ),
-          ],
+          ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -467,18 +664,15 @@ class _HomePageV3State extends State<HomePageV3> {
             // Map icon
             Container(
               decoration: BoxDecoration(
-                color: AppThemeV3.accent.withValues(alpha: 0.1),
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppThemeV3.accent.withValues(alpha: 0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+                border: Border.all(
+                  color: Colors.black,
+                  width: 2,
+                ),
               ),
               child: IconButton(
-                icon: Icon(Icons.map, size: 28, color: AppThemeV3.accent),
+                icon: Icon(Icons.map, size: 24, color: Colors.black),
                 onPressed: () {
                   Navigator.push(
                     context,
@@ -505,14 +699,10 @@ class _HomePageV3State extends State<HomePageV3> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppThemeV3.accent.withValues(alpha: 0.15),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                      spreadRadius: 2,
-                    ),
-                  ],
+                  border: Border.all(
+                    color: Colors.black,
+                    width: 2,
+                  ),
                 ),
                 child: Image.asset(
                   'assets/images/freshpunk_logo.png',
@@ -524,18 +714,15 @@ class _HomePageV3State extends State<HomePageV3> {
             // Settings icon
             Container(
               decoration: BoxDecoration(
-                color: AppThemeV3.accent.withValues(alpha: 0.1),
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppThemeV3.accent.withValues(alpha: 0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+                border: Border.all(
+                  color: Colors.black,
+                  width: 2,
+                ),
               ),
               child: IconButton(
-                icon: Icon(Icons.settings, size: 28, color: AppThemeV3.accent),
+                icon: Icon(Icons.settings, size: 24, color: Colors.black),
                 onPressed: () {
                   Navigator.push(
                     context,
@@ -551,61 +738,439 @@ class _HomePageV3State extends State<HomePageV3> {
   }
 
   Widget _buildCircleOfHealth() {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const CircleOfHealthPageV3()),
-        );
-      },
-      child: Container(
-        width: 320,
-        height: 320,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(
-            center: Alignment.center,
-            radius: 0.8,
-              colors: [
-                AppThemeV3.accent.withValues(alpha: 0.05),
-                AppThemeV3.accent.withValues(alpha: 0.01),
-                Colors.transparent,
-              ],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: AppThemeV3.accent.withValues(alpha: 0.3),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-              spreadRadius: 5,
-            ),
-          ],
+    return _buildWeeklyNutritionGraph();
+  }
+
+  Widget _buildWeeklyNutritionGraph() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.black,
+          width: 2,
         ),
-        child: Stack(
-          children: [
-            // Circle painting
-            CustomPaint(
-              painter: CircleOfHealthPainter(
-                mealPlan: _currentMealPlan,
-                accentColor: AppThemeV3.accent,
-                backgroundColor: AppThemeV3.background,
-                textColor: AppThemeV3.textPrimary,
-              ),
-              child: Container(),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'This Week',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Colors.black,
             ),
-            
-            // Curved text using a simpler approach
-            Positioned.fill(
-              child: CustomPaint(
-                painter: SimpleCurvedTextPainter(
-                  text: '${_todayStats['calories']} cal • ${_todayStats['protein']}g protein • $_mostEatenMealType',
-                  color: AppThemeV3.accent,
-                  fontSize: 14,
+          ),
+          const SizedBox(height: 20),
+          _buildNutritionTabs(),
+          const SizedBox(height: 20),
+          _buildBarGraph(),
+        ],
+      ),
+    );
+  }
+
+  String _selectedMetric = 'Calories'; // 'Calories', 'Protein', 'Fat'
+
+  Widget _buildNutritionTabs() {
+    return Row(
+      children: ['Calories', 'Protein', 'Fat'].map((metric) {
+        final isSelected = _selectedMetric == metric;
+        return Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  _selectedMetric = metric;
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: isSelected ? Colors.black : Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.black, width: 2),
+                ),
+                child: Text(
+                  metric,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: isSelected ? Colors.white : Colors.black,
+                  ),
                 ),
               ),
             ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildBarGraph() {
+    // Sample data - in real app this would come from user's logged meals
+    final Map<String, Map<String, int>> weekData = {
+      'Mon': {'Calories': 1850, 'Protein': 120, 'Fat': 60},
+      'Tue': {'Calories': 2100, 'Protein': 140, 'Fat': 70},
+      'Wed': {'Calories': 1950, 'Protein': 125, 'Fat': 65},
+      'Thu': {'Calories': 2200, 'Protein': 150, 'Fat': 75},
+      'Fri': {'Calories': 1800, 'Protein': 110, 'Fat': 55},
+      'Sat': {'Calories': 2050, 'Protein': 135, 'Fat': 68},
+      'Sun': {'Calories': 1900, 'Protein': 115, 'Fat': 62},
+    };
+
+    final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    
+    // Get max value for scaling
+    int maxValue = 0;
+    for (final day in days) {
+      final value = weekData[day]?[_selectedMetric] ?? 0;
+      if (value > maxValue) maxValue = value;
+    }
+    
+    // Add 10% padding to max
+    maxValue = (maxValue * 1.1).round();
+
+    // Goal values
+    final Map<String, int> goals = {
+      'Calories': 2000,
+      'Protein': 150,
+      'Fat': 70,
+    };
+    
+    final currentTotal = weekData.values.fold<int>(
+      0,
+      (sum, data) => sum + (data[_selectedMetric] ?? 0),
+    );
+    final goalValue = goals[_selectedMetric] ?? 0;
+    final weeklyGoal = goalValue * 7;
+
+    return Column(
+      children: [
+        // Current vs Goal
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            RichText(
+              text: TextSpan(
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w600,
+                ),
+                children: [
+                  TextSpan(text: 'Current: '),
+                  TextSpan(
+                    text: '$currentTotal',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ],
+              ),
+            ),
+            RichText(
+              text: TextSpan(
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w600,
+                ),
+                children: [
+                  TextSpan(text: 'Goal: '),
+                  TextSpan(
+                    text: '$weeklyGoal',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
+        const SizedBox(height: 16),
+        
+        // Bar graph
+        SizedBox(
+          height: 180,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: List.generate(7, (index) {
+              final dayKey = days[index];
+              final value = weekData[dayKey]?[_selectedMetric] ?? 0;
+              final height = maxValue > 0 ? (value / maxValue) * 140.0 : 0.0;
+              
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      // Value label
+                      Text(
+                        '$value',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      
+                      // Bar
+                      Container(
+                        width: double.infinity,
+                        height: height,
+                        decoration: BoxDecoration(
+                          color: Colors.black,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      
+                      // Day label
+                      Text(
+                        dayLabels[index],
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLogExtraProteinSection() {
+    // Sample selected proteins - in real app this would come from user's Protein+ selections
+    final availableProteins = ProteinOptionV3.getAvailableProteins();
+    final selectedProteins = [
+      availableProteins[0], // Cubed chicken
+      availableProteins[6], // Smoked turkey
+    ];
+
+    if (selectedProteins.isEmpty) {
+      return const SizedBox.shrink(); // Don't show if no proteins selected
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.black,
+          width: 2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: () {
+              setState(() {
+                _proteinSectionExpanded = !_proteinSectionExpanded;
+              });
+            },
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.black,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: Colors.black,
+                          width: 2,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.restaurant,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Log Extra Protein',
+                      style: AppThemeV3.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                  ],
+                ),
+                Icon(
+                  _proteinSectionExpanded ? Icons.expand_less : Icons.expand_more,
+                  color: Colors.black,
+                ),
+              ],
+            ),
+          ),
+          
+          if (_proteinSectionExpanded) ...[
+            const SizedBox(height: 16),
+            const Divider(color: Colors.black, thickness: 1),
+            const SizedBox(height: 16),
+            
+            // Protein items
+            ...selectedProteins.map((protein) {
+              final servingsLogged = _loggedProteinServings[protein.id]?.length ?? 0;
+              final maxServings = 21; // Max servings per week
+              
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          protein.emoji,
+                          style: const TextStyle(fontSize: 24),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                protein.name,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.black,
+                                ),
+                              ),
+                              Text(
+                                '$servingsLogged / $maxServings servings logged',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    
+                    // Checkbox grid (7 rows x 3 columns = 21 servings)
+                    ...List.generate(7, (row) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          children: List.generate(3, (col) {
+                            final servingNumber = row * 3 + col + 1;
+                            final isLogged = _loggedProteinServings[protein.id]?.contains(servingNumber) ?? false;
+                            
+                            return Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                child: InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      _loggedProteinServings[protein.id] ??= {};
+                                      if (isLogged) {
+                                        _loggedProteinServings[protein.id]!.remove(servingNumber);
+                                      } else {
+                                        _loggedProteinServings[protein.id]!.add(servingNumber);
+                                      }
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: isLogged ? Colors.black : Colors.white,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: Colors.black, width: 2),
+                                    ),
+                                    child: Text(
+                                      isLogged ? '✓ $servingNumber' : '$servingNumber',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: isLogged ? Colors.white : Colors.black,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                      );
+                    }).toList(),
+                  ],
+                ),
+              );
+            }).toList(),
+            
+            // Nutrition added info
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.black, width: 2),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    '💡 Logged servings update your bar graph',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      // Save to Firestore
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Protein servings saved!'),
+                          backgroundColor: Colors.black,
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text(
+                      'Save',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -614,72 +1179,52 @@ class _HomePageV3State extends State<HomePageV3> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppThemeV3.surface,
-            AppThemeV3.surface.withValues(alpha: 0.95),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppThemeV3.accent.withValues(alpha: 0.2),
+          color: Colors.black,
           width: 2,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-            spreadRadius: 2,
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppThemeV3.accent,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      Icons.location_on,
-                      color: Colors.white,
-                      size: 20,
-                    ),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.black,
+                    width: 2,
                   ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Your Addresses',
-                    style: AppThemeV3.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                ],
+                ),
+                child: Icon(
+                  Icons.location_on,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Your Addresses',
+                  style: AppThemeV3.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
               Container(
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      AppThemeV3.accent.withValues(alpha: 0.1),
-                      AppThemeV3.accent.withValues(alpha: 0.05),
-                    ],
-                  ),
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: AppThemeV3.accent.withValues(alpha: 0.3),
-                    width: 1,
+                    color: Colors.black,
+                    width: 2,
                   ),
                 ),
                 child: TextButton(
@@ -692,8 +1237,9 @@ class _HomePageV3State extends State<HomePageV3> {
                   child: Text(
                     'Edit',
                     style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                      color: AppThemeV3.accent,
+                      color: Colors.black,
                       fontWeight: FontWeight.w700,
+                      fontSize: 14,
                     ),
                   ),
                 ),
@@ -708,7 +1254,7 @@ class _HomePageV3State extends State<HomePageV3> {
                 child: SizedBox(
                   width: 24,
                   height: 24,
-                  child: CircularProgressIndicator(color: AppThemeV3.accent, strokeWidth: 3),
+                  child: CircularProgressIndicator(color: Colors.black, strokeWidth: 3),
                 ),
               ),
             ),
@@ -722,9 +1268,9 @@ class _HomePageV3State extends State<HomePageV3> {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppThemeV3.accent.withValues(alpha: 0.05),
+                color: Colors.grey[50],
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppThemeV3.accent.withValues(alpha: 0.2)),
+                border: Border.all(color: AppThemeV3.borderLight),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -742,7 +1288,16 @@ class _HomePageV3State extends State<HomePageV3> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: AppThemeV3.accent),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: Colors.black, width: 2),
+                        ),
+                        textStyle: TextStyle(fontWeight: FontWeight.w700),
+                      ),
                       onPressed: () {
                         Navigator.push(
                           context,
@@ -763,48 +1318,31 @@ class _HomePageV3State extends State<HomePageV3> {
             margin: const EdgeInsets.only(bottom: 16),
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppThemeV3.accent.withValues(alpha: 0.05),
-                  AppThemeV3.accent.withValues(alpha: 0.02),
-                ],
-              ),
+              color: Colors.white,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: AppThemeV3.accent.withValues(alpha: 0.3),
+                color: Colors.black,
                 width: 2,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: AppThemeV3.accent.withValues(alpha: 0.1),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
             ),
             child: Row(
               children: [
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppThemeV3.accent,
+                    color: Colors.black,
                     borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppThemeV3.accent.withValues(alpha: 0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
+                    border: Border.all(
+                      color: Colors.black,
+                      width: 2,
+                    ),
                   ),
                   child: Icon(
                     address.label.toLowerCase() == 'home' 
                         ? Icons.home 
                         : Icons.work,
                     color: Colors.white,
-                    size: 24,
+                    size: 20,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -814,11 +1352,14 @@ class _HomePageV3State extends State<HomePageV3> {
                     children: [
                       Row(
                         children: [
-                          Text(
-                            address.label,
-                            style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: AppThemeV3.textPrimary,
+                          Flexible(
+                            child: Text(
+                              address.label,
+                              style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: AppThemeV3.textPrimary,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           if (address.isDefault) ...[
@@ -859,7 +1400,7 @@ class _HomePageV3State extends State<HomePageV3> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        address.fullAddress,
+                        _buildSmartAddress(address),
                         style: AppThemeV3.textTheme.bodyMedium?.copyWith(
                           color: AppThemeV3.textSecondary,
                           fontWeight: FontWeight.w500,
@@ -881,30 +1422,92 @@ class _HomePageV3State extends State<HomePageV3> {
   }
 
   Widget _buildUpcomingOrdersSection() {
+    // Build timeline orders from actual user data (only if cache is empty or data changed)
+    if (_cachedTimelineOrders.isEmpty && _nextOrder != null && _nextOrder!['meal'] != null) {
+      final meal = _nextOrder!['meal'] as MealModelV3;
+      _cachedTimelineOrders = [{
+        'id': _nextOrder!['orderId'] ?? 'order-1',
+        'day': 'Today', // You could calculate this from the day in _nextOrder
+        'time': _nextOrder!['deliveryTime'] ?? '12:30 PM',
+        'mealType': meal.mealType[0].toUpperCase() + meal.mealType.substring(1), // Capitalize
+        'status': 'confirmed',
+        'nutrition': {
+          'calories': meal.calories,
+          'protein': meal.protein,
+          'fat': meal.fat,
+          'carbs': meal.carbs
+        },
+        'address': _nextOrder!['deliveryAddress'] ?? '123 Main St',
+        'mealName': meal.name,
+        'imageUrl': meal.imageUrl,
+      }];
+    }
+    
+    // If no orders, show empty state
+    if (_cachedTimelineOrders.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.black,
+            width: 2,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Colors.black,
+                      width: 2,
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.schedule,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Upcoming Orders',
+                  style: AppThemeV3.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'No upcoming orders. Create a delivery schedule to get started!',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.black54,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppThemeV3.surface,
-            AppThemeV3.surface.withValues(alpha: 0.95),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppThemeV3.accent.withValues(alpha: 0.2),
+          color: Colors.black,
           width: 2,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-            spreadRadius: 2,
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -914,10 +1517,14 @@ class _HomePageV3State extends State<HomePageV3> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppThemeV3.accent,
+                  color: Colors.black,
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.black,
+                    width: 2,
+                  ),
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.schedule,
                   color: Colors.white,
                   size: 20,
@@ -933,161 +1540,316 @@ class _HomePageV3State extends State<HomePageV3> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           
-          // Next order card
-          GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const UpcomingOrdersPageV3()),
-              );
-            },
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    AppThemeV3.accent.withValues(alpha: 0.05),
-                    AppThemeV3.accent.withValues(alpha: 0.02),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: AppThemeV3.accent.withValues(alpha: 0.3),
-                  width: 2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppThemeV3.accent.withValues(alpha: 0.15),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: _nextOrder == null
-                  ? Text(
-                      'No upcoming orders',
-                      style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: AppThemeV3.textSecondary,
+          // Timeline
+          ..._cachedTimelineOrders.asMap().entries.map((entry) {
+            final index = entry.key;
+            final order = entry.value;
+            final isLast = index == _cachedTimelineOrders.length - 1;
+            final isExpanded = _expandedOrderId == order['id'];
+            final isCompleted = order['status'] == 'confirmed';
+            
+            return _buildTimelineOrderCard(order, isLast, isExpanded, isCompleted);
+          }).toList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimelineOrderCard(Map<String, dynamic> order, bool isLast, bool isExpanded, bool isCompleted) {
+    return RepaintBoundary(
+      child: Padding(
+        key: ValueKey(order['id']), // Add key to prevent unnecessary rebuilds
+        padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
+        child: InkWell(
+          onTap: () {
+            setState(() {
+              _expandedOrderId = isExpanded ? null : order['id'];
+            });
+          },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isExpanded ? Colors.grey.shade50 : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.black, width: 2),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  // Meal image
+                  if (order['imageUrl'] != null)
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.black, width: 2),
                       ),
-                    )
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        // Meal thumbnail (with graceful fallback)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: SizedBox(
-                            width: 64,
-                            height: 64,
-                            child: AppImage(
-                              (_nextOrder!['imageUrl'] ?? '').toString(),
-                              width: 64,
-                              height: 64,
-                              borderRadius: BorderRadius.circular(12),
-                              fallbackIcon: Icons.fastfood,
-                              fallbackBg: AppThemeV3.accent.withValues(alpha: 0.1),
-                              fallbackIconColor: AppThemeV3.accent,
-                            ),
-                          ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: Image.asset(
+                          order['imageUrl'],
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: Colors.grey.shade200,
+                              child: const Icon(Icons.restaurant, color: Colors.black54),
+                            );
+                          },
                         ),
-                        const SizedBox(width: 16),
-                        // Details
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Meal name (or type)
-                              Text(
-                                (_nextOrder!['mealName'] ?? _nextOrder!['mealType'] ?? 'Upcoming meal').toString(),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  color: AppThemeV3.textPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              // Time
-                              Row(
-                                children: [
-                                  Icon(Icons.access_time, size: 18, color: AppThemeV3.textSecondary),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      (_nextOrder!['deliveryTime'] ?? 'Time not set').toString(),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: AppThemeV3.textTheme.bodyMedium?.copyWith(
-                                        color: AppThemeV3.textSecondary,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              // Place (default address) — label + full address on two lines
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Icon(Icons.place, size: 18, color: AppThemeV3.textSecondary),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Builder(
-                                      builder: (context) {
-                                        if (_userAddresses.isEmpty) {
-                                          return Text(
-                                            'Add delivery address',
-                                            style: AppThemeV3.textTheme.bodyMedium?.copyWith(
-                                              color: AppThemeV3.textSecondary,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          );
-                                        }
-                                        final a = _userAddresses.first;
-                                        return Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              a.label.isNotEmpty ? a.label : 'Address',
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: AppThemeV3.textTheme.bodyMedium?.copyWith(
-                                                color: AppThemeV3.textSecondary,
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              a.fullAddress,
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: AppThemeV3.textTheme.bodySmall?.copyWith(
-                                                color: AppThemeV3.textSecondary,
-                                              ),
-                                            ),
-                                          ],
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
+                      ),
+                    ),
+                  const SizedBox(width: 12),
+                  // Meal details
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Show meal name if available, otherwise meal type
+                        Text(
+                          order['mealName'] ?? order['mealType'],
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.black,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        // Show time and day
+                        Text(
+                          '${order['day']} • ${order['time']}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
                           ),
                         ),
                       ],
                     ),
-            ),
+                  ),
+                  Icon(
+                    isExpanded ? Icons.expand_less : Icons.expand_more,
+                    color: Colors.black,
+                  ),
+                ],
+              ),
+              
+              // Animated expandable content
+              AnimatedSize(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+                child: isExpanded ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 16),
+                    const Divider(color: Colors.black, thickness: 1),
+                    const SizedBox(height: 16),
+                    
+                    // Nutrition grid
+                    const Text(
+                      'Nutrition Info',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        _buildNutritionBadge('Calories', order['nutrition']['calories'].toString()),
+                        const SizedBox(width: 8),
+                        _buildNutritionBadge('Protein', '${order['nutrition']['protein']}g'),
+                        const SizedBox(width: 8),
+                    _buildNutritionBadge('Fat', '${order['nutrition']['fat']}g'),
+                    const SizedBox(width: 8),
+                    _buildNutritionBadge('Carbs', '${order['nutrition']['carbs']}g'),
+                  ],
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // Address
+                Row(
+                  children: [
+                    const Icon(Icons.location_on, size: 16, color: Colors.black87),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        order['address'],
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // Status progress (if pending)
+                if (!isCompleted) ...[
+                  const Text(
+                    'Delivery Status',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  LinearProgressIndicator(
+                    value: 0.3,
+                    backgroundColor: Colors.grey.shade300,
+                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.black),
+                    minHeight: 6,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Preparing your meal...',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                
+                // Action buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          // Cancel order
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Order cancelled'),
+                              backgroundColor: Colors.black,
+                            ),
+                          );
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.black,
+                          side: const BorderSide(color: Colors.black, width: 2),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          // Confirm/track order
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Order confirmed'),
+                              backgroundColor: Colors.black,
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.black,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: Text(
+                          isCompleted ? 'Track' : 'Confirm',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 12),
+                
+                // Map placeholder
+                Container(
+                  height: 100,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.black, width: 2),
+                  ),
+                  child: const Center(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.map, color: Colors.black54),
+                        SizedBox(width: 8),
+                        Text(
+                          'Delivery Map',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                  ],
+                ) : const SizedBox.shrink(),
+              ),
+            ],
           ),
-        ],
+        ),
+      ),
+    ),
+    );
+  }
+
+  Widget _buildNutritionBadge(String label, String value) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.black, width: 2),
+        ),
+        child: Column(
+          children: [
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: Colors.black,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1098,27 +1860,12 @@ class _HomePageV3State extends State<HomePageV3> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppThemeV3.surface,
-            AppThemeV3.surface.withValues(alpha: 0.95),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppThemeV3.accent.withValues(alpha: 0.2),
+          color: Colors.black,
           width: 2,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-            spreadRadius: 2,
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1128,8 +1875,12 @@ class _HomePageV3State extends State<HomePageV3> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppThemeV3.accent,
+                  color: Colors.black,
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.black,
+                    width: 2,
+                  ),
                 ),
                 child: const Icon(
                   Icons.history,
@@ -1149,8 +1900,33 @@ class _HomePageV3State extends State<HomePageV3> {
           ),
           const SizedBox(height: 12),
           
+          // Show "No past orders" when empty
+          if (_recentOrders.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 40),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.history,
+                      size: 48,
+                      color: AppThemeV3.textSecondary.withValues(alpha: 0.5),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'No past orders',
+                      style: AppThemeV3.textTheme.bodyLarge?.copyWith(
+                        color: AppThemeV3.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          
           // Past orders responsive list: center when fits, scroll when needed
-          LayoutBuilder(
+          else LayoutBuilder(
             builder: (context, constraints) {
               const double cardWidth = 96;
               const double cardSpacing = 10;
@@ -1161,10 +1937,9 @@ class _HomePageV3State extends State<HomePageV3> {
                 return Container(
                   width: cardWidth,
                   decoration: BoxDecoration(
-                    color: AppThemeV3.surface,
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppThemeV3.border),
-                    boxShadow: AppThemeV3.cardShadow,
+                    border: Border.all(color: Colors.black, width: 2),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(10),

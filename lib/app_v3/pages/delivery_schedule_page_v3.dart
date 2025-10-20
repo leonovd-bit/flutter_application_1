@@ -7,6 +7,7 @@ import '../models/meal_model_v3.dart';
 import '../services/progress_manager.dart';
 import 'address_page_v3.dart';
 import 'meal_schedule_page_v3_fixed.dart';
+import 'doordash_setup_page.dart';
 
 class DeliverySchedulePageV3 extends StatefulWidget {
   const DeliverySchedulePageV3({super.key});
@@ -37,6 +38,10 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
   Map<String, Map<String, Map<String, dynamic>>> _weeklySchedule = {};
   Set<String> _selectedDaysForCustomization = {};
   Set<String> _unconfiguredDays = {};
+  
+  // Delivery method preferences
+  bool _useDoorDashDelivery = false;
+  String _deliveryMethod = 'internal'; // 'internal' or 'doordash'
   
   // UI state
   bool _showDayCustomization = false;
@@ -1037,6 +1042,12 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
               ],
             ),
           ),
+        
+        // DoorDash Delivery Options (show when schedule has some configuration)
+        if (statusMealCount > 0) ...[
+          const SizedBox(height: 24),
+          _buildDeliveryOptionsSection(),
+        ],
         
         // Main Continue Button
         SizedBox(
@@ -3065,8 +3076,207 @@ class _DeliverySchedulePageV3State extends State<DeliverySchedulePageV3> {
       await prefs.setString('meal_times_config', json.encode(timeConfig));
   debugPrint('Time configuration saved: $timeConfig'); // Debug logging
     } catch (e) {
-  debugPrint('Error saving time configuration: $e');
+      debugPrint('Error saving time configuration: $e');
     }
   }
 
-}
+  /// Build delivery options section with DoorDash integration
+  Widget _buildDeliveryOptionsSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppThemeV3.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppThemeV3.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section Header
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppThemeV3.accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.local_shipping,
+                  color: AppThemeV3.accent,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Delivery Options',
+                style: AppThemeV3.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: AppThemeV3.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Delivery Method Selection
+          Container(
+            decoration: BoxDecoration(
+              color: AppThemeV3.background,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppThemeV3.border.withValues(alpha: 0.5)),
+            ),
+            child: Column(
+              children: [
+                // Internal Delivery Option
+                RadioListTile<String>(
+                  title: const Text('FreshPunk Delivery'),
+                  subtitle: const Text('Our standard delivery service • Free'),
+                  value: 'internal',
+                  groupValue: _deliveryMethod,
+                  onChanged: (value) {
+                    setState(() {
+                      _deliveryMethod = value!;
+                      _useDoorDashDelivery = false;
+                    });
+                  },
+                  activeColor: AppThemeV3.accent,
+                ),
+                
+                Divider(height: 1, color: AppThemeV3.border.withValues(alpha: 0.3)),
+                
+                // DoorDash Delivery Option
+                RadioListTile<String>(
+                  title: Row(
+                    children: [
+                      const Text('DoorDash Delivery'),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Premium',
+                          style: TextStyle(
+                            color: Colors.orange.shade700,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  subtitle: const Text('Professional drivers • Faster delivery • Additional fee'),
+                  value: 'doordash',
+                  groupValue: _deliveryMethod,
+                  onChanged: (value) {
+                    setState(() {
+                      _deliveryMethod = value!;
+                      _useDoorDashDelivery = true;
+                    });
+                  },
+                  activeColor: AppThemeV3.accent,
+                ),
+              ],
+            ),
+          ),
+          
+          // DoorDash Information (when selected)
+          if (_useDoorDashDelivery) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.orange.withValues(alpha: 0.2)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.orange.shade700, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'DoorDash Delivery Benefits',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.orange.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _buildBenefitItem('⚡', 'Faster delivery times'),
+                  _buildBenefitItem('📱', 'Real-time driver tracking'),
+                  _buildBenefitItem('🚗', 'Professional delivery drivers'),
+                  _buildBenefitItem('📞', 'Direct driver communication'),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Delivery fees will be calculated at checkout based on distance and demand.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.orange.shade600,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            // DoorDash Setup Button (if not configured)
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _showDoorDashSetup,
+              icon: const Icon(Icons.settings),
+              label: const Text('Configure DoorDash API'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.orange.shade700,
+                side: BorderSide(color: Colors.orange.shade300),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBenefitItem(String emoji, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 16)),
+          const SizedBox(width: 8),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.orange.shade700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDoorDashSetup() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const DoorDashSetupPage(),
+      ),
+    );
+  }}

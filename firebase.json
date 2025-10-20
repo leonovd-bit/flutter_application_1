@@ -56,13 +56,19 @@
 			{ "source": "/kitchen.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
 			{ "source": "/kitchen_backup.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
 			{ "source": "/kitchen_pro.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
-			{ "source": "/kitchen_organized.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
+			{ "source": "/kitchen_organized.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
+			{ "source": "/restaurant.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
 		],
 		"rewrites": [
+			{ "source": "/restaurant", "destination": "/restaurant.html" },
+			{ "source": "/restaurant/**", "destination": "/restaurant.html" },
+			{ "source": "/restaurant-portal", "destination": "/index.html" },
+			{ "source": "/restaurant-portal/**", "destination": "/index.html" },
 			{ "source": "!/kitchen.html", "destination": "/index.html" },
 			{ "source": "!/kitchen_backup.html", "destination": "/index.html" },
 			{ "source": "!/kitchen_pro.html", "destination": "/index.html" },
-			{ "source": "!/kitchen_organized.html", "destination": "/index.html" }
+			{ "source": "!/kitchen_organized.html", "destination": "/index.html" },
+			{ "source": "!/restaurant.html", "destination": "/index.html" }
 		]
 	},
 	"flutter": {

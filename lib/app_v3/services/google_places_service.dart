@@ -2,18 +2,21 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
+import 'environment_service.dart';
 
 /// Service for Google Places API integration
 /// Handles address validation, autocomplete, and geocoding
 class GooglePlacesService {
   static const String _baseUrl = 'https://maps.googleapis.com/maps/api';
   
-  // TODO: Add your Google Places API key here
-  // Get it from: https://console.cloud.google.com/apis/credentials
-  static const String _apiKey = 'YOUR_GOOGLE_PLACES_API_KEY_HERE';
+  // Get API key from environment service
+  static String get _apiKey => EnvironmentService.googleMapsApiKey;
   
   GooglePlacesService._();
   static final GooglePlacesService instance = GooglePlacesService._();
+
+  /// Check if Google Places is properly configured
+  static bool get isConfigured => EnvironmentService.isGoogleMapsConfigured;
 
   /// Get address suggestions for autocomplete
   Future<List<PlacesSuggestion>> getAddressSuggestions(

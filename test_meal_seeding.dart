@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:io';
 import 'lib/app_v3/services/meal_service_v3.dart';
 import 'firebase_options.dart';
 

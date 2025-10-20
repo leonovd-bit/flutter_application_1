@@ -7,7 +7,7 @@ import '../services/progress_manager.dart';
 import '../services/auth_wrapper.dart' show ExplicitSetupApproval; // approve explicit setup
 import 'email_verification_page_v3.dart';
 import 'login_page_v3.dart';
-import 'choose_meal_plan_page_v3.dart';
+import 'choose_meal_plan_page_v3_new.dart';
 import 'welcome_page_v3.dart';
 
 class SignUpPageV3 extends StatefulWidget {
@@ -195,14 +195,18 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                       decoration: BoxDecoration(
-                        color: AppThemeV3.accent,
+                        color: Colors.black,
                         borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: Colors.black,
+                          width: 2,
+                        ),
                       ),
                       child: Text(
                         'Sign Up',
                         style: AppThemeV3.textTheme.titleLarge?.copyWith(
                           color: Colors.white,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
@@ -215,22 +219,22 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: AppThemeV3.surface,
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppThemeV3.border),
+                    border: Border.all(color: Colors.black, width: 2),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.info_outline, color: AppThemeV3.accent, size: 20),
+                          Icon(Icons.info_outline, color: Colors.black, size: 20),
                           const SizedBox(width: 8),
                           Text(
                             'Account Requirements',
                             style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: AppThemeV3.accent,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black,
                             ),
                           ),
                         ],
@@ -546,10 +550,15 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                   child: ElevatedButton(
                     onPressed: (_isLoading || !_areFieldsValid()) ? null : _signUpWithEmail,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _areFieldsValid() ? AppThemeV3.textPrimary : Colors.grey,
+                      backgroundColor: _areFieldsValid() ? Colors.black : Colors.grey,
                       padding: const EdgeInsets.symmetric(vertical: 16),
+                      elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(
+                          color: _areFieldsValid() ? Colors.black : Colors.grey,
+                          width: 2,
+                        ),
                       ),
                     ),
                     child: _isLoading
@@ -558,7 +567,7 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                             'Create Account',
                             style: AppThemeV3.textTheme.titleLarge?.copyWith(
                               color: Colors.white,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                   ),
@@ -570,13 +579,13 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.blue.withValues(alpha: 0.1),
+                      color: Colors.grey[100],
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+                      border: Border.all(color: AppThemeV3.borderLight),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.info_outline, color: Colors.blue, size: 16),
+                        Icon(Icons.info_outline, color: Colors.black, size: 16),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -792,7 +801,7 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
         // Navigate to choose meal plan first
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const ChooseMealPlanPageV3()),
+          MaterialPageRoute(builder: (context) => const ChooseMealPlanPageV3New(isSignupFlow: true)),
         );
       }
     } on FirebaseAuthException catch (e) {
@@ -850,7 +859,7 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
         // Navigate to choose meal plan first
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const ChooseMealPlanPageV3()),
+          MaterialPageRoute(builder: (context) => const ChooseMealPlanPageV3New(isSignupFlow: true)),
         );
       }
     } catch (e) {

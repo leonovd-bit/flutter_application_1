@@ -20,6 +20,27 @@ import {getFirestore, FieldValue, Timestamp} from "firebase-admin/firestore";
 import {getMessaging} from "firebase-admin/messaging";
 import {getAuth} from "firebase-admin/auth";
 
+// Export order generation and confirmation functions
+export {generateOrderFromMealSelection, sendOrderConfirmation} from "./order-functions";
+
+// Export Square integration functions
+export {
+  initiateSquareOAuthHttp,
+  completeSquareOAuthHttp,
+  syncSquareMenu,
+  forwardOrderToSquare,
+  sendWeeklyPrepSchedules,
+  getRestaurantNotifications,
+} from "./square-integration";
+
+// Export restaurant notification functions
+export {
+  notifyRestaurantsOnOrder,
+  sendRestaurantOrderNotification,
+  registerRestaurantPartner,
+  getRestaurantOrders,
+} from "./restaurant-notifications";
+
 // Define secrets via Firebase Functions Secret Manager
 const STRIPE_SECRET_KEY = defineSecret("STRIPE_SECRET_KEY");
 const STRIPE_WEBHOOK_SECRET = defineSecret("STRIPE_WEBHOOK_SECRET");

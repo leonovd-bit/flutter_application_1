@@ -1,19 +1,23 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'environment_service.dart';
 
 /// Twilio SMS Service for FreshPunk Food Delivery
 /// Handles order confirmations, delivery updates, and notifications
 class SMSService {
-  // TODO: Add your Twilio credentials from https://console.twilio.com/
-  static const String _accountSid = 'YOUR_TWILIO_ACCOUNT_SID';
-  static const String _authToken = 'YOUR_TWILIO_AUTH_TOKEN';
-  static const String _fromNumber = '+1234567890'; // Your Twilio phone number
-  
   static const String _baseUrl = 'https://api.twilio.com/2010-04-01';
   
   SMSService._();
   static final SMSService instance = SMSService._();
+
+  // Get credentials from environment service
+  static String get _accountSid => EnvironmentService.twilioAccountSid;
+  static String get _authToken => EnvironmentService.twilioAuthToken;
+  static String get _fromNumber => EnvironmentService.twilioPhoneNumber;
+  
+  /// Check if SMS service is properly configured
+  static bool get isConfigured => EnvironmentService.isTwilioConfigured;
 
   /// Send order confirmation SMS
   static Future<bool> sendOrderConfirmation({
@@ -222,13 +226,6 @@ Expires: $expiryDate
     }
     
     return null; // Invalid
-  }
-
-  /// Check if SMS is configured
-  static bool get isConfigured {
-    return _accountSid != 'YOUR_TWILIO_ACCOUNT_SID' &&
-           _authToken != 'YOUR_TWILIO_AUTH_TOKEN' &&
-           _fromNumber != '+1234567890';
   }
 
   /// Test SMS functionality

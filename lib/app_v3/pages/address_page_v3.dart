@@ -5,6 +5,7 @@ import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/firestore_service_v3.dart';
+import '../services/simple_google_maps_service.dart';
 
 class AddressPageV3 extends StatefulWidget {
   const AddressPageV3({super.key});
@@ -19,6 +20,7 @@ class _AddressPageV3State extends State<AddressPageV3> {
   final _streetController = TextEditingController();
   final _apartmentController = TextEditingController();
   final _zipController = TextEditingController();
+  final _quickLookupController = TextEditingController();
   
   String _selectedCity = 'New York City';
   String _selectedState = 'New York';
@@ -105,6 +107,27 @@ class _AddressPageV3State extends State<AddressPageV3> {
     setState(() {});
   }
 
+  String _generateAddressLabel(AddressResult addressResult) {
+    // Generate a user-friendly label for an address
+    final city = addressResult.city;
+    final formattedAddress = addressResult.formattedAddress;
+    
+    // Extract street from formatted address
+    final parts = formattedAddress.split(',');
+    if (parts.isNotEmpty) {
+      final streetPart = parts.first.trim();
+      if (streetPart.isNotEmpty && !streetPart.toLowerCase().contains('unnamed')) {
+        return streetPart;
+      }
+    }
+    
+    if (city.isNotEmpty) {
+      return '$city Address';
+    }
+    
+    return 'New Address';
+  }
+
   @override
   void dispose() {
     _labelController.dispose();
@@ -141,7 +164,7 @@ class _AddressPageV3State extends State<AddressPageV3> {
         ],
       ),
   body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -171,6 +194,105 @@ class _AddressPageV3State extends State<AddressPageV3> {
               ),
             ),
             const SizedBox(height: 16),
+            
+            // Address validation section
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.black, width: 2),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.black,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.search_rounded, size: 20, color: Colors.white),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Quick Address Lookup',
+                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, letterSpacing: -0.5),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Enter your NYC address and we\'ll auto-complete the details',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[700], fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Quick address input
+                  TextField(
+                    controller: _quickLookupController,
+                    decoration: InputDecoration(
+                      hintText: 'e.g., 350 5th Ave',
+                      hintStyle: TextStyle(color: Colors.grey[400]),
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.black, width: 2),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey[300]!, width: 2),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.black, width: 2),
+                      ),
+                      prefixIcon: const Icon(Icons.location_on, color: Colors.black),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.arrow_forward, color: Colors.black),
+                        onPressed: () async {
+                          if (_quickLookupController.text.isNotEmpty) {
+                            await _validateAndFillAddress(_quickLookupController.text);
+                          }
+                        },
+                      ),
+                    ),
+                    onSubmitted: (value) async {
+                      if (value.isNotEmpty) {
+                        await _validateAndFillAddress(value);
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            
+            // Divider
+            Row(
+              children: [
+                const Expanded(child: Divider(color: Colors.black, thickness: 2)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'OR ENTER MANUALLY',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.grey[600],
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ),
+                const Expanded(child: Divider(color: Colors.black, thickness: 2)),
+              ],
+            ),
+            const SizedBox(height: 24),
             
             // Address form
             Form(
@@ -429,6 +551,124 @@ class _AddressPageV3State extends State<AddressPageV3> {
       'label': address.label,
       'fullAddress': address.fullAddress,
     });
+  }
+
+  /// Convert state abbreviation to full name for dropdown
+  String _convertStateAbbreviation(String state) {
+    final Map<String, String> stateMap = {
+      'NY': 'New York',
+      'NJ': 'New Jersey',
+      'CT': 'Connecticut',
+      'PA': 'Pennsylvania',
+      'MA': 'Massachusetts',
+    };
+    return stateMap[state] ?? state;
+  }
+
+  /// Convert city name to match dropdown options
+  String _convertCityName(String city) {
+    // Handle common variations
+    if (city == 'New York' || city == 'NYC' || city == 'Manhattan' || city == 'Brooklyn' || city == 'Queens' || city == 'Bronx' || city == 'Staten Island') {
+      return 'New York City';
+    }
+    return city;
+  }
+
+  /// Validate and fill address using Google Maps API
+  Future<void> _validateAndFillAddress(String streetAddress) async {
+    try {
+      debugPrint('[AddressPage] Validating address: "$streetAddress"');
+      
+      // Show loading indicator
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              ),
+              SizedBox(width: 12),
+              Text('Validating address...'),
+            ],
+          ),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      
+      // Add NYC context to the search
+      final searchQuery = streetAddress.contains('New York') || streetAddress.contains('NYC')
+          ? streetAddress
+          : '$streetAddress, New York, NY';
+      
+      final service = SimpleGoogleMapsService.instance;
+      final result = await service.validateAddress(searchQuery);
+      
+      if (!mounted) return;
+      
+      if (result != null) {
+        debugPrint('[AddressPage] ✅ Address validated: ${result.formattedAddress}');
+        
+        setState(() {
+          _streetController.text = result.street.isNotEmpty ? result.street : streetAddress;
+          _selectedCity = result.city.isNotEmpty ? _convertCityName(result.city) : 'New York City';
+          _selectedState = result.state.isNotEmpty ? _convertStateAbbreviation(result.state) : 'New York';
+          _zipController.text = result.zipCode;
+          
+          // Generate a label if none exists
+          if (_labelController.text.isEmpty) {
+            _labelController.text = _generateAddressLabel(result);
+          }
+          
+          // Clear quick lookup
+          _quickLookupController.clear();
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('✅ Address validated and form filled!'),
+            backgroundColor: Colors.green[700],
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      } else {
+        debugPrint('[AddressPage] ⚠️ Address validation failed');
+        
+        // Fill with defaults
+        setState(() {
+          _streetController.text = streetAddress;
+          _selectedCity = 'New York City';
+          _selectedState = 'New York';
+          
+          if (_labelController.text.isEmpty) {
+            _labelController.text = 'Address';
+          }
+          
+          _quickLookupController.clear();
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('⚠️ Could not validate address. Please verify manually.'),
+            backgroundColor: Colors.orange[700],
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('[AddressPage] ❌ Error validating address: $e');
+      
+      if (!mounted) return;
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red[700],
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   Future<void> _saveNewAddress() async {

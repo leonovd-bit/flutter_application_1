@@ -3,7 +3,7 @@ import '../models/meal_model_v3.dart';
 import '../services/ai_meal_planner_service.dart';
 
 import '../theme/app_theme_v3.dart';
-import 'delivery_schedule_page_v4.dart';
+import 'delivery_schedule_page_v5.dart';
 
 
 class AIMealPlanOverviewPageV3 extends StatefulWidget {
@@ -473,7 +473,7 @@ class _AIMealPlanOverviewPageV3State extends State<AIMealPlanOverviewPageV3> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const DeliverySchedulePageV4(
+        builder: (context) => const DeliverySchedulePageV5(
           isSignupFlow: true,
         ),
       ),

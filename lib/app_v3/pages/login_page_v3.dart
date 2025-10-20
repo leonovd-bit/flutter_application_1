@@ -6,7 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme_v3.dart';
 import '../services/connectivity_service_v3.dart';
 import '../services/offline_auth_service_v3.dart';
-import '../services/auth_wrapper.dart' show ExplicitSetupApproval; // for setup approval
 import 'signup_page_v3.dart';
 import 'home_page_v3.dart';
 import 'welcome_page_v3.dart';
@@ -52,15 +51,15 @@ class _LoginPageV3State extends State<LoginPageV3> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppThemeV3.surface,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppThemeV3.border),
+        border: Border.all(color: Colors.black, width: 2),
       ),
       child: Column(
         children: [
           Row(
             children: [
-              Icon(Icons.account_circle, color: AppThemeV3.accent, size: 24),
+              Icon(Icons.account_circle, color: Colors.black, size: 24),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -104,8 +103,13 @@ class _LoginPageV3State extends State<LoginPageV3> {
                     }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppThemeV3.accent,
+                    backgroundColor: Colors.black,
                     foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Colors.black, width: 2),
+                    ),
                   ),
                   child: const Text('Continue as This User'),
                 ),
@@ -126,8 +130,8 @@ class _LoginPageV3State extends State<LoginPageV3> {
                     }
                   },
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppThemeV3.textSecondary,
-                    side: BorderSide(color: AppThemeV3.border),
+                    foregroundColor: Colors.black,
+                    side: BorderSide(color: Colors.black, width: 2),
                   ),
                   child: const Text('Start Fresh'),
                 ),
@@ -147,20 +151,13 @@ class _LoginPageV3State extends State<LoginPageV3> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: AppThemeV3.accent),
+          icon: Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () => _handleBackNavigation(),
         ),
       ),
       body: Container(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              AppThemeV3.background,
-              AppThemeV3.background.withValues(alpha: 0.95),
-            ],
-          ),
+          color: Colors.white,
         ),
         child: SafeArea(
           child: SingleChildScrollView(
@@ -180,16 +177,12 @@ class _LoginPageV3State extends State<LoginPageV3> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                           decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                AppThemeV3.accent,
-                                AppThemeV3.accent.withValues(alpha: 0.8),
-                              ],
-                            ),
+                            color: Colors.black,
                             borderRadius: BorderRadius.circular(12),
-                            boxShadow: AppThemeV3.boldShadow,
+                            border: Border.all(
+                              color: Colors.black,
+                              width: 2,
+                            ),
                           ),
                           child: Text(
                             'Sign In',
@@ -285,11 +278,13 @@ class _LoginPageV3State extends State<LoginPageV3> {
                     child: ElevatedButton(
                       onPressed: _isLoading ? null : _signInWithEmail,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppThemeV3.accent,
+                        backgroundColor: Colors.black,
                         foregroundColor: Colors.white,
+                        elevation: 0,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: Colors.black, width: 2),
                         ),
                       ),
                       child: _isLoading
@@ -305,7 +300,7 @@ class _LoginPageV3State extends State<LoginPageV3> {
                               'Sign In',
                               style: AppThemeV3.textTheme.titleMedium?.copyWith(
                                 color: Colors.white,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
                     ),
@@ -338,8 +333,8 @@ class _LoginPageV3State extends State<LoginPageV3> {
                     child: OutlinedButton.icon(
                       onPressed: _isLoading ? null : _signInWithGoogle,
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: AppThemeV3.textPrimary,
-                        side: BorderSide(color: AppThemeV3.accent.withValues(alpha: 0.3)),
+                        foregroundColor: Colors.black,
+                        side: BorderSide(color: Colors.black, width: 2),
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -349,7 +344,7 @@ class _LoginPageV3State extends State<LoginPageV3> {
                       label: Text(
                         'Continue with Google',
                         style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
@@ -363,9 +358,10 @@ class _LoginPageV3State extends State<LoginPageV3> {
                     child: OutlinedButton.icon(
                       onPressed: _isLoading ? null : _signInWithApple,
                       style: OutlinedButton.styleFrom(
-                        backgroundColor: AppThemeV3.textPrimary,
+                        backgroundColor: Colors.black,
                         foregroundColor: Colors.white,
-                        side: BorderSide.none,
+                        elevation: 0,
+                        side: BorderSide(color: Colors.black, width: 2),
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -376,7 +372,7 @@ class _LoginPageV3State extends State<LoginPageV3> {
                         'Continue with Apple',
                         style: AppThemeV3.textTheme.titleMedium?.copyWith(
                           color: Colors.white,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
@@ -390,8 +386,8 @@ class _LoginPageV3State extends State<LoginPageV3> {
                     child: OutlinedButton.icon(
                       onPressed: _isLoading ? null : _signInWithDemoAccount,
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: AppThemeV3.accent,
-                        side: BorderSide(color: AppThemeV3.accent.withValues(alpha: 0.5)),
+                        foregroundColor: Colors.black,
+                        side: BorderSide(color: Colors.black, width: 2),
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -401,8 +397,8 @@ class _LoginPageV3State extends State<LoginPageV3> {
                       label: Text(
                         'Try Demo Account',
                         style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: AppThemeV3.accent,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black,
                         ),
                       ),
                     ),
@@ -416,8 +412,8 @@ class _LoginPageV3State extends State<LoginPageV3> {
                     child: Text(
                       'Forgot Password?',
                       style: AppThemeV3.textTheme.bodyMedium?.copyWith(
-                        color: AppThemeV3.accent,
-                        fontWeight: FontWeight.w500,
+                        color: Colors.black,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -484,8 +480,6 @@ class _LoginPageV3State extends State<LoginPageV3> {
       if (credential.user != null && credential.user!.emailVerified) {
         if (!mounted) return;
         debugPrint('Navigating to home page');
-  // Mark explicit setup approval (user performed deliberate sign-in action)
-  ExplicitSetupApproval.approve(context);
         // Navigate to home page
         Navigator.pushReplacement(
           context,
@@ -539,9 +533,9 @@ class _LoginPageV3State extends State<LoginPageV3> {
       if (offlineSuccess) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('Signed in offline! Some features may be limited.'),
-            backgroundColor: Colors.orange,
+            backgroundColor: Colors.black,
           ),
         );
         Navigator.pushReplacement(
@@ -701,7 +695,7 @@ class _LoginPageV3State extends State<LoginPageV3> {
     try {
       // Try to sign in with a demo account
       // If it doesn't exist, create it
-      const demoEmail = 'demo@freshpunk.com';
+      const demoEmail = 'demo@victus.com';
       const demoPassword = 'demo123456';
 
       try {

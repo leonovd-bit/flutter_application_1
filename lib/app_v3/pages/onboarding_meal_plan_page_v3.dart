@@ -77,16 +77,18 @@ class _OnboardingMealPlanPageV3State extends State<OnboardingMealPlanPageV3> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: const Text('Choose your meal plan'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
-        elevation: 0,
-        automaticallyImplyLeading: false, // Remove back button for onboarding
-      ),
-      body: Padding(
+    return WillPopScope(
+      onWillPop: () async => false, // Prevent back navigation during onboarding
+      child: Scaffold(
+        backgroundColor: Colors.grey[50],
+        appBar: AppBar(
+          title: const Text('Choose your meal plan'),
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black87,
+          elevation: 0,
+          automaticallyImplyLeading: false, // Remove back button for onboarding
+        ),
+        body: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           children: [
@@ -276,6 +278,6 @@ class _OnboardingMealPlanPageV3State extends State<OnboardingMealPlanPageV3> {
           ],
         ),
       ),
-    );
+    ); // Close WillPopScope
   }
 }

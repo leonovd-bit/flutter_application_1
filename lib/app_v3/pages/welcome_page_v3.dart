@@ -37,7 +37,7 @@ class _WelcomePageV3State extends State<WelcomePageV3> {
               
               // Welcome text
               Text(
-                'Welcome to\nFreshPunk',
+                'Welcome to\nVictus',
                 textAlign: TextAlign.center,
                 style: AppThemeV3.textTheme.displayLarge?.copyWith(
                   fontSize: 32,
@@ -59,17 +59,23 @@ class _WelcomePageV3State extends State<WelcomePageV3> {
                     );
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppThemeV3.accent,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: AppThemeV3.primaryBlack,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
+                      side: const BorderSide(
+                        color: AppThemeV3.border,
+                        width: 2,
+                      ),
                     ),
                   ),
                   child: Text(
                     'Sign Up',
                     style: AppThemeV3.textTheme.titleLarge?.copyWith(
                       color: Colors.white,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -113,7 +119,7 @@ class _WelcomePageV3State extends State<WelcomePageV3> {
                   Expanded(
                     child: _buildMenuCard(
                       context,
-                      'FreshPunk\nBreakfast menu',
+                      'Victus\nBreakfast menu',
                       'Breakfast\nmenus',
                       () => _navigateToMenu(context, 'breakfast'),
                     ),
@@ -122,7 +128,7 @@ class _WelcomePageV3State extends State<WelcomePageV3> {
                   Expanded(
                     child: _buildMenuCard(
                       context,
-                      'FreshPunk\nLunch menu',
+                      'Victus\nLunch menu',
                       'Lunch\nmenus',
                       () => _navigateToMenu(context, 'lunch'),
                     ),
@@ -131,7 +137,7 @@ class _WelcomePageV3State extends State<WelcomePageV3> {
                   Expanded(
                     child: _buildMenuCard(
                       context,
-                      'FreshPunk\nDinner menu',
+                      'Victus\nDinner menu',
                       'Dinner\nmenus',
                       () => _navigateToMenu(context, 'dinner'),
                     ),
@@ -148,7 +154,10 @@ class _WelcomePageV3State extends State<WelcomePageV3> {
                 decoration: BoxDecoration(
                   color: AppThemeV3.surface,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppThemeV3.border),
+                  border: Border.all(
+                    color: AppThemeV3.border, // 2px black border
+                    width: 2,
+                  ),
                   boxShadow: AppThemeV3.cardShadow,
                 ),
                 child: Stack(
@@ -194,17 +203,23 @@ class _WelcomePageV3State extends State<WelcomePageV3> {
                           // Navigate to map page
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppThemeV3.accent,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          backgroundColor: AppThemeV3.primaryBlack,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          elevation: 0,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(12),
+                            side: const BorderSide(
+                              color: AppThemeV3.border,
+                              width: 2,
+                            ),
                           ),
                         ),
                         child: Text(
                           'View Map',
                           style: AppThemeV3.textTheme.titleMedium?.copyWith(
                             color: Colors.white,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
@@ -228,8 +243,11 @@ class _WelcomePageV3State extends State<WelcomePageV3> {
         height: 120,
         decoration: BoxDecoration(
           color: AppThemeV3.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppThemeV3.border),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppThemeV3.border, // 2px black border
+            width: 2,
+          ),
           boxShadow: AppThemeV3.cardShadow,
         ),
         child: Column(
@@ -241,19 +259,19 @@ class _WelcomePageV3State extends State<WelcomePageV3> {
                 width: double.infinity,
                 decoration: const BoxDecoration(
                   borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(12),
-                    topRight: Radius.circular(12),
+                    topLeft: Radius.circular(14),
+                    topRight: Radius.circular(14),
                   ),
                 ),
                 child: const Center(
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.restaurant, size: 16),
-                      SizedBox(width: 4),
-                      Icon(Icons.fastfood, size: 16),
-                      SizedBox(width: 4),
-                      Icon(Icons.restaurant, size: 16),
+                      Icon(Icons.restaurant, size: 20, color: AppThemeV3.textPrimary),
+                      SizedBox(width: 8),
+                      Icon(Icons.fastfood, size: 20, color: AppThemeV3.textPrimary),
+                      SizedBox(width: 8),
+                      Icon(Icons.restaurant, size: 20, color: AppThemeV3.textPrimary),
                     ],
                   ),
                 ),
@@ -265,10 +283,11 @@ class _WelcomePageV3State extends State<WelcomePageV3> {
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: const BoxDecoration(
-                  borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(12),
-                    bottomRight: Radius.circular(12),
+                decoration: BoxDecoration(
+                  color: AppThemeV3.surfaceElevated,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(14),
+                    bottomRight: Radius.circular(14),
                   ),
                 ),
                 child: Center(
@@ -276,8 +295,8 @@ class _WelcomePageV3State extends State<WelcomePageV3> {
                     subtitle,
                     textAlign: TextAlign.center,
                     style: AppThemeV3.textTheme.bodySmall?.copyWith(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
                       color: AppThemeV3.textPrimary,
                     ),
                   ),
@@ -292,11 +311,15 @@ class _WelcomePageV3State extends State<WelcomePageV3> {
 
   Widget _buildLocationPin() {
     return Container(
-      width: 24,
-      height: 24,
+      width: 28,
+      height: 28,
       decoration: BoxDecoration(
-        color: AppThemeV3.accent,
-        borderRadius: BorderRadius.circular(12),
+        color: AppThemeV3.primaryBlack,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppThemeV3.border,
+          width: 2,
+        ),
       ),
       child: const Icon(
         Icons.location_on,

@@ -1086,6 +1086,26 @@
 				"--no-fatal-infos"
 			],
 			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze (fix platform)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Flutter Analyze (check fixes)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"analyze",
+				"--no-fatal-infos"
+			],
+			"group": "build"
 		}
 	],
 	"inputs": [

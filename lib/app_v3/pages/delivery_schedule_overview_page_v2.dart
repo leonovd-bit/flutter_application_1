@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
-import 'delivery_schedule_page_v4.dart';
+import 'delivery_schedule_page_v5.dart';
 
 class DeliveryScheduleOverviewPageV2 extends StatefulWidget {
   const DeliveryScheduleOverviewPageV2({super.key});
@@ -68,7 +68,7 @@ class _DeliveryScheduleOverviewPageV2State extends State<DeliveryScheduleOvervie
               await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => DeliverySchedulePageV4(
+                  builder: (_) => DeliverySchedulePageV5(
                     initialScheduleName: _selected,
                   ),
                 ),
@@ -80,7 +80,7 @@ class _DeliveryScheduleOverviewPageV2State extends State<DeliveryScheduleOvervie
           )
         ],
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -109,7 +109,7 @@ class _DeliveryScheduleOverviewPageV2State extends State<DeliveryScheduleOvervie
 
   Widget _buildSummaryCard(Map<String, dynamic> data) {
     final weekly = (data['weeklySchedule'] as Map<String, dynamic>? ?? {});
-    final days = weekly.keys.toList()..sort();
+    final days = weekly.keys.toList()..sort((a, b) => _dayIndex(a).compareTo(_dayIndex(b)));
     final mealTypes = List<String>.from(data['selectedMealTypes'] ?? const <String>[]);
     String planName = (data['mealPlanDisplayName'] ?? data['mealPlanName'] ?? '').toString();
     final planId = (data['mealPlanId'] ?? '').toString();
@@ -132,11 +132,32 @@ class _DeliveryScheduleOverviewPageV2State extends State<DeliveryScheduleOvervie
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Plan name - keep as is since it's the title
           Text('Plan: $planName', style: AppThemeV3.textTheme.titleLarge),
-          const SizedBox(height: 6),
-          Text('Days: ${days.join(', ')}', style: TextStyle(color: AppThemeV3.textSecondary)),
-          const SizedBox(height: 6),
-          Text('Meal Types: ${mealTypes.join(', ')}', style: TextStyle(color: AppThemeV3.textSecondary)),
+          const SizedBox(height: 12),
+          
+          // Meal types in a row format
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 100,
+                child: Text(
+                  'Meal Types:',
+                  style: TextStyle(
+                    color: AppThemeV3.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  mealTypes.join(', '),
+                  style: TextStyle(color: AppThemeV3.textSecondary),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
           ...days.map((day) {
             final mtMap = Map<String, dynamic>.from(weekly[day] as Map<String, dynamic>? ?? {});
@@ -158,12 +179,60 @@ class _DeliveryScheduleOverviewPageV2State extends State<DeliveryScheduleOvervie
                     final time = _formatTime(info['time']?.toString() ?? '-');
                     final addr = (info['address'] ?? '-').toString();
                     return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Row(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          SizedBox(width: 100, child: Text(mt, style: const TextStyle(fontWeight: FontWeight.w600))),
-                          Expanded(child: Text('Time: $time')),
-                          Expanded(child: Text('Address: $addr')),
+                          // Meal type header
+                          Text(
+                            mt,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          // Time row
+                          Row(
+                            children: [
+                              Icon(Icons.access_time, size: 14, color: AppThemeV3.textSecondary),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Time:',
+                                style: TextStyle(
+                                  color: AppThemeV3.textSecondary,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(time, style: const TextStyle(fontSize: 13)),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          // Address row
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.location_on, size: 14, color: AppThemeV3.textSecondary),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Address:',
+                                style: TextStyle(
+                                  color: AppThemeV3.textSecondary,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  addr,
+                                  style: const TextStyle(fontSize: 13),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     );
@@ -190,5 +259,11 @@ class _DeliveryScheduleOverviewPageV2State extends State<DeliveryScheduleOvervie
     } catch (_) {
       return raw;
     }
+  }
+
+  int _dayIndex(String day) {
+    const order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    final index = order.indexOf(day);
+    return index == -1 ? 999 : index;
   }
 }

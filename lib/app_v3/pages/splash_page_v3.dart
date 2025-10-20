@@ -30,7 +30,8 @@ class _SplashPageV3State extends State<SplashPageV3> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppThemeV3.surface,
+      // Match logo's white background color
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Container(
           width: double.infinity,
@@ -38,44 +39,32 @@ class _SplashPageV3State extends State<SplashPageV3> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Large brand logo with enhanced styling
+              // Large brand logo - clean display on white background
               Container(
                 width: 300,
                 height: 300,
                 padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppThemeV3.accent.withValues(alpha: 0.15),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                      spreadRadius: 4,
-                    ),
-                  ],
-                ),
                 child: Image.asset(
                   'assets/images/freshpunk_logo.png',
                   fit: BoxFit.contain,
                 ),
               ),
               const SizedBox(height: 48),
-              // Progress indicator
+              // Progress indicator with Victus brand color
               SizedBox(
                 width: 56,
                 height: 56,
                 child: CircularProgressIndicator(
                   strokeWidth: 4,
-                  valueColor: AlwaysStoppedAnimation<Color>(AppThemeV3.accent),
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF000000)), // Victus black
                 ),
               ),
               const SizedBox(height: 32),
               // Clean loading text
               Text(
-                'Loading Fresh Punk...',
+                'Loading Victus...',
                 style: AppThemeV3.textTheme.bodyLarge?.copyWith(
-                  color: AppThemeV3.textSecondary,
+                  color: Color(0xFF666666),
                 ),
               ),
             ],

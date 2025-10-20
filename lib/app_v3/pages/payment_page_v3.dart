@@ -6,6 +6,7 @@ import 'home_page_v3.dart';
 import '../services/progress_manager.dart';
 import '../services/firestore_service_v3.dart';
 import '../services/scheduler_service_v3.dart';
+import '../services/order_generation_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
@@ -432,48 +433,50 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
     try {
       // Mock payment processing for development
       await _processMockPayment();
-      // After payment, persist the weeklySchedule as active Firestore delivery schedules
+      // After payment, use new OrderGenerationService to create orders from meal selections
       try {
         final uid = FirebaseAuth.instance.currentUser?.uid;
         if (uid != null) {
-          // Convert weekly schedule map -> list of DeliveryScheduleModelV3
-          final List<DeliveryScheduleModelV3> schedules = [];
-          final now = DateTime.now();
-          final weekStart = now.subtract(Duration(days: now.weekday - DateTime.monday));
-          widget.weeklySchedule.forEach((day, mealMap) {
-            mealMap.forEach((mealType, cfg) {
-              final enabled = (cfg['enabled'] ?? true) == true;
-              if (!enabled) return;
-              final timeVal = cfg['time'];
-              int hour = 12, minute = 0;
-              if (timeVal is String) {
-                final parts = timeVal.split(':');
-                if (parts.length == 2) {
-                  hour = int.tryParse(parts[0]) ?? 12;
-                  minute = int.tryParse(parts[1]) ?? 0;
-                }
+          debugPrint('[Payment] Starting order generation for user: $uid');
+          
+          // Convert meal selections to the format expected by the service
+          final List<Map<String, dynamic>> formattedMealSelections = [];
+          widget.selectedMeals.forEach((day, mealMap) {
+            mealMap.forEach((mealType, meal) {
+              if (meal != null) {
+                formattedMealSelections.add({
+                  'day': day,
+                  'mealType': mealType,
+                  'mealId': meal.id,
+                  'mealName': meal.name,
+                  'price': meal.price,
+                });
               }
-              final id = '${day.toLowerCase()}_${mealType.toString().toLowerCase()}';
-              schedules.add(DeliveryScheduleModelV3(
-                id: id,
-                userId: uid,
-                dayOfWeek: day.toLowerCase(),
-                mealType: mealType.toString().toLowerCase(),
-                deliveryTime: TimeOfDay(hour: hour, minute: minute),
-                // Address persistence: we only stored full address string in UI; use a placeholder id
-                addressId: 'default',
-                isActive: true,
-                weekStartDate: weekStart,
-              ));
             });
           });
-          await FirestoreServiceV3.replaceActiveDeliverySchedules(uid, schedules);
-          // Generate upcoming orders to reflect the new schedules
-          final created = await SchedulerServiceV3.generateUpcomingOrders(userId: uid, daysAhead: 7);
-          debugPrint('[Payment] Generated $created upcoming orders after subscription start for user=$uid');
+          
+          // Use new OrderGenerationService to create orders from meal selections
+          final result = await OrderGenerationService.generateOrdersFromMealSelection(
+            mealSelections: formattedMealSelections,
+            deliverySchedule: widget.weeklySchedule,
+            deliveryAddress: 'default', // TODO: Get actual address from user profile
+          );
+          
+          if (result['success'] == true) {
+            debugPrint('[Payment] Successfully generated ${result['ordersGenerated'] ?? 0} orders');
+          } else {
+            debugPrint('[Payment] Order generation failed: ${result['error'] ?? 'Unknown error'}');
+            // Fall back to legacy order generation if server-side fails
+            await _generateOrdersLegacy(uid);
+          }
         }
       } catch (e) {
-        debugPrint('[Payment] Failed to persist schedules or generate orders: $e');
+        debugPrint('[Payment] Failed to generate orders: $e');
+        // Fall back to legacy order generation
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (uid != null) {
+          await _generateOrdersLegacy(uid);
+        }
       }
       // Mark setup as completed and finalize onboarding
       try {
@@ -525,6 +528,59 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
           backgroundColor: AppThemeV3.success,
         ),
       );
+    }
+  }
+
+  /// Legacy fallback method for order generation if server-side fails
+  Future<void> _generateOrdersLegacy(String uid) async {
+    try {
+      debugPrint('[Payment] Using legacy order generation fallback');
+      
+      // Convert weekly schedule map -> list of DeliveryScheduleModelV3
+      final List<DeliveryScheduleModelV3> schedules = [];
+      final now = DateTime.now();
+      final weekStart = now.subtract(Duration(days: now.weekday - DateTime.monday));
+      
+      widget.weeklySchedule.forEach((day, mealMap) {
+        mealMap.forEach((mealType, cfg) {
+          final enabled = (cfg['enabled'] ?? true) == true;
+          if (!enabled) return;
+          
+          final timeVal = cfg['time'];
+          int hour = 12, minute = 0;
+          if (timeVal is String) {
+            final parts = timeVal.split(':');
+            if (parts.length == 2) {
+              hour = int.tryParse(parts[0]) ?? 12;
+              minute = int.tryParse(parts[1]) ?? 0;
+            }
+          }
+          
+          final id = '${day.toLowerCase()}_${mealType.toString().toLowerCase()}';
+          schedules.add(DeliveryScheduleModelV3(
+            id: id,
+            userId: uid,
+            dayOfWeek: day.toLowerCase(),
+            mealType: mealType.toString().toLowerCase(),
+            deliveryTime: TimeOfDay(hour: hour, minute: minute),
+            addressId: 'default',
+            isActive: true,
+            weekStartDate: weekStart,
+          ));
+        });
+      });
+      
+      await FirestoreServiceV3.replaceActiveDeliverySchedules(uid, schedules);
+      
+      // Generate upcoming orders to reflect the new schedules
+      final created = await SchedulerServiceV3.generateUpcomingOrders(
+        userId: uid, 
+        daysAhead: 7
+      );
+      
+      debugPrint('[Payment] Legacy: Generated $created upcoming orders for user=$uid');
+    } catch (e) {
+      debugPrint('[Payment] Legacy order generation also failed: $e');
     }
   }
 }

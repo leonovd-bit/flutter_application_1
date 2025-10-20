@@ -21,7 +21,7 @@ import '../services/account_deletion_service.dart';
 import 'change_password_page_v3.dart';
 import '../services/meal_service_v3.dart';
 import 'help_support_page_v3.dart';
-import 'delivery_schedule_page_v4.dart';
+import 'delivery_schedule_page_v5.dart';
 import 'meal_schedule_page_v3.dart';
 import '../services/fcm_service_v3.dart';
 
@@ -192,7 +192,7 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
       // Authenticate to enable biometric login
       try {
         final bool didAuthenticate = await _localAuth.authenticate(
-          localizedReason: 'Enable biometric authentication for FreshPunk',
+          localizedReason: 'Enable biometric authentication for Victus',
           options: const AuthenticationOptions(
             biometricOnly: true,
             stickyAuth: true,
@@ -337,16 +337,16 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.orange.withValues(alpha: 0.1),
+                    color: Colors.grey[100],
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                    border: Border.all(color: AppThemeV3.borderLight),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.subscriptions, color: Colors.orange, size: 20),
+                          Icon(Icons.subscriptions, color: Colors.black, size: 20),
                           const SizedBox(width: 8),
                           const Text(
                             'Active Subscriptions',
@@ -385,8 +385,13 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogContext, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: Colors.black,
               foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: BorderSide(color: Colors.black, width: 2),
+              ),
             ),
             child: const Text('Delete Account'),
           ),
@@ -397,6 +402,7 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
     if (confirmed != true) return;
 
     // Show loading dialog
+    if (!mounted) return;
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -418,8 +424,47 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
     );
 
     try {
-      // Delete the account
-      await AccountDeletionService.deleteUserAccount();
+      // Check if we need to re-authenticate (Firebase requires recent auth for deletion)
+      try {
+        // Try to delete the account
+        await AccountDeletionService.deleteUserAccount();
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'requires-recent-login') {
+          // Close loading dialog
+          if (mounted) Navigator.pop(context);
+          
+          // Show re-authentication dialog
+          final reauthenticated = await _reauthenticateUser();
+          if (!reauthenticated) {
+            if (mounted) {
+              _showSnackBar('Account deletion canceled - authentication required');
+            }
+            return;
+          }
+          
+          // Show loading dialog again
+          if (!mounted) return;
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => const AlertDialog(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Deleting account...'),
+                ],
+              ),
+            ),
+          );
+          
+          // Try deletion again
+          await AccountDeletionService.deleteUserAccount();
+        } else {
+          rethrow;
+        }
+      }
       
       if (!mounted) return;
       
@@ -428,9 +473,9 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
       
       // Show success message and navigate to welcome
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('Account deleted successfully'),
-          backgroundColor: Colors.green,
+          backgroundColor: Colors.black,
         ),
       );
       
@@ -459,7 +504,8 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
           ),
           content: Text(
             'Failed to delete account: $e\n\n'
-            'Please contact support if this issue persists.',
+            'Please try signing out and signing back in, then try again.\n\n'
+            'If this issue persists, please contact support.',
           ),
           actions: [
             TextButton(
@@ -470,6 +516,139 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
         ),
       );
     }
+  }
+
+  /// Re-authenticate user with their password
+  Future<bool> _reauthenticateUser() async {
+    final passwordController = TextEditingController();
+    String? errorMessage;
+    
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Confirm Your Identity'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'For security reasons, please enter your password to continue with account deletion.',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                autofocus: true,
+                onSubmitted: (_) async {
+                  // Allow Enter key to submit
+                  final password = passwordController.text.trim();
+                  if (password.isEmpty) {
+                    setState(() {
+                      errorMessage = 'Please enter your password';
+                    });
+                    return;
+                  }
+                  
+                  try {
+                    final user = _auth.currentUser;
+                    final email = user?.email;
+                    if (user == null || email == null) {
+                      throw Exception('User or email not found');
+                    }
+                    
+                    // Re-authenticate
+                    final credential = EmailAuthProvider.credential(
+                      email: email,
+                      password: password,
+                    );
+                    await user.reauthenticateWithCredential(credential);
+                    
+                    if (context.mounted) {
+                      Navigator.pop(context, true);
+                    }
+                  } catch (e) {
+                    setState(() {
+                      errorMessage = 'Incorrect password. Please try again.';
+                    });
+                  }
+                },
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  errorText: errorMessage,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Colors.black, width: 2),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Colors.black, width: 2),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Colors.black, width: 2),
+                  ),
+                  errorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Colors.red, width: 2),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final password = passwordController.text.trim();
+                if (password.isEmpty) {
+                  setState(() {
+                    errorMessage = 'Please enter your password';
+                  });
+                  return;
+                }
+                
+                try {
+                  final user = _auth.currentUser;
+                  final email = user?.email;
+                  if (user == null || email == null) {
+                    throw Exception('User or email not found');
+                  }
+                  
+                  // Re-authenticate
+                  final credential = EmailAuthProvider.credential(
+                    email: email,
+                    password: password,
+                  );
+                  await user.reauthenticateWithCredential(credential);
+                  
+                  if (context.mounted) {
+                    Navigator.pop(context, true);
+                  }
+                } catch (e) {
+                  setState(() {
+                    errorMessage = 'Incorrect password. Please try again.';
+                  });
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Confirm'),
+            ),
+          ],
+        ),
+      ),
+    );
+    
+    passwordController.dispose();
+    return result ?? false;
   }
 
   @override
@@ -738,7 +917,7 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
           ),
           _buildSettingsTile(
             icon: Icons.info_outline,
-            title: 'About FreshPunk',
+            title: 'About Victus',
             subtitle: 'App version and information',
             onTap: () => _navigateToAbout(),
           ),
@@ -769,18 +948,20 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
             child: ElevatedButton(
               onPressed: _signOut,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
+                backgroundColor: Colors.black,
                 foregroundColor: Colors.white,
+                elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.black, width: 2),
                 ),
               ),
               child: const Text(
                 'Sign Out',
                 style: TextStyle(
                   fontSize: 16,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
@@ -827,9 +1008,9 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: Colors.black, width: 2),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -839,10 +1020,11 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppThemeV3.primaryGreen.withValues(alpha: 0.1),
+                  color: Colors.black,
                   shape: BoxShape.circle,
+                  border: Border.all(color: Colors.black, width: 2),
                 ),
-                child: const Icon(Icons.account_circle, color: AppThemeV3.primaryGreen),
+                child: const Icon(Icons.account_circle, color: Colors.white),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -926,27 +1108,29 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.black, width: 2),
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: AppThemeV3.primaryGreen.withValues(alpha: 0.1),
+            color: Colors.black,
             borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.black, width: 2),
           ),
           child: Icon(
             icon,
-            color: AppThemeV3.primaryGreen,
-            size: 24,
+            color: Colors.white,
+            size: 20,
           ),
         ),
         title: Text(
           title,
           style: const TextStyle(
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             fontSize: 16,
           ),
         ),
@@ -977,27 +1161,29 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.black, width: 2),
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: AppThemeV3.primaryGreen.withValues(alpha: 0.1),
+            color: Colors.black,
             borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.black, width: 2),
           ),
           child: Icon(
             icon,
-            color: AppThemeV3.primaryGreen,
-            size: 24,
+            color: Colors.white,
+            size: 20,
           ),
         ),
         title: Text(
           title,
           style: const TextStyle(
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             fontSize: 16,
           ),
         ),
@@ -1058,7 +1244,11 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
   void _navigateToDeliveryScheduleBuilder() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const DeliverySchedulePageV4()),
+      MaterialPageRoute(
+        builder: (context) => const DeliverySchedulePageV5(
+          isSignupFlow: false, // From settings, not signup
+        ),
+      ),
     );
   }
 

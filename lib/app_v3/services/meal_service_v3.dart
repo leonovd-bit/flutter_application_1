@@ -10,35 +10,35 @@ class MealServiceV3 {
   // Local asset image URLs by meal type
   static const Map<String, List<String>> _imagesByType = {
     'breakfast': [
-      'assets/images/meals/pancakes-with-berries.jfif',
-      'assets/images/meals/french-toast.jfif',
-      'assets/images/meals/eggs-benedict.jfif',
+      'assets/images/meals/pancakes-with-berries.jpg',
+      'assets/images/meals/french-toast.jpg',
+      'assets/images/meals/eggs-benedict.jpg',
       'assets/images/meals/greek-yogurt-parfait.jpg',
       'assets/images/meals/ham-and-cheese-omelette.jpg',
-      'assets/images/meals/spinach-omelette.jfif',
+      'assets/images/meals/spinach-omelette.jpg',
       'assets/images/meals/avocado-toast.jpg',
     ],
     'lunch': [
-      'assets/images/meals/grilled-chicken-salad.jfif',
-      'assets/images/meals/chicken-caesar-wrap.jfif',
-      'assets/images/meals/turkey-sandwich.jfif',
+      'assets/images/meals/grilled-chicken-salad.jpg',
+      'assets/images/meals/chicken-caesar-wrap.jpg',
+      'assets/images/meals/turkey-sandwich.jpg',
       'assets/images/meals/quinoa-bowl.jpg',
-      'assets/images/meals/lentil-soup.jfif',
-      'assets/images/meals/grilled-cheese.jfif',
-      'assets/images/meals/veggie-wrap.jfif',
+      'assets/images/meals/lentil-soup.jpg',
+      'assets/images/meals/grilled-cheese.jpg',
+      'assets/images/meals/veggie-wrap.jpg',
       'assets/images/meals/fruit-salad.jpg',
     ],
     'dinner': [
       'assets/images/meals/chicken-alfredo.jpg',
       'assets/images/meals/roast-beef-dinner.jpg',
-      'assets/images/meals/salmon-with-quinoa.jfif',
+      'assets/images/meals/salmon-with-quinoa.jpg',
       'assets/images/meals/chicken-parmesan.jpg',
       'assets/images/meals/pasta-primavera.jpg',
       'assets/images/meals/beef-burger.jpg',
-      'assets/images/meals/chicken-tikka-masala.jfif',
-      'assets/images/meals/shrimp-scampi.jfif',
-      'assets/images/meals/vegetable-lasagna.jfif',
-      'assets/images/meals/mushroom-risotto.jfif',
+      'assets/images/meals/chicken-tikka-masala.jpg',
+      'assets/images/meals/shrimp-scampi.jpg',
+      'assets/images/meals/vegetable-lasagna.jpg',
+      'assets/images/meals/mushroom-risotto.jpg',
     ],
   };
 
@@ -182,6 +182,11 @@ class MealServiceV3 {
           mealType: mealType,
           price: 0.0,
         );
+
+        // Debug meal creation
+        print('🍴 Created meal: $name');
+        print('   📷 ImageUrl: "$imageUrl"');
+        print('   📁 ImagePath: "${meal.imagePath}"');
 
         final doc = _db.collection('meals').doc(meal.id);
         batch.set(doc, {

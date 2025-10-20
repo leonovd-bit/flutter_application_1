@@ -2,34 +2,35 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppThemeV3 {
-  // White and Green Color Scheme
-  static const Color primaryGreen = Color(0xFF4CAF50);       // Primary green
-  static const Color primaryDark = Color(0xFF388E3C);        // Darker green
-  static const Color primaryLight = Color(0xFF81C784);       // Lighter green
+  // Victus-Style Black & White Color Scheme
+  static const Color primaryGreen = Color(0xFF000000);       // PRIMARY: Black
+  static const Color primaryBlack = Color(0xFF000000);       // Pure black
+  static const Color primaryDark = Color(0xFF1A1A1A);        // Slightly lighter black
+  static const Color primaryLight = Color(0xFF333333);       // Dark gray
   
   // Background & Surface Colors
   static const Color background = Color(0xFFFFFFFF);         // Pure white background
   static const Color surface = Color(0xFFFFFFFF);            // Pure white cards
-  static const Color surfaceElevated = Color(0xFFF8F9FA);    // Very light gray elevated surface
-  static const Color surfaceDark = Color(0xFF2D2D2D);        // Dark surface for contrast
+  static const Color surfaceElevated = Color(0xFFF5F5F5);    // Very light gray elevated surface
+  static const Color surfaceDark = Color(0xFF000000);        // Black surface for contrast
   
   // Text Colors
-  static const Color textPrimary = Color(0xFF212121);        // Dark text
-  static const Color textSecondary = Color(0xFF757575);      // Medium gray
-  static const Color textLight = Color(0xFFBDBDBD);          // Light gray
+  static const Color textPrimary = Color(0xFF000000);        // Black text
+  static const Color textSecondary = Color(0xFF666666);      // Medium gray
+  static const Color textLight = Color(0xFF999999);          // Light gray
   static const Color textOnDark = Color(0xFFFFFFFF);         // White on dark
   
   // UI Colors
-  static const Color accent = Color(0xFF4CAF50);             // Primary green accent
-  static const Color accentLight = Color(0xFF81C784);        // Light green
-  static const Color success = Color(0xFF4CAF50);            // Success green
+  static const Color accent = Color(0xFF000000);             // Black accent (was green)
+  static const Color accentLight = Color(0xFF333333);        // Dark gray
+  static const Color success = Color(0xFF000000);            // Black (was green)
   static const Color warning = Color(0xFFFF9800);            // Warning orange
   static const Color error = Color(0xFFF44336);              // Error red
   
-  // Border & Divider Colors
-  static const Color border = Color(0xFFE0E0E0);             // Light border
-  static const Color borderLight = Color(0xFFF5F5F5);        // Very light border
-  static const Color hover = Color(0xFFE8F5E8);              // Light green hover
+  // Border & Divider Colors - Victus Style (Bold Black Borders)
+  static const Color border = Color(0xFF000000);             // BLACK BORDER (2px width)
+  static const Color borderLight = Color(0xFFE0E0E0);        // Light border for subtle dividers
+  static const Color hover = Color(0xFFF5F5F5);              // Light gray hover
 
   // Safe font getter with fallback to system fonts
   static TextStyle _safeGoogleFont(String fontFamily, {
@@ -61,8 +62,26 @@ class AppThemeV3 {
     }
   }
 
-  // Enhanced shadows for clean styling
+  // Minimal shadows for Victus clean styling (less shadow, more borders)
   static List<BoxShadow> get cardShadow => [
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.04),
+      blurRadius: 2,
+      offset: const Offset(0, 1),
+      spreadRadius: 0,
+    ),
+  ];
+
+  static List<BoxShadow> get elevatedShadow => [
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.06),
+      blurRadius: 4,
+      offset: const Offset(0, 2),
+      spreadRadius: 0,
+    ),
+  ];
+
+  static List<BoxShadow> get boldShadow => [
     BoxShadow(
       color: Colors.black.withValues(alpha: 0.08),
       blurRadius: 4,
@@ -71,30 +90,12 @@ class AppThemeV3 {
     ),
   ];
 
-  static List<BoxShadow> get elevatedShadow => [
-    BoxShadow(
-      color: Colors.black.withValues(alpha: 0.12),
-      blurRadius: 6,
-      offset: const Offset(0, 3),
-      spreadRadius: 0,
-    ),
-  ];
-
-  static List<BoxShadow> get boldShadow => [
-    BoxShadow(
-      color: accent.withValues(alpha: 0.3),
-      blurRadius: 6,
-      offset: const Offset(0, 3),
-      spreadRadius: 0,
-    ),
-  ];
-
-  // Clean gradient definitions
+  // Black gradients for Victus styling
   static LinearGradient get primaryGradient => LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      accent,
+      primaryBlack,
       primaryDark,
     ],
   );
@@ -103,8 +104,8 @@ class AppThemeV3 {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-  surface,
-  surface.withValues(alpha: 0.95),
+      surface,
+      surface.withValues(alpha: 0.95),
     ],
   );
 
@@ -112,12 +113,12 @@ class AppThemeV3 {
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
     colors: [
-  background,
-  background.withValues(alpha: 0.95),
+      background,
+      background.withValues(alpha: 0.95),
     ],
   );
 
-  // Text styles with FreshPunk branding - Bold, friendly, and food-focused
+  // Text styles with Victus branding - Bold, clean, and professional
   static TextTheme get textTheme => TextTheme(
     displayLarge: _safeGoogleFont(
       'Poppins',
@@ -215,75 +216,70 @@ class AppThemeV3 {
     ),
   );
 
-  // Bold styling utilities
+  // Victus-style bold decorations (2px black borders, minimal shadows)
   static BoxDecoration get boldCardDecoration => BoxDecoration(
-    gradient: surfaceGradient,
-    borderRadius: BorderRadius.circular(20),
+    color: surface,
+    borderRadius: BorderRadius.circular(16),
     border: Border.all(
-      color: accent.withValues(alpha: 0.2),
+      color: border, // Black border
       width: 2,
     ),
-    boxShadow: elevatedShadow,
+    boxShadow: cardShadow,
   );
 
   static BoxDecoration get boldButtonDecoration => BoxDecoration(
-    gradient: primaryGradient,
-    borderRadius: BorderRadius.circular(16),
-    boxShadow: [
-      BoxShadow(
-        color: accent.withValues(alpha: 0.5),
-        blurRadius: 6,
-        offset: const Offset(0, 2),
-      ),
-    ],
+    color: primaryBlack,
+    borderRadius: BorderRadius.circular(12),
+    border: Border.all(
+      color: border, // Black border
+      width: 2,
+    ),
+    boxShadow: cardShadow,
   );
 
   static BoxDecoration get boldIconDecoration => BoxDecoration(
-  color: accent.withValues(alpha: 0.1),
+    color: surface,
     borderRadius: BorderRadius.circular(12),
-    boxShadow: [
-      BoxShadow(
-        color: accent.withValues(alpha: 0.3),
-        blurRadius: 4,
-        offset: const Offset(0, 1),
-      ),
-    ],
+    border: Border.all(
+      color: border, // Black border
+      width: 2,
+    ),
+    boxShadow: cardShadow,
   );
 
   static BoxDecoration get boldHeaderDecoration => BoxDecoration(
-    gradient: surfaceGradient,
-    boxShadow: [
-      BoxShadow(
-        color: Colors.black.withValues(alpha: 0.25),
-        blurRadius: 8,
-        offset: const Offset(0, 2),
-        spreadRadius: 0,
+    color: surface,
+    border: Border(
+      bottom: BorderSide(
+        color: border, // Black border
+        width: 2,
       ),
-    ],
+    ),
+    boxShadow: cardShadow,
   );
 
   static ThemeData get lightTheme => ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
     primarySwatch: MaterialColor(
-      accent.toARGB32(),
+      primaryBlack.value,
       <int, Color>{
-        50: const Color(0xFFE8F5E8),
-        100: const Color(0xFFC8E6C8),
-        200: const Color(0xFFA5D6A7),
-        300: const Color(0xFF81C784),
-        400: const Color(0xFF66BB6A),
-        500: accent,
-        600: const Color(0xFF43A047),
-        700: const Color(0xFF388E3C),
-        800: const Color(0xFF2E7D32),
+        50: const Color(0xFFF5F5F5),
+        100: const Color(0xFFE0E0E0),
+        200: const Color(0xFFBDBDBD),
+        300: const Color(0xFF9E9E9E),
+        400: const Color(0xFF757575),
+        500: primaryBlack,
+        600: const Color(0xFF424242),
+        700: const Color(0xFF303030),
+        800: const Color(0xFF212121),
         900: const Color(0xFF1B5E20),
       },
     ),
     scaffoldBackgroundColor: background,
     colorScheme: ColorScheme.light(
-      primary: accent,
-      secondary: accentLight,
+      primary: primaryBlack,
+      secondary: primaryDark,
       surface: surface,
       error: error,
       onPrimary: Colors.white,
@@ -294,41 +290,43 @@ class AppThemeV3 {
     textTheme: textTheme,
     appBarTheme: AppBarTheme(
       backgroundColor: surface,
-      elevation: 2,
-  shadowColor: Colors.black.withValues(alpha: 0.1),
-      scrolledUnderElevation: 2,
+      elevation: 0,
+      shadowColor: Colors.black.withValues(alpha: 0.04),
+      scrolledUnderElevation: 0,
       titleTextStyle: textTheme.headlineMedium?.copyWith(
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w700,
+        color: textPrimary,
       ),
-      iconTheme: IconThemeData(color: accent),
+      iconTheme: const IconThemeData(color: primaryBlack),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: accent,
+        backgroundColor: primaryBlack,
         foregroundColor: Colors.white,
-        elevation: 2,
-  shadowColor: accent.withValues(alpha: 0.3),
+        elevation: 0,
+        shadowColor: Colors.black.withValues(alpha: 0.08),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: border, width: 2),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         textStyle: const TextStyle(
           fontSize: 16,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
         ),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        foregroundColor: accent,
-        side: BorderSide(color: accent, width: 1.5),
+        foregroundColor: primaryBlack,
+        side: const BorderSide(color: border, width: 2),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         textStyle: const TextStyle(
           fontSize: 16,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
         ),
       ),
     ),
@@ -337,39 +335,39 @@ class AppThemeV3 {
       fillColor: surface,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: border, width: 1),
+        borderSide: const BorderSide(color: borderLight, width: 2),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: border, width: 1),
+        borderSide: const BorderSide(color: borderLight, width: 2),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: accent, width: 2),
+        borderSide: const BorderSide(color: border, width: 2),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: error, width: 1),
+        borderSide: const BorderSide(color: error, width: 2),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      hintStyle: TextStyle(
+      hintStyle: const TextStyle(
         color: textSecondary,
         fontSize: 16,
         fontWeight: FontWeight.w400,
       ),
-      labelStyle: TextStyle(
-        color: accent,
+      labelStyle: const TextStyle(
+        color: textPrimary,
         fontSize: 14,
-        fontWeight: FontWeight.w500,
+        fontWeight: FontWeight.w600,
       ),
     ),
-    cardTheme: CardThemeData(
+    cardTheme: const CardThemeData(
       color: surface,
-      elevation: 2,
-  shadowColor: Colors.black.withValues(alpha: 0.08),
+      elevation: 0,
+      shadowColor: Colors.transparent,
       shape: RoundedRectangleBorder(
-        borderRadius: const BorderRadius.all(Radius.circular(12)),
-        side: BorderSide(color: border, width: 0.5),
+        borderRadius: BorderRadius.all(Radius.circular(16)),
+        side: BorderSide(color: border, width: 2),
       ),
     ),
   );

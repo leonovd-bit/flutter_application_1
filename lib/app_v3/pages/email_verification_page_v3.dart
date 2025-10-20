@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import '../theme/app_theme_v3.dart';
-import 'onboarding_choice_page_v3.dart';
+import 'onboarding_choice_page_v3_simple.dart';
 
 class EmailVerificationPageV3 extends StatefulWidget {
   final String email;
@@ -35,12 +35,19 @@ class _EmailVerificationPageV3State extends State<EmailVerificationPageV3> {
       if (user != null && user.emailVerified) {
         timer.cancel();
         if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const OnboardingChoicePageV3(),
-            ),
-          );
+          try {
+            print('[EmailVerification] User verified, navigating to onboarding choice');
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const OnboardingChoicePageV3Simple(),
+              ),
+            );
+          } catch (e) {
+            print('[EmailVerification] Navigation error: $e');
+            // Fallback navigation
+            Navigator.pushReplacementNamed(context, '/home');
+          }
         }
       }
     });
@@ -289,12 +296,19 @@ class _EmailVerificationPageV3State extends State<EmailVerificationPageV3> {
     
     if (user != null && user.emailVerified) {
       if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const OnboardingChoicePageV3(),
-          ),
-        );
+        try {
+          print('[EmailVerification] Manual check - user verified, navigating to onboarding choice');
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const OnboardingChoicePageV3Simple(),
+            ),
+          );
+        } catch (e) {
+          print('[EmailVerification] Manual navigation error: $e');
+          // Fallback navigation
+          Navigator.pushReplacementNamed(context, '/home');
+        }
       }
     } else {
       if (mounted) {

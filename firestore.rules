@@ -30,8 +30,8 @@ service cloud.firestore {
 
     // User profile management
     match /users/{userId} {
-      // Users can read/write their own profile
-      allow read, write: if isOwner(userId);
+      // Users can read/write/delete their own profile
+      allow read, write, delete: if isOwner(userId);
       // Admins can read all profiles
       allow read: if isAdmin();
       // Admins can update admin status and roles
@@ -39,27 +39,47 @@ service cloud.firestore {
 
       // User sub-collections with proper scoping
       match /addresses/{addressId} {
-        allow read, write: if isOwner(userId) && isValidEmail();
+        allow read, write, delete: if isOwner(userId);
         allow read: if isAdmin();
       }
       
       match /meal_plans/{planId} {
-        allow read, write: if isOwner(userId);
+        allow read, write, delete: if isOwner(userId);
         allow read: if isAdmin();
       }
       
       match /delivery_schedules/{scheduleId} {
-        allow read, write: if isOwner(userId) && isValidEmail();
+        allow read, write, delete: if isOwner(userId);
         allow read: if isAdmin() || isKitchenPartner();
       }
       
       match /subscriptions/{subId} {
-        allow read, write: if isOwner(userId) && isValidEmail();
+        allow read, write, delete: if isOwner(userId);
         allow read: if isAdmin();
       }
       
       match /health_data/{docId} {
-        allow read, write: if isOwner(userId) && isValidEmail();
+        allow read, write, delete: if isOwner(userId);
+        allow read: if isAdmin();
+      }
+
+      match /orders/{docId} {
+        allow read, write, delete: if isOwner(userId);
+        allow read: if isAdmin();
+      }
+
+      match /reviews/{docId} {
+        allow read, write, delete: if isOwner(userId);
+        allow read: if isAdmin();
+      }
+
+      match /notifications/{docId} {
+        allow read, write, delete: if isOwner(userId);
+        allow read: if isAdmin();
+      }
+
+      match /payment_methods/{docId} {
+        allow read, write, delete: if isOwner(userId);
         allow read: if isAdmin();
       }
     }
@@ -93,8 +113,22 @@ service cloud.firestore {
          request.resource.data.status == 'cancelled')
       );
 
-      // Delete: admin only
-      allow delete: if isAdmin();
+      // Delete: admin or user can delete their own orders
+      allow delete: if isAdmin() || isOwner(resource.data.userId);
+    }
+
+    // Global subscriptions collection (Stripe subscriptions)
+    match /subscriptions/{subscriptionId} {
+      // Users can read/write their own subscriptions
+      allow read, write: if isAuthenticated() && isValidEmail() && 
+                          resource.data.userId == request.auth.uid;
+      // Allow creation of subscriptions for authenticated users
+      allow create: if isAuthenticated() && isValidEmail() && 
+                     request.resource.data.userId == request.auth.uid;
+      // Admins can read all subscriptions
+      allow read: if isAdmin();
+      // Stripe webhooks need to update subscription status
+      allow update: if true; // For webhook updates
     }
 
     // Meals collection - public read, authenticated create for seeding, admin manage
@@ -164,6 +198,50 @@ service cloud.firestore {
       allow create: if isAuthenticated();
       allow update: if isOwner(resource.data.userId) || isAdmin();
       allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+
+    // Restaurant Partner System
+    match /restaurant_applications/{applicationId} {
+      // Restaurant owners can read/update their own applications
+      allow read, update: if isAuthenticated() && isOwner(resource.data.userId);
+      // System can create applications
+      allow create: if isAuthenticated();
+      // Admins can read all applications
+      allow read: if isAdmin();
+    }
+
+    match /restaurant_partners/{partnerId} {
+      // Restaurant partners can read/update their own data
+      allow read, update: if isAuthenticated() && isOwner(resource.data.userId);
+      // System and admins can create/read all
+      allow create: if isAuthenticated();
+      allow read: if isAdmin();
+      // Validate partner data structure
+      allow update: if request.resource.data.keys().hasAll(['restaurantName', 'contactEmail', 'squareAccessToken']) &&
+                     request.resource.data.restaurantName is string &&
+                     request.resource.data.contactEmail is string;
+    }
+
+    match /restaurant_notifications/{notificationId} {
+      // Restaurant partners can read their own notifications
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.restaurantId) || isAdmin()
+      );
+      // System can create notifications
+      allow create: if isAuthenticated();
+      // Restaurant partners can update status fields
+      allow update: if isAuthenticated() && (
+        isOwner(resource.data.restaurantId) || isAdmin()
+      ) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'readAt']);
+    }
+
+    match /square_menus/{menuId} {
+      // Restaurant partners can read/update their own menus
+      allow read, update: if isAuthenticated() && isOwner(resource.data.restaurantId);
+      // System can create menus during sync
+      allow create: if isAuthenticated();
+      // Admins can read all menus
+      allow read: if isAdmin();
     }
 
     // Default deny all other access

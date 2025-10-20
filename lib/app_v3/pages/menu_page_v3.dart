@@ -66,14 +66,14 @@ class _MenuPageV3State extends State<MenuPageV3> {
             ),
           ),
           
-          // FreshPunk Menu Header
+          // Victus Menu Header
           Container(
             color: AppThemeV3.surface,
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
                 Text(
-                  'FreshPunk',
+                  'Victus',
                   style: AppThemeV3.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
@@ -129,15 +129,19 @@ class _MenuPageV3State extends State<MenuPageV3> {
           padding: const EdgeInsets.symmetric(vertical: 12),
           margin: const EdgeInsets.symmetric(horizontal: 4),
           decoration: BoxDecoration(
-            color: isSelected ? AppThemeV3.accent : Colors.transparent,
+            color: isSelected ? Colors.black : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isSelected ? Colors.black : AppThemeV3.borderLight,
+              width: 2,
+            ),
           ),
           child: Text(
             mealType,
             textAlign: TextAlign.center,
             style: AppThemeV3.textTheme.titleMedium?.copyWith(
               color: isSelected ? Colors.white : AppThemeV3.textSecondary,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),
@@ -149,10 +153,9 @@ class _MenuPageV3State extends State<MenuPageV3> {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: AppThemeV3.surface,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppThemeV3.border),
-        boxShadow: AppThemeV3.cardShadow,
+        border: Border.all(color: Colors.black, width: 2),
       ),
       child: Column(
         children: [
@@ -162,14 +165,24 @@ class _MenuPageV3State extends State<MenuPageV3> {
             child: Row(
               children: [
                 // Meal image (asset or network) with graceful fallback
-                AppImage(
-                  meal.imageUrl,
-                  width: 80,
-                  height: 80,
-                  borderRadius: BorderRadius.circular(12),
-                  fallbackIcon: meal.icon,
-                  fallbackBg: AppThemeV3.surfaceElevated,
-                  fallbackIconColor: AppThemeV3.accent,
+                Builder(
+                  builder: (context) {
+                    // Debug meal image loading in menu page
+                    print('🍽️ MenuPage - Meal: ${meal.name}');
+                    print('🔗 MenuPage - ImagePath: "${meal.imagePath}"');
+                    print('🔗 MenuPage - ImageUrl: "${meal.imageUrl}"');
+                    print('📏 MenuPage - Path Empty? ${meal.imagePath.isEmpty}');
+                    
+                    return AppImage(
+                      meal.imagePath,
+                      width: 80,
+                      height: 80,
+                      borderRadius: BorderRadius.circular(12),
+                      fallbackIcon: meal.icon,
+                      fallbackBg: AppThemeV3.surfaceElevated,
+                      fallbackIconColor: Colors.black,
+                    );
+                  },
                 ),
                 
                 const SizedBox(width: 16),
@@ -205,8 +218,12 @@ class _MenuPageV3State extends State<MenuPageV3> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: AppThemeV3.accent,
+                    color: Colors.black,
                     borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Colors.black,
+                      width: 2,
+                    ),
                   ),
                   child: const Icon(
                     Icons.visibility,
@@ -226,8 +243,8 @@ class _MenuPageV3State extends State<MenuPageV3> {
               child: OutlinedButton(
                 onPressed: () => _showMealInfo(meal),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppThemeV3.accent,
-                  side: const BorderSide(color: AppThemeV3.accent),
+                  foregroundColor: Colors.black,
+                  side: const BorderSide(color: Colors.black, width: 2),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -236,8 +253,8 @@ class _MenuPageV3State extends State<MenuPageV3> {
                 child: Text(
                   'Meal Info',
                   style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                    color: AppThemeV3.accent,
-                    fontWeight: FontWeight.w600,
+                    color: Colors.black,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),

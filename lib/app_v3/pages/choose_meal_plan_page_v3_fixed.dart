@@ -175,7 +175,6 @@ class _ChooseMealPlanPageV3State extends State<ChooseMealPlanPageV3> {
                       ),
                       subtitle: Text('${plan.mealsPerDay} meal(s) per day • ~\$${plan.monthlyPrice.toStringAsFixed(0)}/mo'),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      onTap: () => setState(() => _selectedPlanId = plan.id),
                     ),
                   );
                 },

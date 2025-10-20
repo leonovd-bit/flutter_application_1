@@ -76,12 +76,11 @@ class _PastOrdersPageV3OptimizedState extends State<PastOrdersPageV3Optimized> {
             meals: [meal],
             deliveryAddress: orderData['deliveryAddress'] ?? 'Address not set',
             deliveryDate: DateTime.parse(orderData['deliveryTime']),
+            orderDate: DateTime.parse(orderData['deliveryTime']),
             estimatedDeliveryTime: DateTime.parse(orderData['deliveryTime']),
             status: OrderStatus.delivered,
             totalAmount: (orderData['totalAmount'] ?? meal.price).toDouble(),
             mealPlanType: orderData['mealType'] ?? meal.mealType,
-            createdAt: DateTime.parse(orderData['completedAt']),
-            updatedAt: DateTime.parse(orderData['completedAt']),
           );
           
           orders.add(order);

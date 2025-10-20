@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -111,6 +112,27 @@ class StripeService {
       return (data?['success'] == true);
     } catch (_) {
       return false;
+    }
+  }
+
+  Future<String?> createSubscription({
+    required String customerId,
+    required String paymentMethodId,
+    required String priceId,
+  }) async {
+    try {
+      final callable = _functions.httpsCallable('createSubscription');
+      final result = await callable.call({
+        'customer': customerId,
+        'paymentMethod': paymentMethodId,
+        'priceId': priceId,
+      });
+      final data = result.data as Map?;
+      final subscription = data?['subscription'] as Map?;
+      return subscription?['id'] as String?;
+    } catch (e) {
+      debugPrint('Failed to create subscription: $e');
+      return null;
     }
   }
 

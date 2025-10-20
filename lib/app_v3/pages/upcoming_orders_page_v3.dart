@@ -60,6 +60,21 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
         return;
       }
 
+      // Load current meal plan
+      final prefs = await SharedPreferences.getInstance();
+      final planId = prefs.getString('selected_meal_plan_id');
+      MealPlanModelV3? currentPlan;
+      if (planId != null) {
+        final availablePlans = MealPlanModelV3.getAvailablePlans();
+        currentPlan = availablePlans.firstWhere(
+          (p) => p.id == planId,
+          orElse: () => availablePlans.first,
+        );
+      }
+      currentPlan ??= MealPlanModelV3.getAvailablePlans().first;
+      
+      debugPrint('[UpcomingOrders] Current plan: ${currentPlan.name}, mealsPerDay: ${currentPlan.mealsPerDay}, pricePerMeal: ${currentPlan.pricePerMeal}');
+
       // Load upcoming meals from meal schedule data
       final upcomingMeals = await _loadUpcomingMealsFromSchedule(userId);
       
@@ -76,8 +91,8 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
             deliveryDate: mealData['deliveryDate'] ?? DateTime.now(),
             estimatedDeliveryTime: mealData['deliveryDate'] ?? DateTime.now(),
             status: OrderStatus.confirmed,
-            totalAmount: (mealData['meal']['price'] ?? 12.99).toDouble(),
-            mealPlanType: MealPlanType.nutritious,
+            totalAmount: currentPlan.pricePerMeal, // Use actual plan price
+            mealPlanType: _getMealPlanType(currentPlan.mealsPerDay), // Determine type from meals per day
           );
           orders.add(order);
         } catch (e) {
@@ -101,23 +116,50 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
     }
   }
 
+  MealPlanType _getMealPlanType(int mealsPerDay) {
+    switch (mealsPerDay) {
+      case 1:
+        return MealPlanType.nutritious; // Standard (1 meal/day)
+      case 2:
+        return MealPlanType.dietKnight; // Premium (2 meals/day)
+      case 3:
+        return MealPlanType.leanFreak; // Pro (3 meals/day)
+      default:
+        return MealPlanType.nutritious;
+    }
+  }
+
   Future<List<Map<String, dynamic>>> _loadUpcomingMealsFromSchedule(String userId) async {
     final prefs = await SharedPreferences.getInstance();
     
     // Get current selected schedule
     final selectedSchedule = prefs.getString('selected_schedule_$userId') ?? 'weekly';
+    debugPrint('[UpcomingOrders] Selected schedule: $selectedSchedule');
     
     // Load meal selections
-    final mealSelectionsJson = prefs.getString('meal_selections_${userId}_$selectedSchedule');
-    if (mealSelectionsJson == null) return [];
+    final mealSelectionsKey = 'meal_selections_${userId}_$selectedSchedule';
+    final mealSelectionsJson = prefs.getString(mealSelectionsKey);
+    debugPrint('[UpcomingOrders] Loading meal selections from key: $mealSelectionsKey');
+    debugPrint('[UpcomingOrders] Meal selections found: ${mealSelectionsJson != null}');
+    
+    if (mealSelectionsJson == null) {
+      debugPrint('[UpcomingOrders] No meal selections found for schedule: $selectedSchedule');
+      return [];
+    }
     
     final mealSelections = json.decode(mealSelectionsJson) as Map<String, dynamic>;
+    debugPrint('[UpcomingOrders] Meal selections days: ${mealSelections.keys.toList()}');
     
     // Load delivery schedule to get times and addresses
-    final deliveryScheduleJson = prefs.getString('delivery_schedule_$userId');
+    final deliveryScheduleKey = 'delivery_schedule_$userId';
+    final deliveryScheduleJson = prefs.getString(deliveryScheduleKey);
+    debugPrint('[UpcomingOrders] Loading delivery schedule from key: $deliveryScheduleKey');
+    debugPrint('[UpcomingOrders] Delivery schedule found: ${deliveryScheduleJson != null}');
+    
     Map<String, dynamic> deliverySchedule = {};
     if (deliveryScheduleJson != null) {
       deliverySchedule = json.decode(deliveryScheduleJson) as Map<String, dynamic>;
+      debugPrint('[UpcomingOrders] Delivery schedule days: ${deliverySchedule.keys.toList()}');
     }
     
     final List<Map<String, dynamic>> upcomingMeals = [];
