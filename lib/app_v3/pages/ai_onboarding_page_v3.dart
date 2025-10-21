@@ -5,7 +5,6 @@ import 'dart:convert';
 import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
 import '../services/ai_meal_planner_service.dart';
-import '../services/meal_service_v3.dart';
 import '../services/firestore_service_v3.dart';
 import 'payment_methods_page_v3.dart';
 import 'home_page_v3.dart';
@@ -24,13 +23,13 @@ class _AIOnboardingPageV3State extends State<AIOnboardingPageV3> {
   
   // User data collection
   final Map<String, dynamic> _aiUserData = {
-    'basicInfo': {},
-    'healthGoals': {},
-    'dietaryPreferences': {},
-    'lifestyle': {},
-    'address': {},
-    'mealPlan': {},
-    'deliverySchedule': {},
+    'basicInfo': <String, dynamic>{},
+    'healthGoals': <String, dynamic>{},
+    'dietaryPreferences': <String, dynamic>{},
+    'lifestyle': <String, dynamic>{},
+    'address': <String, dynamic>{},
+    'mealPlan': <String, dynamic>{},
+    'deliverySchedule': <String, dynamic>{},
   };
 
   final List<String> _stepTitles = [
@@ -1162,14 +1161,15 @@ class _AIOnboardingPageV3State extends State<AIOnboardingPageV3> {
   }
 
   Map<String, dynamic> _getCurrentStepData() {
-    switch (_currentStep) {
-      case 0: return _aiUserData['basicInfo'];
-      case 1: return _aiUserData['healthGoals'];
-      case 2: return _aiUserData['dietaryPreferences'];
-      case 3: return _aiUserData['lifestyle'];
-      case 4: return _aiUserData['address'];
-      default: return {};
-    }
+    final data = switch (_currentStep) {
+      0 => _aiUserData['basicInfo'],
+      1 => _aiUserData['healthGoals'],
+      2 => _aiUserData['dietaryPreferences'],
+      3 => _aiUserData['lifestyle'],
+      4 => _aiUserData['address'],
+      _ => <String, dynamic>{},
+    };
+    return data is Map<String, dynamic> ? data : <String, dynamic>{};
   }
 
   void _updateSelection(String key, String value) {

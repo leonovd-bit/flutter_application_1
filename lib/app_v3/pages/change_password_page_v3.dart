@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
 import '../theme/app_theme_v3.dart';
 
 class ChangePasswordPageV3 extends StatefulWidget {
@@ -39,31 +40,53 @@ class _ChangePasswordPageV3State extends State<ChangePasswordPageV3> {
         throw Exception('User not found');
       }
 
-      // Re-authenticate user with current password
+      debugPrint('[ChangePassword] Starting password change for ${user.email}');
+
+      // Re-authenticate user with current password with timeout
       final credential = EmailAuthProvider.credential(
         email: user.email!,
         password: _currentPasswordController.text,
       );
 
-      await user.reauthenticateWithCredential(credential);
+      debugPrint('[ChangePassword] Re-authenticating user...');
+      
+      // Add timeout to prevent hanging
+      await user.reauthenticateWithCredential(credential).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw Exception('Re-authentication timed out. Please check your internet connection and try again.');
+        },
+      );
 
-      // Update password
-      await user.updatePassword(_newPasswordController.text);
+      debugPrint('[ChangePassword] Re-authentication successful');
+
+      // Update password with timeout
+      debugPrint('[ChangePassword] Updating password...');
+      await user.updatePassword(_newPasswordController.text).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw Exception('Password update timed out. Please try again.');
+        },
+      );
+
+      debugPrint('[ChangePassword] Password changed successfully');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Password changed successfully'),
-            backgroundColor: Colors.black,
+            backgroundColor: Colors.green,
           ),
         );
         Navigator.pop(context);
       }
     } on FirebaseAuthException catch (e) {
+      debugPrint('[ChangePassword] FirebaseAuthException: ${e.code} - ${e.message}');
       String message = 'Failed to change password';
       
       switch (e.code) {
         case 'wrong-password':
+        case 'invalid-credential':
           message = 'Current password is incorrect';
           break;
         case 'weak-password':
@@ -71,6 +94,9 @@ class _ChangePasswordPageV3State extends State<ChangePasswordPageV3> {
           break;
         case 'requires-recent-login':
           message = 'Please sign out and sign in again before changing password';
+          break;
+        case 'network-request-failed':
+          message = 'Network error. Please check your internet connection.';
           break;
         default:
           message = e.message ?? 'Failed to change password';
@@ -80,20 +106,35 @@ class _ChangePasswordPageV3State extends State<ChangePasswordPageV3> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(message),
-            backgroundColor: Colors.black,
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } on TimeoutException catch (e) {
+      debugPrint('[ChangePassword] Timeout: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Request timed out. Please check your internet connection and try again.'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 4),
           ),
         );
       }
     } catch (e) {
+      debugPrint('[ChangePassword] Error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: $e'),
-            backgroundColor: Colors.black,
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
     } finally {
+      debugPrint('[ChangePassword] Resetting loading state');
       if (mounted) {
         setState(() => _isLoading = false);
       }

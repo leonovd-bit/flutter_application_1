@@ -281,31 +281,6 @@ class _ManageSubscriptionPageV3State extends State<ManageSubscriptionPageV3> {
 							child: Column(
 								crossAxisAlignment: CrossAxisAlignment.start,
 								children: [
-									if (!StripePricesConfig.isConfigured)
-										Container(
-											margin: const EdgeInsets.only(bottom: 12),
-											padding: const EdgeInsets.all(12),
-											decoration: BoxDecoration(
-												color: const Color(0xFFFFF8E1), // amber-50
-												borderRadius: BorderRadius.circular(8),
-												border: Border.all(color: const Color(0xFFFFE082)),
-											),
-											child: Row(
-												crossAxisAlignment: CrossAxisAlignment.start,
-												children: [
-													const Icon(Icons.info_outline, color: Color(0xFFF57C00)),
-													const SizedBox(width: 8),
-													Expanded(
-														child: Text(
-															'Stripe price IDs are not configured. Plan changes will update in the app but will not update your Stripe subscription until STRIPE_PRICE_1_MEAL/2_MEAL/3_MEAL are provided via --dart-define.',
-															style: const TextStyle(color: Color(0xFF6D4C41)),
-															overflow: TextOverflow.visible,
-															softWrap: true,
-														),
-													),
-												],
-											),
-										),
 									// Status Card
 									Container(
 										padding: const EdgeInsets.all(16),
@@ -325,11 +300,19 @@ class _ManageSubscriptionPageV3State extends State<ManageSubscriptionPageV3> {
 											children: [
 																								Row(
 																									children: [
-																										Icon(Icons.subscriptions, color: AppThemeV3.primaryGreen),
+																										Icon(Icons.subscriptions, color: AppThemeV3.primaryGreen, size: 20),
 																										const SizedBox(width: 8),
-																										Text('Subscription Status', style: const TextStyle(fontWeight: FontWeight.w700)),
-																										const Spacer(),
-																										TextButton.icon(
+																										Expanded(
+																											child: Text(
+																												'Subscription Status', 
+																												style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+																											),
+																										),
+																										IconButton(
+																											icon: const Icon(Icons.pause_circle_outline, size: 20),
+																											tooltip: 'Pause/Resume',
+																											padding: EdgeInsets.zero,
+																											constraints: const BoxConstraints(),
 																											onPressed: () async {
 																												await Navigator.push(
 																													context,
@@ -337,8 +320,6 @@ class _ManageSubscriptionPageV3State extends State<ManageSubscriptionPageV3> {
 																												);
 																												if (mounted) _loadCurrent();
 																											},
-																											icon: const Icon(Icons.pause_circle_outline),
-																											label: const Text('Pause/Resume'),
 																										),
 																									],
 																								),

@@ -45,6 +45,39 @@ class StripeService {
 
   Future<bool> addPaymentMethod(BuildContext context) async {
     try {
+      // Web platform: Stripe payment sheet not fully supported yet
+      // For now, use backend API to create payment method
+      if (kIsWeb) {
+        debugPrint('[Stripe] Web platform - using server-side payment method creation');
+        final user = FirebaseAuth.instance.currentUser;
+        if (user == null) throw Exception('Not signed in');
+        
+        final customerId = await _ensureCustomer(email: user.email ?? '', name: user.displayName);
+        if (customerId == null) throw Exception('Failed to create Stripe customer');
+        
+        // For web, we'll create a test payment method server-side
+        // In production, you'd implement Stripe Elements here
+        final callable = _functions.httpsCallable('createTestPaymentMethod');
+        final result = await callable.call({'customer': customerId});
+        final data = result.data as Map?;
+        
+        if (data?['success'] == true) {
+          debugPrint('[Stripe] Web payment method created successfully');
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('✓ Payment method added (test mode)'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+          return true;
+        } else {
+          throw Exception('Failed to create payment method');
+        }
+      }
+      
+      // Mobile: Use native payment sheet
       await init();
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('Not signed in');
@@ -54,7 +87,7 @@ class StripeService {
       final clientSecret = await _createSetupIntent(customerId);
       if (clientSecret == null) throw Exception('Failed to create setup intent');
 
-      // Init PaymentSheet for SetupIntent
+      debugPrint('[Stripe] Mobile platform - using native payment sheet');
       await Stripe.instance.initPaymentSheet(
         paymentSheetParameters: SetupPaymentSheetParameters(
           merchantDisplayName: 'FreshPunk',
@@ -72,6 +105,7 @@ class StripeService {
       }
       return false;
     } catch (e) {
+      debugPrint('[Stripe] Error: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Add payment failed: $e')),

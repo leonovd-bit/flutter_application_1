@@ -18,6 +18,7 @@ import 'app_v3/debug/debug_overlay.dart';
 import 'app_v3/debug/debug_state.dart';
 import 'app_v3/services/fcm_service_v3.dart';
 import 'app_v3/services/environment_service.dart';
+import 'app_v3/services/stripe_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 // Background message handler (must be top-level)
@@ -57,6 +58,14 @@ void main() {
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
     // MemoryOptimizer.optimizeImageCache(); // Disabled for web compatibility
+
+    // Initialize Stripe (must be done before using payment methods)
+    try {
+      await StripeService.instance.init();
+      debugPrint('[Stripe] Initialized successfully');
+    } catch (e) {
+      debugPrint('[Stripe] Initialization failed: $e');
+    }
 
     // Initialize enhanced FCM service (FREE push notifications)
     await FCMServiceV3.instance.initAndRegisterToken();

@@ -553,6 +553,40 @@ export const createSetupIntent = onCall({secrets: [STRIPE_SECRET_KEY]}, async (r
   }
 });
 
+// Create Test Payment Method for Web (Development)
+export const createTestPaymentMethod = onCall({secrets: [STRIPE_SECRET_KEY]}, async (request: any) => {
+  try {
+    const stripe = getStripe();
+    const {customer} = request.data;
+
+    // Create a test payment method using Stripe's test card token
+    const paymentMethod = await stripe.paymentMethods.create({
+      type: "card",
+      card: {
+        token: "tok_visa", // Stripe test token
+      },
+    });
+
+    // Attach to customer
+    await stripe.paymentMethods.attach(paymentMethod.id, {
+      customer,
+    });
+
+    // Set as default
+    await stripe.customers.update(customer, {
+      invoice_settings: {
+        default_payment_method: paymentMethod.id,
+      },
+    });
+
+    logger.info(`Test payment method created for customer: ${customer}`);
+    return {success: true, paymentMethodId: paymentMethod.id};
+  } catch (error) {
+    logger.error("Error creating test payment method:", error);
+    throw new Error("Failed to create test payment method");
+  }
+});
+
 // Cancel Subscription
 export const cancelSubscription = onCall({secrets: [STRIPE_SECRET_KEY]}, async (request: any) => {
   try {

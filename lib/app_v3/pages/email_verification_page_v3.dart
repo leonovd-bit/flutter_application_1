@@ -45,8 +45,6 @@ class _EmailVerificationPageV3State extends State<EmailVerificationPageV3> {
             );
           } catch (e) {
             print('[EmailVerification] Navigation error: $e');
-            // Fallback navigation
-            Navigator.pushReplacementNamed(context, '/home');
           }
         }
       }
@@ -306,8 +304,6 @@ class _EmailVerificationPageV3State extends State<EmailVerificationPageV3> {
           );
         } catch (e) {
           print('[EmailVerification] Manual navigation error: $e');
-          // Fallback navigation
-          Navigator.pushReplacementNamed(context, '/home');
         }
       }
     } else {

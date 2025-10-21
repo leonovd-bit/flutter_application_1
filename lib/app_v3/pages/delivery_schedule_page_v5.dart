@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/firestore_service_v3.dart';
@@ -7,7 +7,7 @@ import '../models/protein_model_v3.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'choose_meal_plan_page_v3.dart';
-import 'meal_schedule_page_v3.dart';
+import 'meal_schedule_page_v3_fixed.dart';
 import '../services/simple_google_maps_service.dart';
 
 extension StringExtension on String {
@@ -36,7 +36,7 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
   // Basic setup
   MealPlanModelV3? _selectedMealPlan;
   String _scheduleName = '';
-  final TextEditingController _scheduleNameController = TextEditingController();
+  late final TextEditingController _scheduleNameInputController;
 
   // Controllers for "Apply to All" configuration
   final Map<String, TextEditingController> _allDaysTimeControllers = {}; // mealType -> controller
@@ -77,7 +77,7 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
   void initState() {
     super.initState();
     _scheduleName = widget.initialScheduleName ?? '';
-    _scheduleNameController.text = widget.initialScheduleName ?? '';
+    _scheduleNameInputController = TextEditingController(text: _scheduleName);
     _loadCurrentPlan();
     _loadProteinPlusSettings();
     _initializeDefaultSelections();
@@ -93,7 +93,7 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
 
   @override
   void dispose() {
-    _scheduleNameController.dispose();
+    _scheduleNameInputController.dispose();
     for (var controller in _allDaysTimeControllers.values) {
       controller.dispose();
     }
@@ -170,7 +170,7 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
       children: [
         Row(
           children: [
-            const Text('💪', style: TextStyle(fontSize: 24)),
+            const Text('≡ƒÆ¬', style: TextStyle(fontSize: 24)),
             const SizedBox(width: 8),
             const Expanded(
               child: Text(
@@ -216,7 +216,7 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Text(
-              '✓ Maximum protein selections reached. Deselect a protein to choose a different one.',
+              'Γ£ô Maximum protein selections reached. Deselect a protein to choose a different one.',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.white,
@@ -299,7 +299,7 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
                               ),
                               if (isSelected)
                                 const Text(
-                                  '✓',
+                                  'Γ£ô',
                                   style: TextStyle(fontSize: 14, color: Colors.white),
                                 ),
                             ],
@@ -975,7 +975,7 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
 
       debugPrint('[DeliveryScheduleV5] Total unique addresses found: ${uniqueAddresses.length}');
       if (uniqueAddresses.isEmpty) {
-        debugPrint('[DeliveryScheduleV5] ⚠️ No addresses to save - schedule has no addresses!');
+        debugPrint('[DeliveryScheduleV5] ΓÜá∩╕Å No addresses to save - schedule has no addresses!');
         return;
       }
 
@@ -1008,7 +1008,7 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
         
         // Skip if already exists
         if (existingAddressStreets.contains(normalizedAddress)) {
-          debugPrint('[DeliveryScheduleV5] ⏭️ Skipping duplicate address: "$address"');
+          debugPrint('[DeliveryScheduleV5] ΓÅ¡∩╕Å Skipping duplicate address: "$address"');
           skippedCount++;
           continue;
         }
@@ -1018,7 +1018,7 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
         
         // Only save if validation was successful (has zip code)
         if (validationResult['zipCode']!.isEmpty) {
-          debugPrint('[DeliveryScheduleV5] ⚠️ Skipping non-validated address: "$address"');
+          debugPrint('[DeliveryScheduleV5] ΓÜá∩╕Å Skipping non-validated address: "$address"');
           skippedCount++;
           continue;
         }
@@ -1057,23 +1057,23 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
                 isDefault: existingAddressStreets.length == 1, // First address is default
               );
               await FirestoreServiceV3.saveAddress(addressModel);
-              debugPrint('[DeliveryScheduleV5] ✅ Saved address to Firestore: $addressId');
+              debugPrint('[DeliveryScheduleV5] Γ£à Saved address to Firestore: $addressId');
             } catch (e) {
-              debugPrint('[DeliveryScheduleV5] ⚠️ Failed to save address to Firestore: $e');
+              debugPrint('[DeliveryScheduleV5] ΓÜá∩╕Å Failed to save address to Firestore: $e');
             }
           }
           
-          debugPrint('[DeliveryScheduleV5] ✅ Added validated address: ${validationResult['streetAddress']}, ${validationResult['city']}, ${validationResult['state']} ${validationResult['zipCode']}');
+          debugPrint('[DeliveryScheduleV5] Γ£à Added validated address: ${validationResult['streetAddress']}, ${validationResult['city']}, ${validationResult['state']} ${validationResult['zipCode']}');
       }
 
       // Save updated address list to SharedPreferences
       await prefs.setStringList('user_addresses', updatedAddressList);
       debugPrint('[DeliveryScheduleV5] ========== SUMMARY ==========');
-      debugPrint('[DeliveryScheduleV5] ✅ Validated and saved: $validatedCount addresses');
-      debugPrint('[DeliveryScheduleV5] ⏭️ Skipped (duplicates or invalid): $skippedCount addresses');
-      debugPrint('[DeliveryScheduleV5] 📊 Total addresses in storage: ${updatedAddressList.length}');
+      debugPrint('[DeliveryScheduleV5] Γ£à Validated and saved: $validatedCount addresses');
+      debugPrint('[DeliveryScheduleV5] ΓÅ¡∩╕Å Skipped (duplicates or invalid): $skippedCount addresses');
+      debugPrint('[DeliveryScheduleV5] ≡ƒôè Total addresses in storage: ${updatedAddressList.length}');
     } catch (e) {
-      debugPrint('[DeliveryScheduleV5] ❌ Error saving addresses: $e');
+      debugPrint('[DeliveryScheduleV5] Γ¥î Error saving addresses: $e');
     }
   }
 
@@ -1091,7 +1091,7 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
       final result = await service.validateAddress(searchQuery);
       
       if (result != null) {
-        debugPrint('[DeliveryScheduleV5] ✅ Address validated: ${result.formattedAddress}');
+        debugPrint('[DeliveryScheduleV5] Γ£à Address validated: ${result.formattedAddress}');
         
         // Convert state abbreviation to full name for consistency
         String stateName = result.state;
@@ -1117,7 +1117,7 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
           'zipCode': result.zipCode.isNotEmpty ? result.zipCode : '',
         };
       } else {
-        debugPrint('[DeliveryScheduleV5] ⚠️ Address validation failed, using defaults');
+        debugPrint('[DeliveryScheduleV5] ΓÜá∩╕Å Address validation failed, using defaults');
         // Return with NYC defaults
         return {
           'streetAddress': streetAddress,
@@ -1128,7 +1128,7 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
         };
       }
     } catch (e) {
-      debugPrint('[DeliveryScheduleV5] ❌ Error validating address: $e');
+      debugPrint('[DeliveryScheduleV5] Γ¥î Error validating address: $e');
       // Return with NYC defaults on error
       return {
         'streetAddress': streetAddress,
@@ -1172,7 +1172,7 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
                   ),
                   const SizedBox(height: 8),
                   TextField(
-                    controller: _scheduleNameController,
+                    controller: _scheduleNameInputController,
                     decoration: InputDecoration(
                       hintText: 'e.g., "Weekly Schedule"',
                       border: OutlineInputBorder(
@@ -1211,7 +1211,7 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
                       await Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const ChooseMealPlanPageV3(),
+                          builder: (context) => const ChooseMealPlanPageV3(isSignupFlow: false),
                         ),
                       );
                       // Always reload plan after returning to pick up any changes
@@ -1427,7 +1427,7 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
                               border: Border.all(color: Colors.black, width: 2),
                             ),
                             child: Text(
-                              _applyToAllDays ? '✓ Apply to All' : 'Apply to All',
+                              _applyToAllDays ? 'Γ£ô Apply to All' : 'Apply to All',
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
@@ -1486,3 +1486,4 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
     );
   }
 }
+

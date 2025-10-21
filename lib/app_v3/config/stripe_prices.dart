@@ -12,15 +12,15 @@ class StripePricesConfig {
   // Example: 'price_1AbCdEfGhIjKlMn' (from your Stripe Dashboard)
   static const String oneMealPerDay = String.fromEnvironment(
     'STRIPE_PRICE_1_MEAL',
-    defaultValue: '',
+    defaultValue: 'price_1SKVNgPJ2bllJ7ptK10uXJbZ', // Premium
   );
   static const String twoMealsPerDay = String.fromEnvironment(
     'STRIPE_PRICE_2_MEAL',
-    defaultValue: '',
+    defaultValue: 'price_1SKVPMPJ2bllJ7ptWEGzul37', // Pro
   );
   static const String threeMealsPerDay = String.fromEnvironment(
     'STRIPE_PRICE_3_MEAL',
-    defaultValue: '',
+    defaultValue: 'price_1SKVPZPJ2bllJ7ptiSCAdMT9', // Standard
   );
 
   /// Returns the Stripe Price ID for the given MealPlanModelV3.id.

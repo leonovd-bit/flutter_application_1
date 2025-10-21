@@ -7,6 +7,7 @@ import '../services/progress_manager.dart';
 import '../services/firestore_service_v3.dart';
 import '../services/scheduler_service_v3.dart';
 import '../services/order_generation_service.dart';
+import '../services/stripe_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
@@ -431,9 +432,33 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
     setState(() => _isProcessing = true);
 
     try {
-      // Mock payment processing for development
-      await _processMockPayment();
-      // After payment, use new OrderGenerationService to create orders from meal selections
+      // Add payment method via Stripe (works on Web, iOS, Android)
+      debugPrint('[Payment] Presenting Stripe payment sheet...');
+      final StripeService stripe = StripeService.instance;
+      final paymentAdded = await stripe.addPaymentMethod(context);
+      
+      if (!paymentAdded) {
+        debugPrint('[Payment] User cancelled or payment method addition failed');
+        if (mounted) {
+          setState(() => _isProcessing = false);
+        }
+        return;
+      }
+      
+      debugPrint('[Payment] Payment method successfully added');
+      
+      // Show confirmation message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('✓ Creating your subscription...'),
+            backgroundColor: AppThemeV3.success,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      
+      // Generate orders from meal selections
       try {
         final uid = FirebaseAuth.instance.currentUser?.uid;
         if (uid != null) {
@@ -478,6 +503,7 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
           await _generateOrdersLegacy(uid);
         }
       }
+      
       // Mark setup as completed and finalize onboarding
       try {
         final prefs = await SharedPreferences.getInstance();
@@ -490,7 +516,18 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
         print('Error marking setup completed: $e');
       }
       
-      // If payment successful, navigate to home
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('🎉 Subscription created! Welcome to FreshPunk!'),
+            backgroundColor: AppThemeV3.success,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      
+      // Navigate to home
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,
@@ -504,7 +541,7 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Payment failed: ${e.toString()}'),
+            content: Text('Subscription creation failed: ${e.toString()}'),
             backgroundColor: AppThemeV3.error,
           ),
         );
@@ -513,21 +550,6 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
       if (mounted) {
         setState(() => _isProcessing = false);
       }
-    }
-  }
-
-  Future<void> _processMockPayment() async {
-    // Mock payment processing delay
-    await Future.delayed(const Duration(seconds: 2));
-    
-    // Show success message
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Payment successful! Welcome to FreshPunk!'),
-          backgroundColor: AppThemeV3.success,
-        ),
-      );
     }
   }
 

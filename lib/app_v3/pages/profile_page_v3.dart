@@ -90,7 +90,7 @@ class _ProfilePageV3State extends State<ProfilePageV3> {
       }
 
   await FirestoreServiceV3.updateUserProfile(_currentUser!.uid, profileData);
-
+  
   if (!mounted) return;
   _showSnackBar('Profile updated successfully');
   Navigator.pop(context);

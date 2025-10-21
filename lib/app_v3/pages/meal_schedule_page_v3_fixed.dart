@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -11,6 +12,8 @@ import 'delivery_schedule_page_v5.dart';
 import '../services/meal_service_v3.dart';
 import 'interactive_menu_page_v3.dart';
 import 'payment_page_v3.dart';
+import 'payment_methods_page_v3.dart';
+import '../services/stripe_service.dart';
 
 class MealSchedulePageV3 extends StatefulWidget {
   final MealPlanModelV3? mealPlan;
@@ -53,18 +56,22 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
   // Selections: day -> mealType -> meal
   final Map<String, Map<String, MealModelV3?>> _selectedMeals = {};
 
-  void _proceedToPayment() {
+  Future<void> _proceedToPayment() async {
     if (_currentMealPlan == null) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => PaymentPageV3(
-          mealPlan: _currentMealPlan!,
-          weeklySchedule: _currentWeeklySchedule,
-          selectedMeals: _selectedMeals,
+    
+    // Navigate directly to payment page
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PaymentPageV3(
+            mealPlan: _currentMealPlan!,
+            weeklySchedule: _currentWeeklySchedule,
+            selectedMeals: _selectedMeals,
+          ),
         ),
-      ),
-    );
+      );
+    }
   }
 
   List<String> get _configuredDays {

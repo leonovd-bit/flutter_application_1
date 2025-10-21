@@ -18,6 +18,7 @@ class FCMServiceV3 {
 
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
   bool _initialized = false;
+  bool _localNotificationsInitialized = false;
 
   /// Initialize FCM service and register for push notifications
   Future<void> initAndRegisterToken() async {
@@ -60,8 +61,11 @@ class FCMServiceV3 {
 
       // Listen for messages
       FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+      
+      _initialized = true;
     } catch (e) {
       debugPrint('[FCMServiceV3] Web init error: $e');
+      _initialized = true; // Mark as initialized even on error to prevent retry loops
     }
   }
 
@@ -121,37 +125,47 @@ class FCMServiceV3 {
 
   /// Initialize local notifications for displaying foreground messages
   Future<void> _initLocalNotifications() async {
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iosSettings = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
-    );
+    if (_localNotificationsInitialized) return;
     
-    const initSettings = InitializationSettings(
-      android: androidSettings,
-      iOS: iosSettings,
-      macOS: iosSettings,
-    );
-
-    await _localNotifications.initialize(
-      initSettings,
-      onDidReceiveNotificationResponse: _handleLocalNotificationClick,
-    );
-
-    // Create notification channel for Android
-    if (Platform.isAndroid) {
-      const channel = AndroidNotificationChannel(
-        'order_updates',
-        'Order Updates',
-        description: 'Notifications about your FreshPunk orders',
-        importance: Importance.high,
-        sound: RawResourceAndroidNotificationSound('notification'),
+    try {
+      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const iosSettings = DarwinInitializationSettings(
+        requestAlertPermission: true,
+        requestBadgePermission: true,
+        requestSoundPermission: true,
+      );
+      
+      const initSettings = InitializationSettings(
+        android: androidSettings,
+        iOS: iosSettings,
+        macOS: iosSettings,
       );
 
-      final androidPlugin = _localNotifications
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-      await androidPlugin?.createNotificationChannel(channel);
+      await _localNotifications.initialize(
+        initSettings,
+        onDidReceiveNotificationResponse: _handleLocalNotificationClick,
+      );
+
+      // Create notification channel for Android
+      if (Platform.isAndroid) {
+        const channel = AndroidNotificationChannel(
+          'order_updates',
+          'Order Updates',
+          description: 'Notifications about your FreshPunk orders',
+          importance: Importance.high,
+          sound: RawResourceAndroidNotificationSound('notification'),
+        );
+
+        final androidPlugin = _localNotifications
+            .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+        await androidPlugin?.createNotificationChannel(channel);
+      }
+      
+      _localNotificationsInitialized = true;
+      debugPrint('[FCMServiceV3] Local notifications initialized successfully');
+    } catch (e) {
+      debugPrint('[FCMServiceV3] Local notifications init error: $e');
+      rethrow;
     }
   }
 
@@ -248,11 +262,23 @@ class FCMServiceV3 {
 
   /// Test push notification functionality
   Future<void> sendTestNotification() async {
-    await _showLocalNotification(
-      title: '🍽️ FreshPunk Test',
-      body: 'Push notifications are working! Your orders will appear here.',
-      data: {'test': 'true'},
-    );
+    try {
+      // Ensure local notifications are initialized
+      if (!_localNotificationsInitialized) {
+        debugPrint('[FCMServiceV3] Initializing local notifications for test...');
+        await _initLocalNotifications();
+      }
+      
+      await _showLocalNotification(
+        title: '🍽️ FreshPunk Test',
+        body: 'Push notifications are working! Your orders will appear here.',
+        data: {'test': 'true'},
+      );
+      debugPrint('[FCMServiceV3] Test notification sent successfully');
+    } catch (e) {
+      debugPrint('[FCMServiceV3] Test notification failed: $e');
+      rethrow;
+    }
   }
 
   /// Get current FCM token

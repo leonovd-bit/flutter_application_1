@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme_v3.dart';
 import 'choose_meal_plan_page_v3.dart';
+import 'ai_onboarding_page_v3.dart';
 
 class OnboardingChoicePageV3 extends StatelessWidget {
   const OnboardingChoicePageV3({super.key});
@@ -11,308 +12,172 @@ class OnboardingChoicePageV3 extends StatelessWidget {
     
     return Scaffold(
       backgroundColor: AppThemeV3.background,
+      appBar: AppBar(
+        title: const Text('Welcome to Victus!'),
+        backgroundColor: AppThemeV3.accent,
+        foregroundColor: Colors.white,
+        automaticallyImplyLeading: false, // Remove back button
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minHeight: MediaQuery.of(context).size.height - 48,
-            ),
-            child: Column(
-              children: [
-                // Header
-                SizedBox(
-                  height: MediaQuery.of(context).size.height * 0.35,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Victus Logo/Icon
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: AppThemeV3.accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(50),
+                ),
+                child: Icon(
+                  Icons.restaurant_menu,
+                  size: 50,
+                  color: AppThemeV3.accent,
+                ),
+              ),
+              
+              const SizedBox(height: 32),
+              
+              Text(
+                'Welcome to Victus!',
+                style: AppThemeV3.textTheme.displayMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: AppThemeV3.textPrimary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              
+              const SizedBox(height: 16),
+              
+              Text(
+                'How would you like to set up your meal plan?',
+                style: AppThemeV3.textTheme.bodyLarge?.copyWith(
+                  color: AppThemeV3.textSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              
+              const SizedBox(height: 48),
+              
+              // Quick Setup Option
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 20),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppThemeV3.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppThemeV3.border),
+                ),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Victus Logo/Icon
-                    Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        color: AppThemeV3.accent.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(50),
-                      ),
-                      child: Icon(
-                        Icons.restaurant_menu,
-                        size: 50,
-                        color: AppThemeV3.accent,
-                      ),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.flash_on,
+                          color: AppThemeV3.accent,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Quick Setup',
+                          style: AppThemeV3.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppThemeV3.textPrimary,
+                          ),
+                        ),
+                      ],
                     ),
-                    
-                    const SizedBox(height: 24),
-                    
+                    const SizedBox(height: 12),
                     Text(
-                      'Welcome to Victus!',
-                      style: AppThemeV3.textTheme.displayMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: AppThemeV3.textPrimary,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    
-                    const SizedBox(height: 16),
-                    
-                    Text(
-                      'How would you like to set up your meal plan?',
-                      style: AppThemeV3.textTheme.bodyLarge?.copyWith(
+                      'Choose from our pre-designed meal plans and get started immediately. Perfect if you know what you want.',
+                      style: AppThemeV3.textTheme.bodyMedium?.copyWith(
                         color: AppThemeV3.textSecondary,
                       ),
-                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => _navigateToMealPlanSelection(context),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppThemeV3.accent,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: Text(
+                          'Get Started',
+                          style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
               
-              // Choice Cards  
-              Expanded(
+              // AI Setup Option
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppThemeV3.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppThemeV3.border),
+                ),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // AI Setup Option
-                    Expanded(
-                      flex: 6,
-                      child: GestureDetector(
-                        onTap: () => _navigateToAISetup(context),
-                        child: Container(
-                          width: double.infinity,
-                          margin: const EdgeInsets.only(bottom: 16),
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                AppThemeV3.accent,
-                                AppThemeV3.accent.withValues(alpha: 0.8),
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppThemeV3.accent.withValues(alpha: 0.3),
-                                offset: const Offset(0, 8),
-                                blurRadius: 20,
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.2),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: const Icon(
-                                      Icons.auto_awesome,
-                                      color: Colors.white,
-                                      size: 28,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  const Expanded(
-                                    child: Text(
-                                      'AI-Powered Setup',
-                                      style: TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.2),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: const Text(
-                                      '5 min',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              
-                              const SizedBox(height: 16),
-                              
-                              const Text(
-                                'Let our AI create a personalized meal plan based on your preferences, goals, and lifestyle.',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.white,
-                                  height: 1.4,
-                                ),
-                              ),
-                              
-                              const Spacer(),
-                              
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.check_circle_outline,
-                                    color: Colors.white.withValues(alpha: 0.8),
-                                    size: 16,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Expanded(
-                                    child: Text(
-                                      'Personalized recommendations',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.check_circle_outline,
-                                    color: Colors.white.withValues(alpha: 0.8),
-                                    size: 16,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Expanded(
-                                    child: Text(
-                                      'Smart meal scheduling',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.psychology,
+                          color: AppThemeV3.accent,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'AI Assisted Setup',
+                          style: AppThemeV3.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppThemeV3.textPrimary,
                           ),
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Let our AI learn about your health goals, dietary preferences, and lifestyle to create a personalized meal plan just for you.',
+                      style: AppThemeV3.textTheme.bodyMedium?.copyWith(
+                        color: AppThemeV3.textSecondary,
                       ),
                     ),
-                    
-                    // Manual Setup Option
-                    Expanded(
-                      flex: 4,
-                      child: GestureDetector(
-                        onTap: () => _navigateToManualSetup(context),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: AppThemeV3.surface,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: AppThemeV3.border,
-                              width: 1.5,
-                            ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () => _navigateToAISetup(context),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppThemeV3.accent,
+                          side: const BorderSide(color: AppThemeV3.accent),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: AppThemeV3.textSecondary.withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Icon(
-                                      Icons.tune,
-                                      color: AppThemeV3.textSecondary,
-                                      size: 28,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      'Manual Setup',
-                                      style: AppThemeV3.textTheme.titleLarge?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                        color: AppThemeV3.textPrimary,
-                                      ),
-                                    ),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: AppThemeV3.textSecondary.withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      '10+ min',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppThemeV3.textSecondary,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              
-                              const SizedBox(height: 16),
-                              
-                              Text(
-                                'Choose your own meal plan, set up delivery schedules, and manually select your meals.',
-                                style: AppThemeV3.textTheme.bodyMedium?.copyWith(
-                                  color: AppThemeV3.textSecondary,
-                                  height: 1.4,
-                                ),
-                              ),
-                              
-                              const Spacer(),
-                              
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.check_circle_outline,
-                                    color: AppThemeV3.textSecondary.withValues(alpha: 0.6),
-                                    size: 16,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Expanded(
-                                    child: Text(
-                                      'Full control over selections',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.check_circle_outline,
-                                    color: AppThemeV3.textSecondary.withValues(alpha: 0.6),
-                                    size: 16,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Expanded(
-                                    child: Text(
-                                      'Traditional setup process',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
+                        ),
+                        child: Text(
+                          'Start AI Setup',
+                          style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                            color: AppThemeV3.accent,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
@@ -320,39 +185,29 @@ class OnboardingChoicePageV3 extends StatelessWidget {
                   ],
                 ),
               ),
-              
-                const SizedBox(height: 24),
-              ],
-            ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  void _navigateToAISetup(BuildContext context) {
-    // For now, just redirect to manual setup
-    // AI setup is coming soon
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('AI Setup coming soon! Redirecting to manual setup...'),
-        duration: Duration(seconds: 2),
-      ),
-    );
-    
-    // Navigate to manual setup after a brief delay
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (context.mounted) {
-        _navigateToManualSetup(context);
-      }
-    });
-  }
-
-  void _navigateToManualSetup(BuildContext context) {
+  void _navigateToMealPlanSelection(BuildContext context) {
+    print('[OnboardingChoice] Navigating to meal plan selection');
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const ChooseMealPlanPageV3(),
+        builder: (context) => const ChooseMealPlanPageV3(isSignupFlow: true),
+      ),
+    );
+  }
+
+  void _navigateToAISetup(BuildContext context) {
+    print('[OnboardingChoice] Navigating to AI setup');
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AIOnboardingPageV3(),
       ),
     );
   }
