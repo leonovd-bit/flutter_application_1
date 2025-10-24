@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme_v3.dart';
@@ -16,17 +15,18 @@ import 'terms_of_service_page_v3.dart';
 import 'privacy_policy_page_v3.dart';
 // Removed Circle of Health from Settings
 import '../services/order_functions_service.dart';
-import '../services/firestore_service_v3.dart';
 import '../services/account_deletion_service.dart';
 import 'change_password_page_v3.dart';
-import '../services/meal_service_v3.dart';
 import 'help_support_page_v3.dart';
 import 'delivery_schedule_page_v5.dart';
 import 'meal_schedule_page_v3.dart';
 import '../services/fcm_service_v3.dart';
 
+import '../models/mock_user_model.dart';
+
 class SettingsPageV3 extends StatefulWidget {
-  const SettingsPageV3({super.key});
+  final MockUser? mockUser;
+  const SettingsPageV3({super.key, this.mockUser});
 
   @override
   State<SettingsPageV3> createState() => _SettingsPageV3State();
@@ -42,136 +42,13 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
   double? _planMonthlyAmount;
   DateTime? _nextBillingDate;
   
+  // UI state
+  bool _isLoading = false;
   bool _biometricEnabled = false;
   bool _pushNotifications = true;
   bool _emailNotifications = true;
   bool _orderUpdates = true;
-  bool _promotionalEmails = false;
-  bool _isLoading = true;
-  bool _isAdmin = false;
-  bool _adminSeeding = false;
-  String? _adminSeedMsg;
-  bool _adminFixing = false;
-  String? _adminFixMsg;
-  bool _adminSwitching = false;
-  String? _adminSwitchMsg;
-  bool _adminSwitchingJfif = false;
-  String? _adminSwitchJfifMsg;
-  bool _adminSwitchingAuto = false;
-  String? _adminSwitchAutoMsg;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadSettings();
-  }
-
-  Future<void> _loadSettings() async {
-    // Load user settings from Firebase or local storage
-    // For now, using default values
-    final user = _auth.currentUser;
-    if (user == null) {
-      setState(() {
-        _accountName = null;
-        _accountEmail = null;
-        _isLoading = false;
-      });
-      return;
-    }
-
-    try {
-      // Fetch in sequence (fast enough); could be parallelized if needed
-      final profileName = user.displayName;
-      final profileEmail = user.email;
-
-      final subscription = await FirestoreServiceV3.getActiveSubscription(user.uid);
-      final mealPlan = await FirestoreServiceV3.getCurrentMealPlan(user.uid);
-      bool isAdmin = false;
-      try {
-        final token = await user.getIdTokenResult(true);
-        final claims = token.claims;
-        isAdmin = claims != null && claims['admin'] == true;
-      } catch (_) {}
-  // Address summary removed from Settings; still fetchable elsewhere if needed
-
-      setState(() {
-        _accountName = profileName;
-        _accountEmail = profileEmail;
-        _planName = mealPlan?.displayName.isNotEmpty == true ? mealPlan!.displayName : mealPlan?.name;
-        _planMonthlyAmount = (subscription?['monthlyAmount'] as num?)?.toDouble();
-        final ts = subscription?['nextBillingDate'];
-        _nextBillingDate = ts is Timestamp ? ts.toDate() : ts is int ? DateTime.fromMillisecondsSinceEpoch(ts) : null;
-  _isLoading = false;
-  _isAdmin = isAdmin;
-      });
-    } catch (_) {
-      setState(() {
-        _accountName = user.displayName;
-        _accountEmail = user.email;
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _adminSeedMeals() async {
-    setState(() { _adminSeeding = true; _adminSeedMsg = null; });
-    try {
-      final n = await MealServiceV3.seedFromJsonAsset();
-      setState(() { _adminSeedMsg = 'Seeded $n meals'; });
-    } catch (e) {
-      setState(() { _adminSeedMsg = 'Error: $e'; });
-    } finally {
-      setState(() { _adminSeeding = false; });
-    }
-  }
-
-  Future<void> _adminFixImages() async {
-    setState(() { _adminFixing = true; _adminFixMsg = null; });
-    try {
-      final n = await MealServiceV3.updateImagesFromJsonAsset();
-      setState(() { _adminFixMsg = 'Updated images for $n meals'; });
-    } catch (e) {
-      setState(() { _adminFixMsg = 'Error: $e'; });
-    } finally {
-      setState(() { _adminFixing = false; });
-    }
-  }
-
-  Future<void> _adminSwitchImagesToAssets() async {
-    setState(() { _adminSwitching = true; _adminSwitchMsg = null; });
-    try {
-      final n = await MealServiceV3.updateImagesToBundledAssets(ext: 'jpg');
-      setState(() { _adminSwitchMsg = 'Pointed $n meals to assets/images/meals/*.jpg'; });
-    } catch (e) {
-      setState(() { _adminSwitchMsg = 'Error: $e'; });
-    } finally {
-      setState(() { _adminSwitching = false; });
-    }
-  }
-
-  Future<void> _adminSwitchImagesToAssetsJfif() async {
-    setState(() { _adminSwitchingJfif = true; _adminSwitchJfifMsg = null; });
-    try {
-      final n = await MealServiceV3.updateImagesToBundledAssets(ext: 'jfif');
-      setState(() { _adminSwitchJfifMsg = 'Pointed $n meals to assets/images/meals/*.jfif'; });
-    } catch (e) {
-      setState(() { _adminSwitchJfifMsg = 'Error: $e'; });
-    } finally {
-      setState(() { _adminSwitchingJfif = false; });
-    }
-  }
-
-  Future<void> _adminSwitchImagesToAssetsAuto() async {
-    setState(() { _adminSwitchingAuto = true; _adminSwitchAutoMsg = null; });
-    try {
-      final n = await MealServiceV3.updateImagesToExistingBundledAssetsFlexible();
-      setState(() { _adminSwitchAutoMsg = 'Auto-detected and pointed $n meals to matching assets'; });
-    } catch (e) {
-      setState(() { _adminSwitchAutoMsg = 'Error: $e'; });
-    } finally {
-      setState(() { _adminSwitchingAuto = false; });
-    }
-  }
+  bool _promotionalEmails = true;
 
   Future<void> _toggleBiometric(bool value) async {
     if (value) {
@@ -401,7 +278,17 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
 
     if (confirmed != true) return;
 
-    // Show loading dialog
+    // FIRST: Reauthenticate the user before attempting deletion
+    // Firebase requires recent authentication to delete accounts
+    final reauthenticated = await _reauthenticateUser();
+    if (!reauthenticated) {
+      if (mounted) {
+        _showSnackBar('Account deletion canceled - authentication required');
+      }
+      return;
+    }
+
+    // Show loading dialog after successful reauth
     if (!mounted) return;
     showDialog(
       context: context,
@@ -424,47 +311,8 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
     );
 
     try {
-      // Check if we need to re-authenticate (Firebase requires recent auth for deletion)
-      try {
-        // Try to delete the account
-        await AccountDeletionService.deleteUserAccount();
-      } on FirebaseAuthException catch (e) {
-        if (e.code == 'requires-recent-login') {
-          // Close loading dialog
-          if (mounted) Navigator.pop(context);
-          
-          // Show re-authentication dialog
-          final reauthenticated = await _reauthenticateUser();
-          if (!reauthenticated) {
-            if (mounted) {
-              _showSnackBar('Account deletion canceled - authentication required');
-            }
-            return;
-          }
-          
-          // Show loading dialog again
-          if (!mounted) return;
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => const AlertDialog(
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Deleting account...'),
-                ],
-              ),
-            ),
-          );
-          
-          // Try deletion again
-          await AccountDeletionService.deleteUserAccount();
-        } else {
-          rethrow;
-        }
-      }
+      // Now delete the account (should succeed since we just reauthenticated)
+      await AccountDeletionService.deleteUserAccount();
       
       if (!mounted) return;
       
@@ -518,135 +366,178 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
     }
   }
 
-  /// Re-authenticate user with their password
+  /// Re-authenticate user with their password or guide non-password accounts
   Future<bool> _reauthenticateUser() async {
     final passwordController = TextEditingController();
     String? errorMessage;
-    
+    final providers = _auth.currentUser?.providerData.map((p) => p.providerId).toList() ?? const [];
+    final supportsPassword = providers.contains('password');
+
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
+        builder: (builderContext, setDialogState) => AlertDialog(
           title: const Text('Confirm Your Identity'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'For security reasons, please enter your password to continue with account deletion.',
-                style: TextStyle(fontSize: 14),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: passwordController,
-                obscureText: true,
-                autofocus: true,
-                onSubmitted: (_) async {
-                  // Allow Enter key to submit
+              if (supportsPassword) ...[
+                const Text(
+                  'For security reasons, please enter your password to continue with account deletion.',
+                  style: TextStyle(fontSize: 14),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: passwordController,
+                  obscureText: true,
+                  autofocus: true,
+                  onSubmitted: (_) async {
+                    final password = passwordController.text.trim();
+                    if (password.isEmpty) {
+                      setDialogState(() => errorMessage = 'Please enter your password');
+                      return;
+                    }
+                    try {
+                      final user = _auth.currentUser;
+                      final email = user?.email;
+                      if (user == null || email == null) {
+                        throw Exception('User or email not found');
+                      }
+                      final credential = EmailAuthProvider.credential(email: email, password: password);
+                      
+                      await user.reauthenticateWithCredential(credential).timeout(
+                        const Duration(seconds: 10),
+                        onTimeout: () {
+                          throw Exception('Authentication timed out. Try signing out and back in, then retry deletion.');
+                        },
+                      );
+                      
+                      if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+                    } on FirebaseAuthException catch (e) {
+                      debugPrint('[Reauth Enter] FirebaseAuthException: ${e.code} - ${e.message}');
+                      setDialogState(() {
+                        errorMessage = e.code == 'wrong-password'
+                            ? 'Incorrect password. Please try again.'
+                            : 'Authentication error: ${e.code.replaceAll('-', ' ')}';
+                      });
+                    } catch (e) {
+                      debugPrint('[Reauth Enter] Unknown error: $e');
+                      setDialogState(() => errorMessage = e.toString().contains('timed out')
+                          ? 'Request timed out. On desktop, sign out and back in first, then try deletion.'
+                          : 'Authentication error. Please try again.');
+                    }
+                  },
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    errorText: errorMessage,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: Colors.black, width: 2),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: Colors.black, width: 2),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: Colors.black, width: 2),
+                    ),
+                    errorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: Colors.red, width: 2),
+                    ),
+                  ),
+                ),
+              ] else ...[
+                const Text(
+                  'This account is not using a password (e.g., signed in with Google/Apple).\n\nTo confirm deletion, please sign out and sign back in, then try again.',
+                  style: TextStyle(fontSize: 14),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            if (supportsPassword)
+              ElevatedButton(
+                onPressed: () async {
+                  debugPrint('[Reauth] Confirm button pressed');
                   final password = passwordController.text.trim();
                   if (password.isEmpty) {
-                    setState(() {
-                      errorMessage = 'Please enter your password';
-                    });
+                    debugPrint('[Reauth] Password empty');
+                    setDialogState(() => errorMessage = 'Please enter your password');
                     return;
                   }
-                  
+                  debugPrint('[Reauth] Attempting reauthentication...');
                   try {
                     final user = _auth.currentUser;
                     final email = user?.email;
                     if (user == null || email == null) {
                       throw Exception('User or email not found');
                     }
+                    final credential = EmailAuthProvider.credential(email: email, password: password);
                     
-                    // Re-authenticate
-                    final credential = EmailAuthProvider.credential(
-                      email: email,
-                      password: password,
+                    // Add timeout to prevent infinite hang on desktop
+                    await user.reauthenticateWithCredential(credential).timeout(
+                      const Duration(seconds: 10),
+                      onTimeout: () {
+                        debugPrint('[Reauth] Timeout after 10 seconds');
+                        throw Exception('Authentication timed out. Try signing out and back in, then retry deletion.');
+                      },
                     );
-                    await user.reauthenticateWithCredential(credential);
                     
-                    if (context.mounted) {
-                      Navigator.pop(context, true);
-                    }
-                  } catch (e) {
-                    setState(() {
-                      errorMessage = 'Incorrect password. Please try again.';
+                    debugPrint('[Reauth] Success! Closing dialog with true');
+                    if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+                  } on FirebaseAuthException catch (e) {
+                    debugPrint('[Reauth Confirm] FirebaseAuthException: ${e.code} - ${e.message}');
+                    setDialogState(() {
+                      errorMessage = e.code == 'wrong-password'
+                          ? 'Incorrect password. Please try again.'
+                          : 'Authentication error: ${e.code.replaceAll('-', ' ')}';
                     });
+                  } catch (e) {
+                    debugPrint('[Reauth Confirm] Unknown error: $e');
+                    setDialogState(() => errorMessage = e.toString().contains('timed out') 
+                        ? 'Request timed out. On desktop, sign out and back in first, then try deletion.'
+                        : 'Authentication error. Please try again.');
                   }
                 },
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  errorText: errorMessage,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Colors.black, width: 2),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Colors.black, width: 2),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Colors.black, width: 2),
-                  ),
-                  errorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Colors.red, width: 2),
-                  ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.black,
+                  foregroundColor: Colors.white,
                 ),
+                child: const Text('Confirm'),
               ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final password = passwordController.text.trim();
-                if (password.isEmpty) {
-                  setState(() {
-                    errorMessage = 'Please enter your password';
-                  });
-                  return;
-                }
-                
-                try {
-                  final user = _auth.currentUser;
-                  final email = user?.email;
-                  if (user == null || email == null) {
-                    throw Exception('User or email not found');
+            if (!supportsPassword)
+              ElevatedButton(
+                onPressed: () async {
+                  try {
+                    await _auth.signOut();
+                  } finally {
+                    if (mounted) {
+                      Navigator.pop(dialogContext, false);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Signed out. Please sign back in to continue account deletion.')),
+                      );
+                    }
                   }
-                  
-                  // Re-authenticate
-                  final credential = EmailAuthProvider.credential(
-                    email: email,
-                    password: password,
-                  );
-                  await user.reauthenticateWithCredential(credential);
-                  
-                  if (context.mounted) {
-                    Navigator.pop(context, true);
-                  }
-                } catch (e) {
-                  setState(() {
-                    errorMessage = 'Incorrect password. Please try again.';
-                  });
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.black,
-                foregroundColor: Colors.white,
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.black,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Sign out to re-authenticate'),
               ),
-              child: const Text('Confirm'),
-            ),
           ],
         ),
       ),
     );
-    
+
     passwordController.dispose();
     return result ?? false;
   }
