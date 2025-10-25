@@ -48,7 +48,19 @@ class _PauseResumeSubscriptionPageV1State extends State<PauseResumeSubscriptionP
       Navigator.pop(context, ok);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      final errorMsg = e.toString().toLowerCase();
+      if (errorMsg.contains('unable to establish connection') || 
+          errorMsg.contains('channel') ||
+          errorMsg.contains('pigeon')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚠️ This feature requires Cloud Functions connection. Not available in offline/debug mode.'),
+            duration: Duration(seconds: 4),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
     } finally {
       if (mounted) setState(() { _working = false; });
     }
@@ -67,7 +79,19 @@ class _PauseResumeSubscriptionPageV1State extends State<PauseResumeSubscriptionP
       Navigator.pop(context, ok);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      final errorMsg = e.toString().toLowerCase();
+      if (errorMsg.contains('unable to establish connection') || 
+          errorMsg.contains('channel') ||
+          errorMsg.contains('pigeon')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚠️ This feature requires Cloud Functions connection. Not available in offline/debug mode.'),
+            duration: Duration(seconds: 4),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
     } finally {
       if (mounted) setState(() { _working = false; });
     }

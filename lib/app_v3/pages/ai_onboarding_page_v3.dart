@@ -1205,11 +1205,11 @@ class _AIOnboardingPageV3State extends State<AIOnboardingPageV3> {
     final weightGoal = _aiUserData['basicInfo']['weightGoal'] ?? 'maintain';
 
     if (mealsPerDay >= 4 || activityLevel == 'very_active' || weightGoal == 'build_muscle') {
-      return 'LeanFreak Plan';
+      return 'Premium Plan';
     } else if (weightGoal == 'lose_weight') {
-      return 'DietKnight Plan';
+      return 'Pro Plan';
     } else {
-      return 'Nutritious Plan';
+      return 'Standard Plan';
     }
   }
 
@@ -1386,14 +1386,14 @@ class _AIOnboardingPageV3State extends State<AIOnboardingPageV3> {
       MealPlanType planType;
       
       switch (recommendedPlan) {
-        case 'LeanFreak Plan':
-          planType = MealPlanType.leanFreak;
+        case 'Premium Plan':
+          planType = MealPlanType.premium;
           break;
-        case 'DietKnight Plan':
-          planType = MealPlanType.dietKnight;
+        case 'Pro Plan':
+          planType = MealPlanType.pro;
           break;
         default:
-          planType = MealPlanType.nutritious;
+          planType = MealPlanType.standard;
           break;
       }
       

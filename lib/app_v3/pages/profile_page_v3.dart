@@ -8,8 +8,11 @@ import '../theme/app_theme_v3.dart';
 import '../services/firestore_service_v3.dart';
 import 'dart:io';
 
+import '../models/mock_user_model.dart';
+
 class ProfilePageV3 extends StatefulWidget {
-  const ProfilePageV3({super.key});
+  final MockUser? mockUser;
+  const ProfilePageV3({super.key, this.mockUser});
 
   @override
   State<ProfilePageV3> createState() => _ProfilePageV3State();
@@ -28,11 +31,13 @@ class _ProfilePageV3State extends State<ProfilePageV3> {
   String? _profileImageUrl;
   
   User? _currentUser;
+  MockUser? _mockUser;
   Map<String, dynamic>? _userProfile;
 
   @override
   void initState() {
     super.initState();
+    _mockUser = widget.mockUser;
     _loadUserProfile();
   }
 
@@ -47,6 +52,16 @@ class _ProfilePageV3State extends State<ProfilePageV3> {
 
   Future<void> _loadUserProfile() async {
     try {
+      if (_mockUser != null) {
+        // Design mode: use mock user
+        setState(() {
+          _nameController.text = _mockUser!.displayName;
+          _emailController.text = _mockUser!.email;
+          _profileImageUrl = _mockUser!.photoUrl;
+          _isLoading = false;
+        });
+        return;
+      }
       _currentUser = FirebaseAuth.instance.currentUser;
       if (_currentUser != null) {
         _userProfile = await FirestoreServiceV3.getUserProfile(_currentUser!.uid);

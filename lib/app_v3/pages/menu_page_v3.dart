@@ -97,8 +97,21 @@ class _MenuPageV3State extends State<MenuPageV3> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                final items = (snapshot.data ?? []);
-                final list = items.isNotEmpty ? items : _getSampleMeals();
+                // Filter out any custom meals (double-check)
+                final allMeals = (snapshot.data ?? []);
+                final list = allMeals.where((m) => (m.menuCategory ?? 'premade').toLowerCase() == 'premade').toList();
+                if (list.isEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Text(
+                        'No menu items found for ${_selectedMealType}.',
+                        style: AppThemeV3.textTheme.titleMedium,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  );
+                }
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: list.length,
@@ -268,184 +281,75 @@ class _MenuPageV3State extends State<MenuPageV3> {
   void _showMealInfo(MealModelV3 meal) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: AppThemeV3.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                meal.name,
-                style: AppThemeV3.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+      builder: (ctx) {
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    meal.name,
+                    style: AppThemeV3.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Nutrition Information',
+                    style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Calories: ${meal.calories}\nProtein: ${meal.protein}g\nCarbs: ${meal.carbs}g\nFat: ${meal.fat}g',
+                    style: AppThemeV3.textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Ingredients',
+                    style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    meal.ingredients.join(', '),
+                    style: AppThemeV3.textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Allergy Warnings',
+                    style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: AppThemeV3.warning,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    meal.allergens.isNotEmpty ? meal.allergens.join(', ') : 'None',
+                    style: AppThemeV3.textTheme.bodyMedium?.copyWith(
+                      color: meal.allergens.isNotEmpty ? AppThemeV3.warning : AppThemeV3.success,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                ],
               ),
-              const SizedBox(height: 16),
-              
-              // Nutrients
-              Text(
-                'Nutrition Information',
-                style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Calories: ${meal.calories}\nProtein: ${meal.protein}g\nCarbs: ${meal.carbs}g\nFat: ${meal.fat}g',
-                style: AppThemeV3.textTheme.bodyMedium,
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Ingredients
-              Text(
-                'Ingredients',
-                style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                meal.ingredients.join(', '),
-                style: AppThemeV3.textTheme.bodyMedium,
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Allergy warnings
-              Text(
-                'Allergy Warnings',
-                style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: AppThemeV3.warning,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                meal.allergens.isNotEmpty ? meal.allergens.join(', ') : 'None',
-                style: AppThemeV3.textTheme.bodyMedium?.copyWith(
-                  color: meal.allergens.isNotEmpty ? AppThemeV3.warning : AppThemeV3.success,
-                ),
-              ),
-              
-              const SizedBox(height: 24),
-            ],
+            ),
           ),
         );
       },
     );
-  }
-
-  List<MealModelV3> _getSampleMeals() {
-    switch (_selectedMealType.toLowerCase()) {
-      case 'breakfast':
-        return [
-          MealModelV3(
-            id: '1',
-            name: 'Avocado Toast',
-            description: 'Whole grain bread topped with fresh avocado, cherry tomatoes, and a sprinkle of seeds',
-            calories: 320,
-            protein: 12,
-            carbs: 35,
-            fat: 18,
-            ingredients: ['Whole grain bread', 'Avocado', 'Cherry tomatoes', 'Pumpkin seeds', 'Olive oil'],
-            allergens: ['Gluten'],
-            icon: Icons.breakfast_dining,
-            imageUrl: '',
-          ),
-          MealModelV3(
-            id: '2',
-            name: 'Greek Yogurt Parfait',
-            description: 'Creamy Greek yogurt layered with fresh berries and granola',
-            calories: 280,
-            protein: 20,
-            carbs: 32,
-            fat: 8,
-            ingredients: ['Greek yogurt', 'Mixed berries', 'Granola', 'Honey'],
-            allergens: ['Dairy', 'Nuts'],
-            icon: Icons.icecream,
-            imageUrl: '',
-          ),
-          MealModelV3(
-            id: '3',
-            name: 'Almond Butter Pancakes',
-            description: 'Fluffy pancakes made with almond flour and topped with fresh fruit',
-            calories: 450,
-            protein: 15,
-            carbs: 42,
-            fat: 25,
-            ingredients: ['Almond flour', 'Eggs', 'Banana', 'Blueberries', 'Maple syrup'],
-            allergens: ['Nuts', 'Eggs'],
-            icon: Icons.cake,
-            imageUrl: '',
-          ),
-        ];
-      case 'lunch':
-        return [
-          MealModelV3(
-            id: '4',
-            name: 'Quinoa Buddha Bowl',
-            description: 'Nutritious bowl with quinoa, roasted vegetables, and tahini dressing',
-            calories: 420,
-            protein: 16,
-            carbs: 58,
-            fat: 15,
-            ingredients: ['Quinoa', 'Sweet potato', 'Broccoli', 'Chickpeas', 'Tahini'],
-            allergens: ['Sesame'],
-            icon: Icons.rice_bowl,
-            imageUrl: '',
-          ),
-          MealModelV3(
-            id: '5',
-            name: 'Grilled Chicken Salad',
-            description: 'Fresh mixed greens with grilled chicken, avocado, and balsamic vinaigrette',
-            calories: 380,
-            protein: 35,
-            carbs: 12,
-            fat: 22,
-            ingredients: ['Chicken breast', 'Mixed greens', 'Avocado', 'Cherry tomatoes', 'Balsamic vinegar'],
-            allergens: [],
-            icon: Icons.lunch_dining,
-            imageUrl: '',
-          ),
-        ];
-      case 'dinner':
-        return [
-          MealModelV3(
-            id: '6',
-            name: 'Salmon with Vegetables',
-            description: 'Baked salmon with roasted seasonal vegetables and herbs',
-            calories: 480,
-            protein: 40,
-            carbs: 18,
-            fat: 28,
-            ingredients: ['Salmon fillet', 'Asparagus', 'Bell peppers', 'Olive oil', 'Herbs'],
-            allergens: ['Fish'],
-            icon: Icons.dinner_dining,
-            imageUrl: '',
-          ),
-          MealModelV3(
-            id: '7',
-            name: 'Lentil Curry',
-            description: 'Hearty red lentil curry with coconut milk and spices, served with rice',
-            calories: 390,
-            protein: 18,
-            carbs: 65,
-            fat: 8,
-            ingredients: ['Red lentils', 'Coconut milk', 'Brown rice', 'Onions', 'Spices'],
-            allergens: [],
-            icon: Icons.dinner_dining,
-            imageUrl: '',
-          ),
-        ];
-      default:
-        return [];
-    }
   }
 }
 

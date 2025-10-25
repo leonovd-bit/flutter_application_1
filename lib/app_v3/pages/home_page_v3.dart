@@ -28,7 +28,7 @@ class HomePageV3 extends StatefulWidget {
 
 class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
   // Optimized state management - reduce static data
-  String _currentMealPlan = 'DietKnight';
+  String _currentMealPlan = 'Pro';
   final Map<String, int> _todayStats = {'calories': 850, 'protein': 45};
   final String _mostEatenMealType = 'High Protein';
   
@@ -206,9 +206,18 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
 
   /// Extracts delivery time from schedule data
   String? _getDeliveryTime(Map<String, dynamic> deliverySchedule, String day, String mealType) {
-    final daySchedule = deliverySchedule[day] as Map<String, dynamic>?;
-    final mealSchedule = daySchedule?[mealType] as Map<String, dynamic>?;
-    return mealSchedule?['time'] as String?;
+    Map<String, dynamic>? daySchedule = deliverySchedule[day] as Map<String, dynamic>?;
+    daySchedule ??= deliverySchedule[_toTitleCase(day)] as Map<String, dynamic>?;
+    daySchedule ??= deliverySchedule[day.toLowerCase()] as Map<String, dynamic>?;
+
+    if (daySchedule == null) return null;
+
+    Map<String, dynamic>? mealSchedule = daySchedule[mealType] as Map<String, dynamic>?;
+    mealSchedule ??= daySchedule[mealType.toLowerCase()] as Map<String, dynamic>?;
+    mealSchedule ??= daySchedule[_toTitleCase(mealType)] as Map<String, dynamic>?;
+    final val = mealSchedule?['time'];
+    if (val is String) return val;
+    return null;
   }
 
   /// Formats time string (HH:MM) to display format (H:MM AM/PM)
@@ -268,16 +277,21 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
       // Load from meal schedule data instead of Firestore orders
       final prefs = await SharedPreferences.getInstance();
       
-      // Get current selected schedule from SharedPreferences
-      final selectedSchedule = prefs.getString('selected_schedule_${user.uid}') ?? 'weekly';
-      
-      // Load meal selections
-      final mealSelectionsJson = prefs.getString('meal_selections_${user.uid}_$selectedSchedule');
+      // Try current selected schedule first; if missing, pick the first meal_selections entry for this user
+      String? mealSelectionsJson = prefs.getString('meal_selections_${user.uid}_${prefs.getString('selected_schedule_${user.uid}') ?? 'weekly'}');
+      if (mealSelectionsJson == null) {
+        final firstKey = prefs
+            .getKeys()
+            .firstWhere((k) => k.startsWith('meal_selections_${user.uid}_'), orElse: () => '');
+        if (firstKey.isNotEmpty) {
+          mealSelectionsJson = prefs.getString(firstKey);
+        }
+      }
       if (mealSelectionsJson == null) {
         setState(() => _nextOrder = null);
         return;
       }
-      
+
       final mealSelections = json.decode(mealSelectionsJson) as Map<String, dynamic>;
       
       // Load delivery schedule to get times and addresses
@@ -299,24 +313,24 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
       String nextDay = '';
       
       // Check today first, then future days
-      final daysToCheck = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  final daysToCheck = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
       final todayName = daysToCheck[today - 1];
       
       for (int dayOffset = 0; dayOffset < 7; dayOffset++) {
         final checkDayIndex = (today - 1 + dayOffset) % 7;
         final checkDayName = daysToCheck[checkDayIndex];
         
-        final dayMeals = mealSelections[checkDayName] as Map<String, dynamic>?;
+  final dayMeals = _getDayMealsFlexible(mealSelections, checkDayName);
         if (dayMeals == null) continue;
         
-        final dayDelivery = deliverySchedule[checkDayName] as Map<String, dynamic>?;
+  final dayDelivery = _getDayMealsFlexible(deliverySchedule, checkDayName);
         
         // Check breakfast, lunch, dinner in chronological order
         for (final mealType in ['breakfast', 'lunch', 'dinner']) {
-          final mealData = dayMeals[mealType] as Map<String, dynamic>?;
+          final mealData = _getMealFlexible(dayMeals, mealType);
           if (mealData == null) continue;
           
-          final deliveryConfig = dayDelivery?[mealType] as Map<String, dynamic>?;
+          final deliveryConfig = dayDelivery == null ? null : _getMealFlexible(dayDelivery, mealType);
           final timeStr = deliveryConfig?['time'] as String?;
           
           if (timeStr != null) {
@@ -381,6 +395,25 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
       debugPrint('[HomePage] Error loading upcoming meal from schedule: $e');
       setState(() => _nextOrder = null);
     }
+  }
+
+  // Flexible accessors for mixed-case maps coming from different pages
+  Map<String, dynamic>? _getDayMealsFlexible(Map<String, dynamic> map, String dayLower) {
+    return (map[dayLower] as Map<String, dynamic>?)
+        ?? (map[_toTitleCase(dayLower)] as Map<String, dynamic>?)
+        ?? (map[dayLower.toLowerCase()] as Map<String, dynamic>?);
+  }
+
+  Map<String, dynamic>? _getMealFlexible(Map<String, dynamic> dayMap, String mealLower) {
+    return (dayMap[mealLower] as Map<String, dynamic>?)
+        ?? (dayMap[_toTitleCase(mealLower)] as Map<String, dynamic>?)
+        ?? (dayMap[mealLower.toLowerCase()] as Map<String, dynamic>?);
+  }
+
+  String _toTitleCase(String s) {
+    if (s.isEmpty) return s;
+    final t = s.trim();
+    return t[0].toUpperCase() + t.substring(1).toLowerCase();
   }
 
   // Load the selected meal plan from storage
@@ -454,7 +487,7 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
       
-      // Load addresses from SharedPreferences (where delivery schedule saves them)
+  // Load addresses from SharedPreferences (where delivery schedule saves them)
       final prefs = await SharedPreferences.getInstance();
       final addressList = prefs.getStringList('user_addresses') ?? [];
       
@@ -490,6 +523,40 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
         return a.isDefault ? -1 : 1;
       });
       
+      // Fallback: if none found, try single-string delivery address saved elsewhere
+      if (loadedAddresses.isEmpty) {
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        final single = uid == null ? null : prefs.getString('user_delivery_address_$uid');
+        if (single != null && single.trim().isNotEmpty) {
+          final addr = AddressModelV3(
+            id: 'addr_${DateTime.now().millisecondsSinceEpoch}',
+            userId: uid ?? '',
+            label: 'Delivery Address',
+            streetAddress: single.trim(),
+            apartment: '',
+            city: '',
+            state: '',
+            zipCode: '',
+            isDefault: true,
+          );
+          loadedAddresses.add(addr);
+          // Persist into user_addresses list so it appears next time
+          final updated = List<String>.from(addressList)..add(json.encode({
+            'id': addr.id,
+            'userId': addr.userId,
+            'label': addr.label,
+            'streetAddress': addr.streetAddress,
+            'apartment': addr.apartment,
+            'city': addr.city,
+            'state': addr.state,
+            'zipCode': addr.zipCode,
+            'isDefault': addr.isDefault,
+            'createdAt': DateTime.now().toIso8601String(),
+          }));
+          await prefs.setStringList('user_addresses', updated);
+        }
+      }
+
       if (!mounted) return;
       setState(() {
         _userAddresses = loadedAddresses;
@@ -1422,29 +1489,45 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
   }
 
   Widget _buildUpcomingOrdersSection() {
-    // Build timeline orders from actual user data (only if cache is empty or data changed)
-    if (_cachedTimelineOrders.isEmpty && _nextOrder != null && _nextOrder!['meal'] != null) {
-      final meal = _nextOrder!['meal'] as MealModelV3;
+    // Build timeline orders from _nextOrder when available (works with or without a full meal object)
+    if (_cachedTimelineOrders.isEmpty && _nextOrder != null) {
+      MealModelV3? mealObj = _nextOrder!['meal'] as MealModelV3?;
+      final mealName = _nextOrder!['mealName'] as String? ?? mealObj?.name ?? 'Meal';
+      final mealType = _nextOrder!['mealType'] as String? ?? mealObj?.mealType ?? 'lunch';
+      final dayRaw = (_nextOrder!['day'] as String? ?? '').toString();
+      final dayDisp = dayRaw.isEmpty ? 'Today' : _toTitleCase(dayRaw);
+      final time = _nextOrder!['deliveryTime'] as String? ?? '12:30 PM';
+      final imageUrl = _nextOrder!['imageUrl'];
+      final address = _nextOrder!['deliveryAddress'] as String? ?? 'Address not set';
+      final calories = _nextOrder!['calories'] ?? mealObj?.calories ?? 0;
+      final protein = _nextOrder!['protein'] ?? mealObj?.protein ?? 0;
+      final fat = mealObj?.fat ?? 0;
+      final carbs = mealObj?.carbs ?? 0;
+
       _cachedTimelineOrders = [{
         'id': _nextOrder!['orderId'] ?? 'order-1',
-        'day': 'Today', // You could calculate this from the day in _nextOrder
-        'time': _nextOrder!['deliveryTime'] ?? '12:30 PM',
-        'mealType': meal.mealType[0].toUpperCase() + meal.mealType.substring(1), // Capitalize
+        'day': dayDisp,
+        'time': time,
+        'mealType': _toTitleCase(mealType),
         'status': 'confirmed',
         'nutrition': {
-          'calories': meal.calories,
-          'protein': meal.protein,
-          'fat': meal.fat,
-          'carbs': meal.carbs
+          'calories': calories,
+          'protein': protein,
+          'fat': fat,
+          'carbs': carbs,
         },
-        'address': _nextOrder!['deliveryAddress'] ?? '123 Main St',
-        'mealName': meal.name,
-        'imageUrl': meal.imageUrl,
+        'address': address,
+        'mealName': mealName,
+        'imageUrl': imageUrl,
       }];
     }
     
     // If no orders, show empty state
     if (_cachedTimelineOrders.isEmpty) {
+      // Optional details helper under header when we found a next order but didn't build a timeline
+      final detailsText = (_nextOrder != null && _nextOrder!['deliveryTime'] != null && _nextOrder!['day'] != null)
+          ? 'Next: ${_toTitleCase((_nextOrder!['day'] as String?) ?? '')} • ${_nextOrder!['deliveryTime']}'
+          : null;
       return Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -1487,6 +1570,17 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
               ],
             ),
             const SizedBox(height: 20),
+            if (detailsText != null) ...[
+              Text(
+                detailsText,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
             const Text(
               'No upcoming orders. Create a delivery schedule to get started!',
               style: TextStyle(

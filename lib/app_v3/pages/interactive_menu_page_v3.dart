@@ -3,12 +3,14 @@ import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
 import '../services/meal_service_v3.dart';
 import '../widgets/app_image.dart';
+import 'customize_meal_page_v3.dart';
 
 class InteractiveMenuPageV3 extends StatefulWidget {
   final String menuType;
   final String day; // Which day we're selecting meals for
   final Function(MealModelV3) onMealSelected;
   final MealModelV3? selectedMeal; // Currently selected meal for this day/type
+  final String? menuCategory; // 'premade' or 'custom' (optional filter)
   
   const InteractiveMenuPageV3({
     super.key, 
@@ -16,6 +18,7 @@ class InteractiveMenuPageV3 extends StatefulWidget {
     required this.day,
     required this.onMealSelected,
     this.selectedMeal,
+    this.menuCategory,
   });
 
   @override
@@ -26,6 +29,8 @@ class _InteractiveMenuPageV3State extends State<InteractiveMenuPageV3> {
   String _selectedMealType = 'Breakfast';
   List<MealModelV3> _meals = [];
   bool _isLoading = true;
+  // Track which meal descriptions are expanded (by meal id)
+  final Set<String> _expandedDescriptions = <String>{};
   
   @override
   void initState() {
@@ -40,8 +45,23 @@ class _InteractiveMenuPageV3State extends State<InteractiveMenuPageV3> {
         mealType: _selectedMealType.toLowerCase(),
         limit: 50,
       );
+      // Filter by menu category
+      // If no category specified, default to showing only premade meals
+      List<MealModelV3> filtered = widget.menuCategory == null
+          ? meals.where((m) => (m.menuCategory ?? 'premade').toLowerCase() == 'premade').toList()
+          : meals.where((m) => (m.menuCategory ?? 'premade').toLowerCase() == widget.menuCategory!.toLowerCase()).toList();
+      if (filtered.isEmpty) {
+        final local = await MealServiceV3.getMealsFromLocal(
+          mealType: _selectedMealType.toLowerCase(),
+          menuCategory: widget.menuCategory,
+          limit: 50,
+        );
+        if (local.isNotEmpty) {
+          filtered = local;
+        }
+      }
       setState(() {
-        _meals = meals;
+        _meals = filtered;
         _isLoading = false;
       });
     } catch (e) {
@@ -65,7 +85,7 @@ class _InteractiveMenuPageV3State extends State<InteractiveMenuPageV3> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Select ${widget.menuType.capitalizeFirst()} for ${widget.day}',
+          '${widget.menuCategory == 'custom' ? 'Customize' : 'Select'} ${widget.menuType.capitalizeFirst()} for ${widget.day}',
           style: AppThemeV3.textTheme.headlineMedium?.copyWith(
             fontWeight: FontWeight.w600,
           ),
@@ -86,20 +106,22 @@ class _InteractiveMenuPageV3State extends State<InteractiveMenuPageV3> {
             ),
           ),
           
-          // FreshPunk Menu Header
+          // Victus Menu Header
           Container(
             color: AppThemeV3.surface,
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
                 Text(
-                  'FreshPunk',
+                  'Victus',
                   style: AppThemeV3.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 Text(
-                  '${_selectedMealType.toUpperCase()} MENU',
+                  widget.menuCategory == 'custom'
+                      ? '${_selectedMealType.toUpperCase()} • CUSTOMIZE'
+                      : '${_selectedMealType.toUpperCase()} MENU',
                   style: AppThemeV3.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                     color: AppThemeV3.textSecondary,
@@ -197,7 +219,7 @@ class _InteractiveMenuPageV3State extends State<InteractiveMenuPageV3> {
                 
                 const SizedBox(width: 16),
                 
-                // Meal name and description
+                // Meal name, restaurant, and description
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -208,14 +230,55 @@ class _InteractiveMenuPageV3State extends State<InteractiveMenuPageV3> {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        meal.description,
-                        style: AppThemeV3.textTheme.bodyMedium?.copyWith(
-                          color: AppThemeV3.textSecondary,
+                      if ((meal.restaurant ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.storefront, size: 14, color: AppThemeV3.textSecondary),
+                            const SizedBox(width: 6),
+                            Text(
+                              meal.restaurant!,
+                              style: AppThemeV3.textTheme.bodySmall?.copyWith(
+                                color: AppThemeV3.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                      ],
+                      const SizedBox(height: 4),
+                      // Tappable description that expands/collapses
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            if (_expandedDescriptions.contains(meal.id)) {
+                              _expandedDescriptions.remove(meal.id);
+                            } else {
+                              _expandedDescriptions.add(meal.id);
+                            }
+                          });
+                        },
+                        child: AnimatedCrossFade(
+                          firstChild: Text(
+                            meal.description,
+                            style: AppThemeV3.textTheme.bodyMedium?.copyWith(
+                              color: AppThemeV3.textSecondary,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          secondChild: Text(
+                            meal.description,
+                            style: AppThemeV3.textTheme.bodyMedium?.copyWith(
+                              color: AppThemeV3.textSecondary,
+                            ),
+                            softWrap: true,
+                          ),
+                          crossFadeState: _expandedDescriptions.contains(meal.id)
+                              ? CrossFadeState.showSecond
+                              : CrossFadeState.showFirst,
+                          duration: const Duration(milliseconds: 200),
+                        ),
                       ),
                     ],
                   ),
@@ -223,25 +286,51 @@ class _InteractiveMenuPageV3State extends State<InteractiveMenuPageV3> {
                 
                 const SizedBox(width: 16),
                 
-                // Add/Check icon
-                GestureDetector(
-                  onTap: () {
-                    // Report selection to the parent; the parent decides when/if to pop.
-                    widget.onMealSelected(meal);
-                  },
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: isSelected ? Colors.green : AppThemeV3.accent,
-                      borderRadius: BorderRadius.circular(8),
+                // Price + Add/Check icon
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    if (meal.price > 0)
+                      Text(
+                        '\$${meal.price.toStringAsFixed(2)}',
+                        style: AppThemeV3.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: () async {
+                        // If this is a custom base, open the customizer first.
+                        final isCustom = (widget.menuCategory == 'custom') || ((meal.menuCategory ?? '').toLowerCase() == 'custom');
+                        if (isCustom) {
+                          final result = await Navigator.push<MealModelV3>(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => CustomizeMealPageV3(baseMeal: meal),
+                            ),
+                          );
+                          if (result != null) {
+                            widget.onMealSelected(result);
+                          }
+                        } else {
+                          // Premade: report selection directly
+                          widget.onMealSelected(meal);
+                        }
+                      },
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: isSelected ? Colors.green : AppThemeV3.accent,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          isSelected ? Icons.check : Icons.add,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
                     ),
-                    child: Icon(
-                      isSelected ? Icons.check : Icons.add,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
+                  ],
                 ),
               ],
             ),
@@ -278,80 +367,96 @@ class _InteractiveMenuPageV3State extends State<InteractiveMenuPageV3> {
   void _showMealInfo(MealModelV3 meal) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: AppThemeV3.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                meal.name,
-                style: AppThemeV3.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+      builder: (ctx) {
+        final priceLine = meal.price > 0
+            ? 'Price: \$${meal.price.toStringAsFixed(2)}'
+            : '';
+        final nutritionText =
+            'Calories: ${meal.calories > 0 ? meal.calories : '-'}\n'
+            'Protein: ${meal.protein > 0 ? meal.protein : '-'}g\n'
+            'Carbs: ${meal.carbs > 0 ? meal.carbs : '-'}g\n'
+            'Fat: ${meal.fat > 0 ? meal.fat : '-'}g\n'
+            '$priceLine';
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    meal.name,
+                    style: AppThemeV3.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Nutrition & Price',
+                    style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(nutritionText, style: AppThemeV3.textTheme.bodyMedium),
+                  const SizedBox(height: 16),
+                  if ((meal.restaurant ?? '').isNotEmpty) ...[
+                    Text(
+                      'Restaurant',
+                      style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(meal.restaurant!, style: AppThemeV3.textTheme.bodyMedium),
+                    const SizedBox(height: 16),
+                  ],
+                  Text(
+                    'Ingredients',
+                    style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    meal.ingredients.join(', '),
+                    style: AppThemeV3.textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Allergy Warnings',
+                    style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: AppThemeV3.warning,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    meal.allergens.isNotEmpty
+                        ? meal.allergens.join(', ')
+                        : 'No known allergens',
+                    style: AppThemeV3.textTheme.bodyMedium?.copyWith(
+                      color: meal.allergens.isNotEmpty
+                          ? AppThemeV3.warning
+                          : AppThemeV3.textSecondary,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              
-              // Nutrients
-              Text(
-                'Nutrition Information',
-                style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Calories: ${meal.calories}\nProtein: ${meal.protein}g\nCarbs: ${meal.carbs}g\nFat: ${meal.fat}g',
-                style: AppThemeV3.textTheme.bodyMedium,
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Ingredients
-              Text(
-                'Ingredients',
-                style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                meal.ingredients.join(', '),
-                style: AppThemeV3.textTheme.bodyMedium,
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Allergy warnings
-              Text(
-                'Allergy Warnings',
-                style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: AppThemeV3.warning,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                meal.allergens.isNotEmpty 
-                    ? meal.allergens.join(', ')
-                    : 'No known allergens',
-                style: AppThemeV3.textTheme.bodyMedium?.copyWith(
-                  color: meal.allergens.isNotEmpty ? AppThemeV3.warning : AppThemeV3.textSecondary,
-                ),
-              ),
-            ],
+            ),
           ),
         );
       },
     );
   }
-
-
 }
 
 // Extension to capitalize first letter

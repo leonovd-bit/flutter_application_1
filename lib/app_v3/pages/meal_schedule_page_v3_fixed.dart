@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../models/mock_user_model.dart';
 
 import '../models/meal_model_v3.dart';
 import '../theme/app_theme_v3.dart';
@@ -12,19 +13,20 @@ import 'delivery_schedule_page_v5.dart';
 import '../services/meal_service_v3.dart';
 import 'interactive_menu_page_v3.dart';
 import 'payment_page_v3.dart';
-import 'payment_methods_page_v3.dart';
-import '../services/stripe_service.dart';
+// removed unused imports
 
 class MealSchedulePageV3 extends StatefulWidget {
   final MealPlanModelV3? mealPlan;
   final Map<String, Map<String, dynamic>>? weeklySchedule;
   final String? initialScheduleName;
+  final MockUser? mockUser;
 
   const MealSchedulePageV3({
     super.key,
     this.mealPlan,
     this.weeklySchedule,
     this.initialScheduleName,
+    this.mockUser,
   });
 
   @override
@@ -32,6 +34,7 @@ class MealSchedulePageV3 extends StatefulWidget {
 }
 
 class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
+  MockUser? _mockUser;
   // Anchor for custom dropdown
   final LayerLink _scheduleLink = LayerLink();
   OverlayEntry? _scheduleOverlay;
@@ -56,6 +59,39 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
   // Selections: day -> mealType -> meal
   final Map<String, Map<String, MealModelV3?>> _selectedMeals = {};
 
+  // Canonicalize day names to title case used by UI
+  static const List<String> _dayOrder = [
+    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
+  ];
+  String _normalizeDayKey(String key) {
+    final lower = key.toLowerCase();
+    for (final d in _dayOrder) {
+      if (d.toLowerCase() == lower) return d;
+    }
+    return key; // fallback
+  }
+
+  // Canonicalize meal type keys to a consistent TitleCase form used across UI and state
+  String _canonMealType(String key) {
+    final t = key.trim();
+    if (t.isEmpty) return t;
+    return t[0].toUpperCase() + t.substring(1).toLowerCase();
+  }
+
+  // Helpers to safely read schedule entries regardless of key casing
+  Map<String, dynamic>? _scheduleFor(String day, String mealType) {
+    final map = _currentWeeklySchedule[_normalizeDayKey(day)] ?? _currentWeeklySchedule[day.toLowerCase()];
+    if (map == null) return null;
+    // Try exact, lowercase, and capitalized variants
+    return map[mealType] ??
+        map[mealType.toLowerCase()] ??
+        map[(mealType.isEmpty)
+            ? mealType
+            : mealType[0].toUpperCase() + mealType.substring(1).toLowerCase()];
+  }
+
+  bool _hasScheduleFor(String day, String mealType) => _scheduleFor(day, mealType) != null;
+
   Future<void> _proceedToPayment() async {
     if (_currentMealPlan == null) return;
     
@@ -75,6 +111,8 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
   }
 
   List<String> get _configuredDays {
+    // Always show the full week in the Meal Schedule UI so designers can preview all days,
+    // while still respecting the underlying delivery schedule (only scheduled days are required).
     const order = [
       'Monday',
       'Tuesday',
@@ -84,14 +122,13 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
       'Saturday',
       'Sunday',
     ];
-    final days = _currentWeeklySchedule.keys.toList();
-    days.sort((a, b) => order.indexOf(a).compareTo(order.indexOf(b)));
-    return days;
+    return List<String>.from(order);
   }
 
   @override
   void initState() {
     super.initState();
+    _mockUser = widget.mockUser;
     _loadAvailableSchedules();
 
     if (widget.mealPlan != null && widget.weeklySchedule != null) {
@@ -120,7 +157,7 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
   // Load saved schedule names (deduped) and optionally load one
   Future<void> _loadAvailableSchedules() async {
     final prefs = await SharedPreferences.getInstance();
-  final uid = FirebaseAuth.instance.currentUser?.uid;
+  final uid = _mockUser?.uid ?? FirebaseAuth.instance.currentUser?.uid;
   final listKey = uid == null ? 'saved_schedules' : 'saved_schedules_${uid}';
   final saved = prefs.getStringList(listKey) ?? [];
     final seen = <String>{};
@@ -147,30 +184,53 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
 
   Future<void> _loadScheduleData(String name) async {
     final prefs = await SharedPreferences.getInstance();
-  final uid = FirebaseAuth.instance.currentUser?.uid;
+  final uid = _mockUser?.uid ?? FirebaseAuth.instance.currentUser?.uid;
   final schedKey = uid == null ? 'delivery_schedule_$name' : 'delivery_schedule_${uid}_$name';
   final raw = prefs.getString(schedKey);
     if (raw == null) return;
-    final data = json.decode(raw) as Map<String, dynamic>;
+    final decoded = json.decode(raw);
+    if (decoded is! Map) {
+      debugPrint('[MealSchedule] Unexpected schedule payload type: ${decoded.runtimeType}');
+      return;
+    }
+    final data = Map<String, dynamic>.from(decoded);
 
     final mealPlanId = data['mealPlanId'] as String;
     final plans = MealPlanModelV3.getAvailablePlans();
     _currentMealPlan = plans.firstWhere((p) => p.id == mealPlanId);
 
-    _currentMealTypes = List<String>.from(data['selectedMealTypes'] as List);
+  _currentMealTypes = List<String>.from(data['selectedMealTypes'] as List)
+    .map((e) => _canonMealType(e.toString()))
+    .toList();
 
     _currentWeeklySchedule = {};
-    final weekly = data['weeklySchedule'] as Map<String, dynamic>;
+    final weeklyDyn = data['weeklySchedule'];
+    if (weeklyDyn is! Map) {
+      debugPrint('[MealSchedule] weeklySchedule is not a Map (found ${weeklyDyn.runtimeType}); skipping');
+      weeklyDyn == null; // no-op to silence analyzer when null
+      return;
+    }
+    final weekly = Map<String, dynamic>.from(weeklyDyn);
     weekly.forEach((day, value) {
-      final m = value as Map<String, dynamic>;
-      _currentWeeklySchedule[day] = {};
+      // Some legacy data may contain non-Map values; guard against that.
+      if (value is! Map) return;
+  final m = Map<String, dynamic>.from(value);
+      final dayKey = _normalizeDayKey(day);
+      _currentWeeklySchedule[dayKey] = {};
       m.forEach((mealType, v) {
-        final mt = v as Map<String, dynamic>;
-        _currentWeeklySchedule[day]![mealType] = {
-          'time': mt['time'],
-          'address': mt['address'],
-          'enabled': true,
-        };
+        if (v is Map) {
+          final mt = Map<String, dynamic>.from(v);
+          // Normalize mealType key casing to lowercase for consistency
+          final key = mealType.toString();
+          _currentWeeklySchedule[dayKey]![key] = {
+            'time': mt['time'],
+            'address': mt['address'],
+            'enabled': true,
+          };
+        } else {
+          // Ignore unexpected non-map entries like booleans
+          debugPrint('[MealSchedule] Skipping non-map value for "$mealType" on "$day": ${v.runtimeType}');
+        }
       });
     });
 
@@ -186,9 +246,10 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
 
   void _initSelectedMeals() {
     _selectedMeals.clear();
+    final types = _deriveMealTypes().map(_canonMealType).toList();
     for (final day in _configuredDays) {
       _selectedMeals[day] = {};
-      for (final mt in _currentMealTypes) {
+      for (final mt in types) {
         _selectedMeals[day]![mt] = null;
       }
     }
@@ -205,10 +266,7 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
       }
       if (mealTypesFromSchedule.isNotEmpty) {
         // Capitalize meal types: 'lunch' -> 'Lunch'
-        final capitalizedTypes = mealTypesFromSchedule.map((mt) {
-          if (mt.isEmpty) return mt;
-          return mt[0].toUpperCase() + mt.substring(1);
-        }).toList();
+        final capitalizedTypes = mealTypesFromSchedule.map((mt) => _canonMealType(mt)).toList();
         debugPrint('[MealSchedule] Derived meal types from schedule: $capitalizedTypes');
         return capitalizedTypes;
       }
@@ -228,21 +286,31 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
   Future<void> _loadPersistedMealSelections() async {
     if (_selectedSchedule == null) return;
     final prefs = await SharedPreferences.getInstance();
-  final uid = FirebaseAuth.instance.currentUser?.uid;
+  final uid = _mockUser?.uid ?? FirebaseAuth.instance.currentUser?.uid;
   final key = uid == null
     ? 'meal_selections_${_selectedSchedule}'
     : 'meal_selections_${uid}_${_selectedSchedule}';
   final raw = prefs.getString(key);
     if (raw == null) return;
     try {
-      final data = json.decode(raw) as Map<String, dynamic>;
+      final decoded = json.decode(raw);
+      if (decoded is! Map) return;
+      final data = Map<String, dynamic>.from(decoded);
       data.forEach((day, mealTypes) {
-        if (!_selectedMeals.containsKey(day)) return;
-        final mtMap = mealTypes as Map<String, dynamic>;
+        final dayKey = _normalizeDayKey(day.toString());
+        if (!_selectedMeals.containsKey(dayKey)) return;
+        if (mealTypes is! Map) return; // guard against legacy boolean/array values
+        final mtMap = Map<String, dynamic>.from(mealTypes);
         mtMap.forEach((mt, val) {
-          if (!_selectedMeals[day]!.containsKey(mt)) return;
-          final mealJson = val as Map<String, dynamic>;
-          _selectedMeals[day]![mt] = MealModelV3.fromJson(mealJson);
+          final mtNorm = _canonMealType(mt.toString());
+          if (!_selectedMeals[dayKey]!.containsKey(mtNorm)) return;
+          if (val is! Map) return; // skip invalid entries
+          final mealJson = Map<String, dynamic>.from(val);
+          try {
+            _selectedMeals[dayKey]![mtNorm] = MealModelV3.fromJson(mealJson);
+          } catch (e) {
+            debugPrint('[MealSchedule] Skipping invalid saved meal for $dayKey/$mtNorm: $e');
+          }
         });
       });
     } catch (_) {}
@@ -251,7 +319,7 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
   Future<void> _saveMealSelections() async {
     if (_selectedSchedule == null) return;
     final prefs = await SharedPreferences.getInstance();
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+  final uid = _mockUser?.uid ?? FirebaseAuth.instance.currentUser?.uid;
     final userId = uid ?? 'local_user';
     
     // Save in existing format for meal schedule functionality
@@ -406,7 +474,7 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
   bool _isWeekComplete() {
     for (final day in _configuredDays) {
       for (final mt in _deriveMealTypes()) {
-        final required = _currentWeeklySchedule[day]?[mt]?['time'] != null;
+        final required = _scheduleFor(day, mt)?['time'] != null;
         if (required && _selectedMeals[day]?[mt] == null) return false;
       }
     }
@@ -431,13 +499,8 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
             'Meal Schedule',
             style: AppThemeV3.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w600),
           ),
-          actions: [
-            IconButton(
-              tooltip: 'Randomize meals for current type',
-              icon: const Icon(Icons.shuffle),
-              onPressed: _randomizeCurrentMealType,
-            ),
-          ],
+          // Remove the top-right shuffle icon for a cleaner UI
+          actions: const [],
         ),
         body: Column(
           children: [
@@ -467,7 +530,7 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
                     const SizedBox(height: 8),
                     ..._visibleDays().map(_buildDayCard),
                     const SizedBox(height: 16),
-                    if (_isWeekComplete()) _buildProceedButton(),
+                    _buildProceedButton(),
                   ],
                 ),
               ),
@@ -478,25 +541,8 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
     );
   }
 
-  // Randomly fill any empty selections for the currently selected meal type
-  Future<void> _randomizeCurrentMealType() async {
-    if (_selectedSchedule == null || _currentMealPlan == null) return;
-    // Fetch a pool of meals for the current type from service or use simple samples if empty
-    final meals = await _fetchMealsForType(_selectedMealType);
-    if (meals.isEmpty) return;
-    meals.shuffle();
-    int idx = 0;
-    for (final day in _configuredDays) {
-      final required = _currentWeeklySchedule[day]?[_selectedMealType]?['time'] != null;
-      if (!required) continue;
-      if (_selectedMeals[day]?[_selectedMealType] == null) {
-        _selectedMeals[day]![_selectedMealType] = meals[idx % meals.length];
-        idx++;
-      }
-    }
-    await _saveMealSelections();
-    if (mounted) setState(() {});
-  }
+  // Randomize feature temporarily disabled (no UI entry point)
+  // Future<void> _randomizeCurrentMealType() async { /* removed */ }
 
   // Helper to fetch meals by type; tries Firestore via MealServiceV3 first, else falls back to simple defaults
   Future<List<MealModelV3>> _fetchMealsForType(String type) async {
@@ -721,8 +767,8 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
   }
 
   Widget _buildDayCard(String day) {
-    final selectedMeal = _selectedMeals[day]?[_selectedMealType];
-    final scheduleInfo = _currentWeeklySchedule[day]?[_selectedMealType];
+  final selectedMeal = _selectedMeals[day]?[_selectedMealType];
+  final scheduleInfo = _scheduleFor(day, _selectedMealType);
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -807,98 +853,140 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: AppThemeV3.accent.withValues(alpha: 0.3)),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      color: AppThemeV3.surfaceElevated,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppThemeV3.border),
-                    ),
-                    child: Builder(
-                      builder: (context) {
-                        print('🍽️ Meal: ${selectedMeal.name}');
-                        print('🔗 ImagePath: "${selectedMeal.imagePath}"');
-                        print('🔗 ImageUrl: "${selectedMeal.imageUrl}"');
-                        print('📏 Path Empty? ${selectedMeal.imagePath.isEmpty}');
-                        
-                        return (selectedMeal.imagePath.isNotEmpty)
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: AppImage(
-                                  selectedMeal.imagePath,
-                                  width: 60,
-                                  height: 60,
-                                  fit: BoxFit.cover,
-                                ),
-                              )
-                            : Container(
-                                width: 60,
-                                height: 60,
-                                decoration: BoxDecoration(
-                                  color: AppThemeV3.primaryGreen.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Icon(
-                                  selectedMeal.icon, 
-                                  size: 30, 
-                                  color: AppThemeV3.accent
-                                ),
-                              );
-                      },
-                    ),
+                  // Top row: Name spanning full width (centered)
+                  Text(
+                    selectedMeal.name,
+                    textAlign: TextAlign.center,
+                    style: AppThemeV3.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(selectedMeal.name, style: AppThemeV3.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 2),
-                        Text(selectedMeal.description, style: AppThemeV3.textTheme.bodySmall?.copyWith(color: AppThemeV3.textSecondary), maxLines: 2, overflow: TextOverflow.ellipsis),
-                        const SizedBox(height: 4),
-                        Text('${selectedMeal.calories} cal • ${selectedMeal.protein}g protein', style: AppThemeV3.textTheme.bodySmall?.copyWith(color: AppThemeV3.textSecondary, fontSize: 11)),
-                      ],
-                    ),
+                  const SizedBox(height: 8),
+                  // Second row: image | description | action icons
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // image
+                      if (selectedMeal.imagePath.isNotEmpty)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: AppImage(
+                            selectedMeal.imagePath,
+                            width: 60,
+                            height: 60,
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      else
+                        Container(
+                          width: 60,
+                          height: 60,
+                          decoration: BoxDecoration(
+                            color: AppThemeV3.primaryGreen.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppThemeV3.border),
+                          ),
+                          child: Icon(
+                            selectedMeal.icon,
+                            size: 30,
+                            color: AppThemeV3.accent,
+                          ),
+                        ),
+                      const SizedBox(width: 12),
+                      // description (centered, fully visible)
+                      Expanded(
+                        child: Text(
+                          selectedMeal.description,
+                          textAlign: TextAlign.center,
+                          style: AppThemeV3.textTheme.bodySmall?.copyWith(color: AppThemeV3.textSecondary),
+                          softWrap: true,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // actions (centered vertically)
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            onPressed: () => _selectMealForDay(day),
+                            icon: const Icon(Icons.edit, color: AppThemeV3.accent),
+                            tooltip: 'Change meal',
+                            visualDensity: VisualDensity.compact,
+                            constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+                            padding: EdgeInsets.zero,
+                          ),
+                          IconButton(
+                            onPressed: () => _clearMealForDay(day),
+                            icon: const Icon(Icons.close, color: Colors.red),
+                            tooltip: 'Remove meal',
+                            visualDensity: VisualDensity.compact,
+                            constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+                            padding: EdgeInsets.zero,
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                  IconButton(
-                    onPressed: () => _selectMealForDay(day),
-                    icon: const Icon(Icons.edit, color: AppThemeV3.accent),
-                    tooltip: 'Change meal',
-                    visualDensity: VisualDensity.compact,
-                    constraints: const BoxConstraints.tightFor(width: 32, height: 32),
-                    padding: EdgeInsets.zero,
-                  ),
-                  IconButton(
-                    onPressed: () => _clearMealForDay(day),
-                    icon: const Icon(Icons.close, color: Colors.red),
-                    tooltip: 'Remove meal',
-                    visualDensity: VisualDensity.compact,
-                    constraints: const BoxConstraints.tightFor(width: 32, height: 32),
-                    padding: EdgeInsets.zero,
+                  const SizedBox(height: 8),
+                  // Bottom row: Nutrition info centered
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '${selectedMeal.calories > 0 ? selectedMeal.calories : 0} cal',
+                        style: AppThemeV3.textTheme.bodySmall?.copyWith(
+                          color: AppThemeV3.textSecondary,
+                          fontSize: 11,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text('•', style: AppThemeV3.textTheme.bodySmall?.copyWith(color: AppThemeV3.textSecondary, fontSize: 11)),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${selectedMeal.protein > 0 ? selectedMeal.protein : 0}g protein',
+                        style: AppThemeV3.textTheme.bodySmall?.copyWith(
+                          color: AppThemeV3.textSecondary,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
           ] else ...[
-            OutlinedButton(
-              onPressed: () => _selectMealForDay(day),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppThemeV3.accent,
-                side: const BorderSide(color: AppThemeV3.accent),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                minimumSize: const Size.fromHeight(64),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.add),
-                  const SizedBox(width: 8),
-                  Text('Select $_selectedMealType'),
-                ],
-              ),
+            // Two-choice layout: Customize meals vs Pre-made meals
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _showCustomComingSoon(day),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.black,
+                      side: const BorderSide(color: Colors.black, width: 2),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      minimumSize: const Size.fromHeight(56),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Customize meals', style: TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _choosePremadeForDay(day),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.black,
+                      side: const BorderSide(color: Colors.black, width: 2),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      minimumSize: const Size.fromHeight(56),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Pre-made meals', style: TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
             ),
           ],
         ],
@@ -1096,21 +1184,92 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
 
   // Removed "Save for Week" and "Customize for Week" buttons as requested.
 
-  Widget _buildProceedButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: _proceedToPayment,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppThemeV3.accent,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  List<String> _missingSelections() {
+    final missing = <String>[];
+    for (final day in _configuredDays) {
+      for (final mt in _deriveMealTypes()) {
+        final required = _scheduleFor(day, mt)?['time'] != null;
+        if (required && (_selectedMeals[day]?[mt] == null)) {
+          missing.add('$day • $mt');
+        }
+      }
+    }
+    return missing;
+  }
+
+  Future<void> _attemptProceed() async {
+    final missing = _missingSelections();
+    if (missing.isEmpty) {
+      await _proceedToPayment();
+      return;
+    }
+    if (!mounted) return;
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Some selections are missing'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('You still have scheduled meals without a selected dish:'),
+              const SizedBox(height: 8),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: missing.map((m) => Text('• $m')).toList(),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text('You can proceed anyway or go back to fill them now.'),
+            ],
+          ),
         ),
-        child: Text(
-          'Proceed to Payment',
-          style: AppThemeV3.textTheme.titleMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w600),
-        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Fill Now')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Proceed Anyway')),
+        ],
       ),
+    );
+    if (proceed == true) {
+      await _proceedToPayment();
+    }
+  }
+
+  Widget _buildProceedButton() {
+    final missing = _missingSelections();
+    final canProceed = missing.isEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (!canProceed)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              'Please select meals for all scheduled slots before proceeding.',
+              style: AppThemeV3.textTheme.bodySmall?.copyWith(color: Colors.redAccent),
+            ),
+          ),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: canProceed ? _proceedToPayment : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppThemeV3.accent,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: Text(
+              'Proceed to Payment',
+              style: AppThemeV3.textTheme.titleMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1118,17 +1277,15 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
   void _applyCurrentTypeToAllDays() {
     setState(() {
       MealModelV3? ref;
-      for (final d in _configuredDays) {
-        final m = _selectedMeals[d]?[_selectedMealType];
-        if (m != null) {
-          ref = m;
-          break;
-        }
+      for (final day in _configuredDays) {
+        final m = _selectedMeals[day]?[_selectedMealType];
+        if (m != null) { ref = m; break; }
       }
       if (ref == null) return;
       for (final d in _configuredDays) {
-        final hasSchedule = _currentWeeklySchedule[d]?[_selectedMealType] != null;
-        if (hasSchedule) _selectedMeals[d]![_selectedMealType] = ref;
+        if (_hasScheduleFor(d, _selectedMealType)) {
+          _selectedMeals[d]![_selectedMealType] = ref;
+        }
       }
     });
     _saveMealSelections();
@@ -1143,8 +1300,9 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
     final appliedCount = _batchDays.length;
     setState(() {
       for (final d in List<String>.from(_batchDays)) {
-        final hasSchedule = _currentWeeklySchedule[d]?[_selectedMealType] != null;
-        if (hasSchedule) _selectedMeals[d]![_selectedMealType] = ref;
+        if (_hasScheduleFor(d, _selectedMealType)) {
+          _selectedMeals[d]![_selectedMealType] = ref;
+        }
       }
   // Keep previous applications; clear current selection so the user can create another set.
   _batchDays.clear();
@@ -1161,18 +1319,18 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
     Navigator.push(
       context,
       MaterialPageRoute(
-    builder: (_) => InteractiveMenuPageV3(
+        builder: (_) => InteractiveMenuPageV3(
           menuType: _selectedMealType.toLowerCase(),
           day: 'Batch',
           selectedMeal: _batchSelectedMeal,
+          menuCategory: 'premade',
           onMealSelected: (meal) {
             // If days are selected, apply immediately and clear the selection for rapid batching.
             if (_customizeMode == 'multi_day' && _batchDays.isNotEmpty) {
               final appliedDays = List<String>.from(_batchDays);
               setState(() {
                 for (final d in appliedDays) {
-                  final hasSchedule = _currentWeeklySchedule[d]?[_selectedMealType] != null;
-                  if (hasSchedule) {
+                  if (_hasScheduleFor(d, _selectedMealType)) {
                     _selectedMeals[d]![_selectedMealType] = meal;
                   }
                 }
@@ -1203,10 +1361,52 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
           menuType: _selectedMealType.toLowerCase(),
           day: day,
           selectedMeal: selectedMeal,
+          menuCategory: 'premade',
           onMealSelected: (meal) {
             setState(() => _selectedMeals[day]![_selectedMealType] = meal);
             _saveMealSelections();
             Navigator.pop(context); // return to schedule after choosing
+          },
+        ),
+      ),
+    );
+  }
+
+  // Opens the pre-made meals chooser (uses existing InteractiveMenuPageV3 backed by DB meals)
+  void _choosePremadeForDay(String day) {
+    final selectedMeal = _selectedMeals[day]?[_selectedMealType];
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => InteractiveMenuPageV3(
+          menuType: _selectedMealType.toLowerCase(),
+          day: day,
+          selectedMeal: selectedMeal,
+          onMealSelected: (meal) {
+            setState(() => _selectedMeals[day]![_selectedMealType] = meal);
+            _saveMealSelections();
+            Navigator.pop(context);
+          },
+        ),
+      ),
+    );
+  }
+
+  // Placeholder for upcoming custom meal builder
+  void _showCustomComingSoon(String day) {
+    final selectedMeal = _selectedMeals[day]?[_selectedMealType];
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => InteractiveMenuPageV3(
+          menuType: _selectedMealType.toLowerCase(),
+          day: day,
+          selectedMeal: selectedMeal,
+          menuCategory: 'custom',
+          onMealSelected: (meal) {
+            setState(() => _selectedMeals[day]![_selectedMealType] = meal);
+            _saveMealSelections();
+            Navigator.pop(context);
           },
         ),
       ),

@@ -160,6 +160,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       title: 'FreshPunk',
       theme: AppThemeV3.lightTheme,
       debugShowCheckedModeBanner: false,
+      // Restore normal app flow: use routes with an explicit initialRoute
       initialRoute: initialRoute,
       routes: {
         '/': (context) => const AuthWrapper(),

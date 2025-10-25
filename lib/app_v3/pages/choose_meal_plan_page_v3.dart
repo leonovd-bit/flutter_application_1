@@ -31,14 +31,14 @@ class _ChooseMealPlanPageV3State extends State<ChooseMealPlanPageV3> {
       'price': 390, // Monthly price
       'description': '1 meal per day',
     },
-    'premium': {
-      'name': 'Premium',
+    'pro': {
+      'name': 'Pro',
       'mealsPerDay': 2,
       'price': 780,
       'description': '2 meals per day',
     },
-    'pro': {
-      'name': 'Pro',
+    'premium': {
+      'name': 'Premium',
       'mealsPerDay': 3,
       'price': 1170,
       'description': '3 meals per day',
@@ -160,7 +160,8 @@ class _ChooseMealPlanPageV3State extends State<ChooseMealPlanPageV3> {
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          // Make all children span the available width so cards are full-bleed within padding
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Info card
             Container(
@@ -224,6 +225,7 @@ class _ChooseMealPlanPageV3State extends State<ChooseMealPlanPageV3> {
                 child: GestureDetector(
                   onTap: () => setState(() => _selectedPlan = planId),
                   child: Container(
+                    width: double.infinity,
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
                       color: isSelected ? Colors.black : Colors.grey.shade50,

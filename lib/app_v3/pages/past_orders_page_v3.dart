@@ -52,7 +52,7 @@ class _PastOrdersPageV3State extends State<PastOrdersPageV3> {
         OrderModelV3(
           id: 'order_past_1',
           userId: 'user123',
-          mealPlanType: MealPlanType.nutritious,
+          mealPlanType: MealPlanType.standard,
           meals: [
             MealModelV3(
               id: 'b1',
@@ -80,7 +80,7 @@ class _PastOrdersPageV3State extends State<PastOrdersPageV3> {
         OrderModelV3(
           id: 'order_past_2',
           userId: 'user123',
-          mealPlanType: MealPlanType.leanFreak,
+          mealPlanType: MealPlanType.premium,
           meals: [
             MealModelV3(
               id: 'l1',
@@ -108,7 +108,7 @@ class _PastOrdersPageV3State extends State<PastOrdersPageV3> {
         OrderModelV3(
           id: 'order_past_3',
           userId: 'user123',
-          mealPlanType: MealPlanType.dietKnight,
+          mealPlanType: MealPlanType.pro,
           meals: [
             MealModelV3(
               id: 'd1',
@@ -136,7 +136,7 @@ class _PastOrdersPageV3State extends State<PastOrdersPageV3> {
         OrderModelV3(
           id: 'order_past_4',
           userId: 'user123',
-          mealPlanType: MealPlanType.nutritious,
+          mealPlanType: MealPlanType.standard,
           meals: [
             MealModelV3(
               id: 'b2',
@@ -594,12 +594,12 @@ class _PastOrdersPageV3State extends State<PastOrdersPageV3> {
 
   String _getMealPlanDisplayName(MealPlanType type) {
     switch (type) {
-      case MealPlanType.nutritious:
-        return 'NutritiousJr Plan';
-      case MealPlanType.dietKnight:
-        return 'DietKnight Plan';
-      case MealPlanType.leanFreak:
-        return 'LeanFreak Plan';
+      case MealPlanType.standard:
+        return 'Standard Plan';
+      case MealPlanType.pro:
+        return 'Pro Plan';
+      case MealPlanType.premium:
+        return 'Premium Plan';
     }
   }
 

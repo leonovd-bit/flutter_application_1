@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum MealPlanType {
-  nutritious,
-  dietKnight,
-  leanFreak,
+  standard,
+  pro,
+  premium,
 }
 
 class MealModelV3 {
@@ -21,6 +21,9 @@ class MealModelV3 {
   final String imageUrl;
   final String mealType; // breakfast, lunch, dinner
   final double price;
+  // Optional metadata
+  final String? restaurant; // e.g., Greenblend, Sen Saigon
+  final String? menuCategory; // 'premade' or 'custom'
 
   // Getter for compatibility with interactive menu
   String get type => mealType;
@@ -54,6 +57,8 @@ class MealModelV3 {
     this.imageUrl = '',
     this.mealType = 'breakfast',
     this.price = 0.0,
+    this.restaurant,
+    this.menuCategory,
   });
 
   Map<String, dynamic> toJson() {
@@ -70,6 +75,8 @@ class MealModelV3 {
       'imageUrl': imageUrl,
       'mealType': mealType,
       'price': price,
+      if (restaurant != null) 'restaurant': restaurant,
+      if (menuCategory != null) 'menuCategory': menuCategory,
     };
   }
 
@@ -104,6 +111,8 @@ class MealModelV3 {
       mealType: json['mealType'] ?? 'breakfast',
       price: json['price']?.toDouble() ?? 0.0,
       icon: Icons.fastfood, // Default icon since IconData can't be serialized
+      restaurant: json['restaurant'],
+      menuCategory: json['menuCategory'],
     );
     
     print('   📁 Final imagePath: "${meal.imagePath}"');
@@ -289,8 +298,8 @@ class MealPlanModelV3 {
     return [
       MealPlanModelV3(
         id: '1',
-        name: 'nutritiousjr',
-        displayName: 'NutritiousJr',
+        name: 'standard',
+        displayName: 'Standard',
         mealsPerDay: 1,
   // $13 per meal; weekly = 13 * 1 * 7 = 91; monthly (30 meals) = $390
   pricePerWeek: 91.0,
@@ -299,8 +308,8 @@ class MealPlanModelV3 {
       ),
       MealPlanModelV3(
         id: '2',
-        name: 'dietknight',
-        displayName: 'DietKnight',
+        name: 'pro',
+        displayName: 'Pro',
         mealsPerDay: 2,
   // $13 per meal; weekly = 13 * 2 * 7 = 182; monthly (60 meals) = $780
   pricePerWeek: 182.0,
@@ -309,8 +318,8 @@ class MealPlanModelV3 {
       ),
       MealPlanModelV3(
         id: '3',
-        name: 'leanfreak',
-        displayName: 'LeanFreak',
+        name: 'premium',
+        displayName: 'Premium',
         mealsPerDay: 3,
   // $13 per meal; weekly = 13 * 3 * 7 = 273; monthly (90 meals) = $1170
   pricePerWeek: 273.0,
@@ -787,14 +796,18 @@ class OrderModelV3 {
 
   static MealPlanType _parseMealPlanType(String? type) {
     switch (type?.toLowerCase()) {
+      case 'standard':
       case 'nutritious':
-        return MealPlanType.nutritious;
+      case 'nutritiousjr':
+        return MealPlanType.standard;
+      case 'pro':
       case 'dietknight':
-        return MealPlanType.dietKnight;
+        return MealPlanType.pro;
+      case 'premium':
       case 'leanfreak':
-        return MealPlanType.leanFreak;
+        return MealPlanType.premium;
       default:
-        return MealPlanType.nutritious;
+        return MealPlanType.standard;
     }
   }
 }

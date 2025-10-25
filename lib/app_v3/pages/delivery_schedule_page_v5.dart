@@ -1,6 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../models/mock_user_model.dart';
 import '../services/firestore_service_v3.dart';
 import '../models/meal_model_v3.dart';
 import '../models/protein_model_v3.dart';
@@ -22,10 +23,12 @@ extension StringExtension on String {
 class DeliverySchedulePageV5 extends StatefulWidget {
   final String? initialScheduleName;
   final bool isSignupFlow;
+  final MockUser? mockUser;
   const DeliverySchedulePageV5({
     super.key,
     this.initialScheduleName,
     this.isSignupFlow = false,
+    this.mockUser,
   });
 
   @override
@@ -33,6 +36,7 @@ class DeliverySchedulePageV5 extends StatefulWidget {
 }
 
 class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
+  MockUser? _mockUser;
   // Basic setup
   MealPlanModelV3? _selectedMealPlan;
   String _scheduleName = '';
@@ -73,9 +77,68 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
   Set<String> _selectedMeals = {}; // Selected meal types for the schedule
   bool _applyToAllDays = false; // Apply same config to all selected days
 
+  // Helpers
+  Future<void> _pickTimeForController(TextEditingController controller) async {
+    // Parse existing value like "12:30" if present
+    int h = 12, m = 30;
+    final text = controller.text.trim();
+    final parts = text.split(':');
+    if (parts.length == 2) {
+      final ph = int.tryParse(parts[0]);
+      final pm = int.tryParse(parts[1]);
+      if (ph != null && pm != null) { h = ph; m = pm; }
+    }
+
+    DateTime temp = DateTime(0, 1, 1, h, m);
+    await showCupertinoModalPopup(
+      context: context,
+      builder: (_) => Container(
+        height: 300,
+        color: Colors.white,
+        child: Column(
+          children: [
+            SizedBox(
+              height: 44,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () {
+                      final hh = temp.hour.toString().padLeft(2, '0');
+                      final mm = temp.minute.toString().padLeft(2, '0');
+                      controller.text = '$hh:$mm';
+                      Navigator.pop(context);
+                    },
+                    child: const Text('Done'),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: CupertinoDatePicker(
+                mode: CupertinoDatePickerMode.time,
+                initialDateTime: temp,
+                use24hFormat: true,
+                onDateTimeChanged: (dt) => temp = dt,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
+    _mockUser = widget.mockUser;
     _scheduleName = widget.initialScheduleName ?? '';
     _scheduleNameInputController = TextEditingController(text: _scheduleName);
     _loadCurrentPlan();
@@ -105,7 +168,7 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
 
   Future<void> _loadCurrentPlan() async {
     debugPrint('[DeliveryScheduleV5] Loading current plan...');
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+  final uid = _mockUser?.uid ?? FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
       debugPrint('[DeliveryScheduleV5] No user logged in');
       return;
@@ -641,6 +704,8 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
                   // Time input
                   TextFormField(
                     controller: _allDaysTimeControllers[meal],
+                    readOnly: true,
+                    onTap: () => _pickTimeForController(_allDaysTimeControllers[meal]!),
                     decoration: InputDecoration(
                       labelText: 'Time',
                       hintText: 'e.g., 12:30',
@@ -872,7 +937,7 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
   Future<void> _saveScheduleLocally(Map<String, Map<String, dynamic>> weeklySchedule) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final uid = FirebaseAuth.instance.currentUser?.uid;
+  final uid = _mockUser?.uid ?? FirebaseAuth.instance.currentUser?.uid;
       final name = _scheduleName.trim();
       
       if (name.isEmpty) return;
@@ -1015,25 +1080,27 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
         
         // Validate and complete the address
         final validationResult = await _validateAndCompleteAddress(address);
-        
-        // Only save if validation was successful (has zip code)
-        if (validationResult['zipCode']!.isEmpty) {
-          debugPrint('[DeliveryScheduleV5] ΓÜá∩╕Å Skipping non-validated address: "$address"');
-          skippedCount++;
-          continue;
-        }
-        
+
+        // If validation failed to provide a zip (or anything), still save a minimal record
+        final bool validated = validationResult['zipCode']!.isNotEmpty;
+        final resolvedStreet = validated && validationResult['streetAddress']!.isNotEmpty
+            ? validationResult['streetAddress']!
+            : address.trim();
+        final resolvedCity = validated ? validationResult['city']! : 'New York City';
+        final resolvedState = validated ? validationResult['state']! : 'New York';
+        final resolvedZip = validationResult['zipCode'] ?? '';
+
         final addressId = 'addr_${DateTime.now().millisecondsSinceEpoch}_${address.hashCode}';
           final addressData = {
             'id': addressId,
             'userId': uid ?? '',
             'label': 'Delivery Address',
-            'streetAddress': validationResult['streetAddress']!,
-            'apartment': validationResult['apartment']!,
-            'city': validationResult['city']!,
-            'state': validationResult['state']!,
-            'zipCode': validationResult['zipCode']!,
-            'isDefault': existingAddressStreets.isEmpty && validatedCount == 0, // First validated address is default
+            'streetAddress': resolvedStreet,
+            'apartment': validationResult['apartment'] ?? '',
+            'city': resolvedCity,
+            'state': resolvedState,
+            'zipCode': resolvedZip,
+            'isDefault': existingAddressStreets.isEmpty && validatedCount == 0, // First address becomes default
             'createdAt': DateTime.now().toIso8601String(),
           };
           
@@ -1049,11 +1116,11 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
                 id: addressId,
                 userId: uid,
                 label: 'Delivery Address',
-                streetAddress: validationResult['streetAddress']!,
-                apartment: validationResult['apartment']!,
-                city: validationResult['city']!,
-                state: validationResult['state']!,
-                zipCode: validationResult['zipCode']!,
+                streetAddress: resolvedStreet,
+                apartment: validationResult['apartment'] ?? '',
+                city: resolvedCity,
+                state: resolvedState,
+                zipCode: resolvedZip,
                 isDefault: existingAddressStreets.length == 1, // First address is default
               );
               await FirestoreServiceV3.saveAddress(addressModel);
@@ -1063,7 +1130,7 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
             }
           }
           
-          debugPrint('[DeliveryScheduleV5] Γ£à Added validated address: ${validationResult['streetAddress']}, ${validationResult['city']}, ${validationResult['state']} ${validationResult['zipCode']}');
+          debugPrint('[DeliveryScheduleV5] Γ£à Added address: $resolvedStreet, $resolvedCity, $resolvedState $resolvedZip');
       }
 
       // Save updated address list to SharedPreferences
@@ -1426,13 +1493,22 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(color: Colors.black, width: 2),
                             ),
-                            child: Text(
-                              _applyToAllDays ? 'Γ£ô Apply to All' : 'Apply to All',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: _applyToAllDays ? Colors.white : Colors.black,
-                              ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (_applyToAllDays) ...[
+                                  const Icon(Icons.check, size: 16, color: Colors.white),
+                                  const SizedBox(width: 6),
+                                ],
+                                Text(
+                                  'Apply to All',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: _applyToAllDays ? Colors.white : Colors.black,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),

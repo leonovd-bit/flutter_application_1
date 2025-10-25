@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme_v3.dart';
 import '../services/stripe_service.dart';
+import '../models/mock_user_model.dart';
 
 class PaymentMethodsPageV3 extends StatefulWidget {
   final VoidCallback? onPaymentComplete;
   final bool isOnboarding;
-  
+  final MockUser? mockUser;
   const PaymentMethodsPageV3({
     super.key,
     this.onPaymentComplete,
     this.isOnboarding = false,
+    this.mockUser,
   });
 
   @override

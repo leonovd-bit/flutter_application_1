@@ -4,17 +4,20 @@ import 'dart:convert';
 import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../models/mock_user_model.dart';
 import '../services/firestore_service_v3.dart';
 import '../services/simple_google_maps_service.dart';
 
 class AddressPageV3 extends StatefulWidget {
-  const AddressPageV3({super.key});
+  final MockUser? mockUser;
+  const AddressPageV3({super.key, this.mockUser});
 
   @override
   State<AddressPageV3> createState() => _AddressPageV3State();
 }
 
 class _AddressPageV3State extends State<AddressPageV3> {
+  MockUser? _mockUser;
   final _formKey = GlobalKey<FormState>();
   final _labelController = TextEditingController();
   final _streetController = TextEditingController();
@@ -49,6 +52,7 @@ class _AddressPageV3State extends State<AddressPageV3> {
   @override
   void initState() {
     super.initState();
+    _mockUser = widget.mockUser;
     _loadSavedAddresses();
   }
 
@@ -59,7 +63,7 @@ class _AddressPageV3State extends State<AddressPageV3> {
   
   Future<void> _loadAddressesPreferFirestore() async {
     setState(() => _loading = true);
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = _mockUser?.uid ?? FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
       try {
         final fromFs = await FirestoreServiceV3.getUserAddresses(uid);
@@ -673,7 +677,7 @@ class _AddressPageV3State extends State<AddressPageV3> {
 
   Future<void> _saveNewAddress() async {
     if (!_formKey.currentState!.validate()) return;
-  final uid = FirebaseAuth.instance.currentUser?.uid ?? 'local';
+  final uid = _mockUser?.uid ?? FirebaseAuth.instance.currentUser?.uid ?? 'local';
   final addressId = _editingId ?? DateTime.now().millisecondsSinceEpoch.toString();
   final newAddress = AddressModelV3(
       id: addressId,
@@ -787,7 +791,7 @@ class _AddressPageV3State extends State<AddressPageV3> {
     );
     if (confirmed != true) return;
 
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+  final uid = _mockUser?.uid ?? FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
       try {
         await FirestoreServiceV3.deleteUserAddress(uid, address.id);

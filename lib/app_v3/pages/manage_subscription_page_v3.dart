@@ -24,16 +24,23 @@ class _ManageSubscriptionPageV3State extends State<ManageSubscriptionPageV3> {
 	final _plans = MealPlanModelV3.getAvailablePlans();
 	String? _selectedPlanId;
 	String? _initialPlanId; // to detect changes
+	bool _loadingCurrent = true;
+	bool _dirtySelection = false; // true when user selected a different plan than initial
 	bool _saving = false;
 	bool _cancelling = false;
 	Map<String, dynamic>? _activeSub;
 
 	Widget _buildStatusChip(String? statusRaw) {
-		final status = (statusRaw ?? 'active').toLowerCase();
+		final status = (statusRaw ?? 'none').toLowerCase();
 		Color bg;
 		Color fg;
 		String label = status;
 		switch (status) {
+			case 'none':
+				bg = Colors.grey.withValues(alpha: 0.15);
+				fg = Colors.grey.shade700;
+				label = 'No subscription';
+				break;
 			case 'active':
 				bg = Colors.green.withValues(alpha: 0.12);
 				fg = Colors.green.shade700;
@@ -89,19 +96,49 @@ class _ManageSubscriptionPageV3State extends State<ManageSubscriptionPageV3> {
 			final sub = await FirestoreServiceV3.getActiveSubscription(uid);
 			if (mounted) {
 				setState(() { 
-					_selectedPlanId = current?.id; 
-					_initialPlanId = current?.id; 
+					// If user has no current plan yet, preselect the first plan and mark as changeable
+					if (current == null) {
+						_selectedPlanId = _plans.first.id;
+						_initialPlanId = null;
+						_dirtySelection = true; // enable Save for first-time selection
+					} else {
+						_selectedPlanId = current.id; 
+						_initialPlanId = current.id; 
+						_dirtySelection = false;
+					}
 					_activeSub = sub; 
+					_loadingCurrent = false;
 				});
 				// Debug: Print what we loaded
 				debugPrint('[ManageSubscription] Loaded current plan: ${current?.id} (${current?.displayName})');
+
+				// If user has no subscription record yet, bootstrap a local active subscription immediately
+				if (sub == null) {
+					final planForBootstrap = current ?? _plans.first;
+					try {
+						await FirestoreServiceV3.updateActiveSubscriptionPlan(uid, planForBootstrap);
+						final refreshed = await FirestoreServiceV3.getActiveSubscription(uid);
+						if (mounted) setState(() { _activeSub = refreshed; });
+						debugPrint('[ManageSubscription] Bootstrapped local active subscription with plan ${planForBootstrap.id}');
+					} catch (e) {
+						debugPrint('[ManageSubscription] Failed to bootstrap subscription: $e');
+					}
+				}
 			}
 		} catch (e) {
 			debugPrint('[ManageSubscription] Error loading current plan: $e');
+			if (mounted) setState(() { _loadingCurrent = false; });
 		}
 	}
 
 	Future<void> _save() async {
+		debugPrint('[ManageSubscription] === SAVE STARTED ===');
+		if (_loadingCurrent) {
+			ScaffoldMessenger.of(context).showSnackBar(
+				const SnackBar(content: Text('Please wait, loading your current plan...')),
+			);
+			return;
+		}
 		final uid = _auth.currentUser?.uid;
 		if (uid == null || _selectedPlanId == null) return;
 		
@@ -110,19 +147,26 @@ class _ManageSubscriptionPageV3State extends State<ManageSubscriptionPageV3> {
 			? _plans.firstWhere((p) => p.id == _initialPlanId, orElse: () => newPlan)
 			: newPlan;
 		
-		// Check if this change affects delivery/meal schedules
-		final needsScheduleUpdate = _initialPlanId != null && (
-			oldPlan.mealsPerDay != newPlan.mealsPerDay ||
-			oldPlan.name != newPlan.name
-		);
+		debugPrint('[ManageSubscription] Old plan: ${oldPlan.id} (${oldPlan.displayName})');
+		debugPrint('[ManageSubscription] New plan: ${newPlan.id} (${newPlan.displayName})');
+		
+	// Check if plan actually changed - any plan change requires setup
+	// Note: if _initialPlanId is null (e.g., slow load), treat as requiring setup when user selects a plan
+	final needsScheduleUpdate = _selectedPlanId != _initialPlanId;
+		
+		debugPrint('[ManageSubscription] Plan change check: initialPlanId=$_initialPlanId, selectedPlanId=$_selectedPlanId, needsSetup=$needsScheduleUpdate');
 		
 		// If schedule update needed, show confirmation dialog
 		if (needsScheduleUpdate) {
+			debugPrint('[ManageSubscription] Showing schedule update dialog...');
 			final confirmed = await _showScheduleUpdateDialog(oldPlan, newPlan);
+			debugPrint('[ManageSubscription] Dialog confirmed: $confirmed');
 			if (confirmed != true) return; // User backed out
 			
 			// Navigate through configuration workflow
+			debugPrint('[ManageSubscription] Starting configuration workflow...');
 			final completed = await _navigateConfigurationWorkflow(newPlan);
+			debugPrint('[ManageSubscription] Workflow completed: $completed');
 			if (completed != true) {
 				// User backed out of workflow - don't save
 				if (mounted) {
@@ -135,6 +179,8 @@ class _ManageSubscriptionPageV3State extends State<ManageSubscriptionPageV3> {
 				}
 				return;
 			}
+		} else {
+			debugPrint('[ManageSubscription] SKIPPING schedule update workflow (needsScheduleUpdate=false)');
 		}
 		
 		setState(() => _saving = true);
@@ -169,13 +215,26 @@ class _ManageSubscriptionPageV3State extends State<ManageSubscriptionPageV3> {
 			// Update app state regardless so UI reflects intended plan.
 			await FirestoreServiceV3.setActiveMealPlan(uid, newPlan);
 			await FirestoreServiceV3.updateActiveSubscriptionPlan(uid, newPlan);
+
+			// Refresh active subscription snapshot for immediate UI update
+			try {
+				final latestSub = await FirestoreServiceV3.getActiveSubscription(uid);
+				if (mounted) setState(() { _activeSub = latestSub; });
+			} catch (e) {
+				debugPrint('[ManageSubscription] Could not refresh active subscription: $e');
+			}
 			
 			try {
 				final prefs = await SharedPreferences.getInstance();
+				// Save with UID suffix for user isolation
+				await prefs.setString('selected_meal_plan_id_$uid', newPlan.id);
+				await prefs.setString('selected_meal_plan_name_$uid', newPlan.name);
+				await prefs.setString('selected_meal_plan_display_name_$uid', newPlan.displayName);
+				// Also save without suffix for backward compatibility
 				await prefs.setString('selected_meal_plan_id', newPlan.id);
 				await prefs.setString('selected_meal_plan_name', newPlan.name);
 				await prefs.setString('selected_meal_plan_display_name', newPlan.displayName);
-				debugPrint('[ManageSubscription] Local preferences updated');
+				debugPrint('[ManageSubscription] Local preferences updated to ${newPlan.id} (${newPlan.displayName})');
 			} catch (e) {
 				debugPrint('[ManageSubscription] Error updating local prefs: $e');
 			}
@@ -187,7 +246,10 @@ class _ManageSubscriptionPageV3State extends State<ManageSubscriptionPageV3> {
 					backgroundColor: AppThemeV3.primaryGreen,
 				),
 			);
-			setState(() { _initialPlanId = _selectedPlanId; });
+			setState(() { 
+				_initialPlanId = _selectedPlanId; 
+				_dirtySelection = false; // reset dirty flag after successful save
+			});
 			
 			// Close the page after successful save
 			Future.delayed(Duration(milliseconds: 1000), () {
@@ -242,9 +304,21 @@ class _ManageSubscriptionPageV3State extends State<ManageSubscriptionPageV3> {
 			}
 		} catch (e) {
 			if (!mounted) return;
-			ScaffoldMessenger.of(context).showSnackBar(
-				SnackBar(content: Text('Error: $e')),
-			);
+			final errorMsg = e.toString().toLowerCase();
+			if (errorMsg.contains('unable to establish connection') || 
+					errorMsg.contains('channel') ||
+					errorMsg.contains('pigeon')) {
+				ScaffoldMessenger.of(context).showSnackBar(
+					const SnackBar(
+						content: Text('⚠️ This feature requires Cloud Functions connection. Not available in offline/debug mode.'),
+						duration: Duration(seconds: 4),
+					),
+				);
+			} else {
+				ScaffoldMessenger.of(context).showSnackBar(
+					SnackBar(content: Text('Error: $e')),
+				);
+			}
 		} finally {
 			if (mounted) setState(() { _cancelling = false; });
 		}
@@ -252,7 +326,7 @@ class _ManageSubscriptionPageV3State extends State<ManageSubscriptionPageV3> {
 
 	@override
 	Widget build(BuildContext context) {
-		final hasChanges = (_selectedPlanId != null && _selectedPlanId != _initialPlanId);
+		final hasChanges = _dirtySelection;
 		
 		return Focus(
 			autofocus: true,
@@ -325,9 +399,13 @@ class _ManageSubscriptionPageV3State extends State<ManageSubscriptionPageV3> {
 																								),
 																								const SizedBox(height: 12),
 																								Row(
-																									children: [
-																										_buildStatusChip((_activeSub?['status'] ?? 'active')?.toString()),
-																									],
+																																		children: [
+																																				// Show clear state: if no active subscription doc, don't pretend it's Active
+																																				if (_activeSub == null)
+																																					_buildStatusChip('none')
+																																				else
+																																					_buildStatusChip((_activeSub?['status'])?.toString()),
+																																		],
 																								),
 												const SizedBox(height: 6),
 												Builder(builder: (_) {
@@ -383,28 +461,56 @@ class _ManageSubscriptionPageV3State extends State<ManageSubscriptionPageV3> {
 												]),
 												const SizedBox(height: 12),
 												..._plans.map((plan) {
-													final selected = plan.id == _selectedPlanId;
+																									final selected = plan.id == _selectedPlanId;
+																									final isCurrentPlan = _initialPlanId != null && plan.id == _initialPlanId;
 													return Container(
 														margin: const EdgeInsets.only(bottom: 12),
 														decoration: BoxDecoration(
 															color: Colors.grey[50],
 															borderRadius: BorderRadius.circular(12),
 															border: Border.all(
-																color: selected ? AppThemeV3.primaryGreen : Colors.grey.shade200,
+																															color: selected ? AppThemeV3.primaryGreen : Colors.grey.shade200,
 																width: selected ? 2 : 1,
 															),
 														),
-														child: ListTile(
-															contentPadding: const EdgeInsets.all(16),
-															leading: Radio<String>(
-																value: plan.id,
-																groupValue: _selectedPlanId,
-																activeColor: AppThemeV3.primaryGreen,
-																onChanged: (val) => setState(() => _selectedPlanId = val),
-															),
-															title: Text(plan.displayName, style: const TextStyle(fontWeight: FontWeight.w700)),
-															subtitle: Text('${plan.mealsPerDay} meal(s)/day • ~\$${plan.monthlyPrice.toStringAsFixed(0)}/mo'),
-															onTap: () => setState(() => _selectedPlanId = plan.id),
+														child: RadioListTile<String>(
+															value: plan.id,
+															groupValue: _selectedPlanId,
+															activeColor: AppThemeV3.primaryGreen,
+																													title: Row(
+																														children: [
+																															Expanded(
+																																child: Text(
+																																	plan.displayName,
+																																	style: const TextStyle(fontWeight: FontWeight.w700),
+																																),
+																															),
+																															if (isCurrentPlan)
+																																Container(
+																																	padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+																																	decoration: BoxDecoration(
+																																		color: Colors.grey.withValues(alpha: 0.15),
+																																		borderRadius: BorderRadius.circular(999),
+																																	),
+																																	child: const Text(
+																																		'Current',
+																																		style: TextStyle(fontSize: 12, color: Colors.black54),
+																																	),
+																																),
+																														],
+																													),
+																													subtitle: Text('${plan.mealsPerDay} meal(s)/day • ~\$${plan.monthlyPrice.toStringAsFixed(0)}/mo'),
+															controlAffinity: ListTileControlAffinity.leading,
+															onChanged: isCurrentPlan ? null : (val) {
+																final chosen = val;
+																debugPrint('[ManageSubscription] Plan tile changed -> ' + (chosen ?? 'null'));
+																setState(() {
+																	_selectedPlanId = chosen;
+																	// Enable Save when the new selection differs from the initial selection.
+																	// If there was no initial plan loaded (null), any non-null selection counts as a change.
+																	_dirtySelection = (chosen != _initialPlanId);
+																});
+															},
 														),
 													);
 												}).toList(),
@@ -502,12 +608,15 @@ class _ManageSubscriptionPageV3State extends State<ManageSubscriptionPageV3> {
 	}
 
 	Future<bool?> _showScheduleUpdateDialog(MealPlanModelV3 oldPlan, MealPlanModelV3 newPlan) async {
-		final changes = <String>[];
+			final changes = <String>[];
+			// If the initial plan wasn't loaded, avoid misleading X->X rendering
+			if (_initialPlanId == null) {
+				changes.add('• Plan will be set to ${newPlan.displayName}');
+			} else {
+				changes.add('• Plan: ${oldPlan.displayName} → ${newPlan.displayName}');
+			}
 		if (oldPlan.mealsPerDay != newPlan.mealsPerDay) {
 			changes.add('• Meals per day: ${oldPlan.mealsPerDay} → ${newPlan.mealsPerDay}');
-		}
-		if (oldPlan.name != newPlan.name) {
-			changes.add('• Plan type: ${oldPlan.displayName} → ${newPlan.displayName}');
 		}
 
 		return showDialog<bool>(
@@ -582,8 +691,15 @@ class _ManageSubscriptionPageV3State extends State<ManageSubscriptionPageV3> {
 			final uid = _auth.currentUser?.uid;
 			if (uid != null) {
 				final prefs = await SharedPreferences.getInstance();
+				// Save with UID suffix for user isolation
 				await prefs.setString('selected_meal_plan_id_$uid', newPlan.id);
+				await prefs.setString('selected_meal_plan_name_$uid', newPlan.name);
 				await prefs.setString('selected_meal_plan_display_name_$uid', newPlan.displayName);
+				// Also save without suffix for backward compatibility with other pages
+				await prefs.setString('selected_meal_plan_id', newPlan.id);
+				await prefs.setString('selected_meal_plan_name', newPlan.name);
+				await prefs.setString('selected_meal_plan_display_name', newPlan.displayName);
+				debugPrint('[ManageSubscription] Saved plan ${newPlan.id} (${newPlan.displayName}) with ${newPlan.mealsPerDay} meals/day');
 			}
 		} catch (e) {
 			debugPrint('[ManageSubscription] Error saving temp plan: $e');

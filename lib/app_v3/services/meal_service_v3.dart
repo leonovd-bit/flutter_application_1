@@ -55,6 +55,95 @@ class MealServiceV3 {
         .replaceAll(RegExp(r"(^-|-$)"), '');
   }
 
+  // Build meal list directly from local JSON asset (no Firestore writes)
+  static Future<List<MealModelV3>> _mealsFromJsonAsset({String mealType = 'lunch', int limit = 50}) async {
+    try {
+      final jsonStr = await rootBundle.loadString('assets/data/gofresh_meals_final.json');
+      final data = json.decode(jsonStr);
+      if (data is! List || data.isEmpty) return [];
+      final List<MealModelV3> out = [];
+      for (var i = 0; i < data.length; i++) {
+        final raw = data[i];
+        if (raw is! Map) continue;
+        final map = raw.cast<String, dynamic>();
+        final name = (map['name'] ?? '').toString().trim();
+        if (name.isEmpty) continue;
+        final description = (map['description'] ?? '').toString();
+        final mtRaw = (map['category'] ?? map['mealType'] ?? '').toString().trim();
+        final inferredType = mtRaw.isEmpty ? _inferMealType(name, description: description) : mtRaw.toLowerCase();
+        if (inferredType != mealType.toLowerCase()) continue;
+        final ingredients = (map['ingredients'] is List)
+            ? List<String>.from(map['ingredients'])
+            : (map['ingredients'] is String)
+                ? map['ingredients'].toString().split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList()
+                : <String>[];
+        final allergensSrc = (map['allergens'] ?? map['contains'] ?? '').toString();
+        final allergens = allergensSrc.toLowerCase().contains('none')
+            ? <String>[]
+            : allergensSrc
+                .split(RegExp('[,;]'))
+                .map((e) => e.replaceAll(RegExp(r'\([^)]*\)'), '').trim())
+                .where((e) => e.isNotEmpty)
+                .toList();
+        final nutrition = (map['nutrition'] ?? map['macros'] ?? '').toString();
+        final calories = (map['calories'] is num)
+            ? (map['calories'] as num).toInt()
+            : _extractCalories(nutrition);
+        final protein = (map['protein'] is num)
+            ? (map['protein'] as num).toInt()
+            : _extractInt(nutrition, 'protein');
+        final carbs = (map['carbs'] is num)
+            ? (map['carbs'] as num).toInt()
+            : _extractInt(nutrition, 'carbs');
+        final fat = (map['fat'] is num)
+            ? (map['fat'] as num).toInt()
+            : _extractInt(nutrition, 'fats');
+        final id = 'meal_${_slug(name)}';
+        final providedImage = (map['imageUrl'] ?? map['image'] ?? map['img'] ?? '').toString().trim();
+        final imageUrl = _validImageUrl(providedImage) ? providedImage : _pickImage(inferredType, i);
+        final price = _parsePrice(map['price']);
+        final restaurant = (map['restaurant'] ?? '').toString().trim();
+        final menuCategory = (map['menuCategory'] ?? '').toString().trim();
+
+        out.add(MealModelV3(
+          id: id,
+          name: name,
+          description: description,
+          calories: calories,
+          protein: protein,
+          carbs: carbs,
+          fat: fat,
+          ingredients: ingredients,
+          allergens: allergens,
+          icon: Icons.fastfood,
+          imageUrl: imageUrl,
+          mealType: inferredType,
+          price: price,
+          restaurant: restaurant.isEmpty ? null : restaurant,
+          menuCategory: menuCategory.isEmpty ? null : menuCategory,
+        ));
+        if (out.length >= limit) break;
+      }
+      return out;
+    } catch (e) {
+      debugPrint('[MealServiceV3] _mealsFromJsonAsset error: $e');
+      return [];
+    }
+  }
+
+  /// Public helper: load meals from bundled JSON with optional filters
+  static Future<List<MealModelV3>> getMealsFromLocal({
+    String mealType = 'lunch',
+    String? menuCategory,
+    int limit = 50,
+  }) async {
+    final base = await _mealsFromJsonAsset(mealType: mealType, limit: limit * 2);
+    final filtered = menuCategory == null
+        ? base
+        : base.where((m) => (m.menuCategory ?? 'premade').toLowerCase() == menuCategory.toLowerCase()).toList();
+    return filtered.take(limit).toList();
+  }
+
   static bool _validImageUrl(String? url) {
     if (url == null) return false;
     final u = url.trim();
@@ -65,6 +154,17 @@ class MealServiceV3 {
     // Reject known placeholder domains
     if (parsed.host.contains('example.com')) return false;
     return true;
+  }
+
+  static double _parsePrice(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is num) return value.toDouble();
+    final s = value.toString().trim();
+    if (s.isEmpty) return 0.0;
+    // Strip $ and commas
+    final cleaned = s.replaceAll(RegExp(r'[^0-9\.]'), '');
+    final d = double.tryParse(cleaned);
+    return d ?? 0.0;
   }
 
   // Infer mealType from the meal name/description when not provided by JSON
@@ -136,7 +236,7 @@ class MealServiceV3 {
     final mealType = mealTypeRaw.isEmpty
       ? _inferMealType(name, description: description)
       : mealTypeRaw.toLowerCase();
-        final ingredients = (map['ingredients'] is List)
+    final ingredients = (map['ingredients'] is List)
             ? List<String>.from(map['ingredients'])
             : (map['ingredients'] is String)
                 ? map['ingredients'].toString().split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList()
@@ -149,7 +249,7 @@ class MealServiceV3 {
                 .map((e) => e.replaceAll(RegExp(r'\([^)]*\)'), '').trim())
                 .where((e) => e.isNotEmpty)
                 .toList();
-        final nutrition = (map['nutrition'] ?? map['macros'] ?? '').toString();
+    final nutrition = (map['nutrition'] ?? map['macros'] ?? '').toString();
         final calories = (map['calories'] is num)
             ? (map['calories'] as num).toInt()
             : _extractCalories(nutrition);
@@ -163,9 +263,12 @@ class MealServiceV3 {
             ? (map['fat'] as num).toInt()
             : _extractInt(nutrition, 'fats');
 
-  final id = 'meal_${_slug(name)}';
-  final providedImage = (map['imageUrl'] ?? map['image'] ?? map['img'] ?? '').toString().trim();
-  final imageUrl = _validImageUrl(providedImage) ? providedImage : _pickImage(mealType, i);
+        final id = 'meal_${_slug(name)}';
+        final providedImage = (map['imageUrl'] ?? map['image'] ?? map['img'] ?? '').toString().trim();
+        final imageUrl = _validImageUrl(providedImage) ? providedImage : _pickImage(mealType, i);
+        final price = _parsePrice(map['price']);
+        final restaurant = (map['restaurant'] ?? '').toString().trim();
+        final menuCategory = (map['menuCategory'] ?? '').toString().trim();
 
         final meal = MealModelV3(
           id: id,
@@ -180,7 +283,9 @@ class MealServiceV3 {
           icon: Icons.fastfood,
           imageUrl: imageUrl,
           mealType: mealType,
-          price: 0.0,
+          price: price,
+          restaurant: restaurant.isEmpty ? null : restaurant,
+          menuCategory: menuCategory.isEmpty ? null : menuCategory,
         );
 
         // Debug meal creation
@@ -189,11 +294,15 @@ class MealServiceV3 {
         print('   📁 ImagePath: "${meal.imagePath}"');
 
         final doc = _db.collection('meals').doc(meal.id);
-        batch.set(doc, {
+        final payload = {
           ...meal.toFirestore(),
           'isActive': true,
           'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        };
+        // Preserve extra metadata if present
+        if (restaurant.isNotEmpty) payload['restaurant'] = restaurant;
+        if (menuCategory.isNotEmpty) payload['menuCategory'] = menuCategory;
+        batch.set(doc, payload, SetOptions(merge: true));
         total++;
         ops++;
 
@@ -428,16 +537,32 @@ class MealServiceV3 {
         }
       }
       
-      final meals = snap.docs
+      List<MealModelV3> meals = snap.docs
           .map((d) => MealModelV3.fromJson(d.data()))
           .toList();
+      // Filter to only Victus-provided premade meals (exclude custom)
+      meals = meals.where((m) {
+        final r = (m.restaurant ?? '').toLowerCase();
+        final cat = (m.menuCategory ?? 'premade').toLowerCase();
+        final isVictus = r == 'greenblend' || r == 'sen saigon';
+        final isPremade = cat == 'premade';
+        return isVictus && isPremade;
+      }).toList();
           
       debugPrint('[MealServiceV3] Successfully converted ${meals.length} documents to MealModelV3 objects');
-      return meals;
+      if (meals.isNotEmpty) return meals;
+      // Fallback to local JSON if Firestore is empty or unavailable
+      final localMeals = await _mealsFromJsonAsset(mealType: mealType, limit: limit);
+      if (localMeals.isNotEmpty) {
+        debugPrint('[MealServiceV3] Using local JSON fallback for "$mealType" (${localMeals.length} meals)');
+      }
+      return localMeals;
     } catch (e) {
       debugPrint('[MealServiceV3] ❌ getMeals error: $e');
       debugPrint('[MealServiceV3] Error type: ${e.runtimeType}');
-      return [];
+      // On error, attempt local JSON fallback
+      final localMeals = await _mealsFromJsonAsset(mealType: mealType, limit: limit);
+      return localMeals;
     }
   }
 
@@ -448,12 +573,69 @@ class MealServiceV3 {
           .collection('meals')
           .limit(limit)
           .get();
-      return snap.docs
+      List<MealModelV3> list = snap.docs
           .map((d) => MealModelV3.fromJson(d.data()))
           .toList();
+      // Filter to only Victus-provided premade meals (exclude custom)
+      list = list.where((m) {
+        final r = (m.restaurant ?? '').toLowerCase();
+        final cat = (m.menuCategory ?? 'premade').toLowerCase();
+        final isVictus = r == 'greenblend' || r == 'sen saigon';
+        final isPremade = cat == 'premade';
+        return isVictus && isPremade;
+      }).toList();
+      if (list.isNotEmpty) return list.take(limit).toList();
+      // Fallback to JSON: return any meal types up to limit
+      final jsonStr = await rootBundle.loadString('assets/data/gofresh_meals_final.json');
+      final data = json.decode(jsonStr);
+      if (data is! List || data.isEmpty) return [];
+      final List<MealModelV3> out = [];
+      for (var i = 0; i < data.length; i++) {
+        final raw = data[i];
+        if (raw is! Map) continue;
+        final map = raw.cast<String, dynamic>();
+        final name = (map['name'] ?? '').toString().trim();
+        if (name.isEmpty) continue;
+        final description = (map['description'] ?? '').toString();
+        final mtRaw = (map['category'] ?? map['mealType'] ?? '').toString().trim();
+        final inferredType = mtRaw.isEmpty ? _inferMealType(name, description: description) : mtRaw.toLowerCase();
+        final id = 'meal_${_slug(name)}';
+        final providedImage = (map['imageUrl'] ?? map['image'] ?? map['img'] ?? '').toString().trim();
+        final imageUrl = _validImageUrl(providedImage) ? providedImage : _pickImage(inferredType, i);
+        final price = _parsePrice(map['price']);
+        final ingredients = (map['ingredients'] is List) ? List<String>.from(map['ingredients']) : <String>[];
+        final allergensSrc = (map['allergens'] ?? '').toString();
+        final allergens = allergensSrc.isEmpty ? <String>[] : allergensSrc.split(RegExp('[,;]')).map((e)=>e.trim()).where((e)=>e.isNotEmpty).toList();
+        final calories = (map['calories'] is num) ? (map['calories'] as num).toInt() : 0;
+        final protein = (map['protein'] is num) ? (map['protein'] as num).toInt() : 0;
+        final carbs = (map['carbs'] is num) ? (map['carbs'] as num).toInt() : 0;
+        final fat = (map['fat'] is num) ? (map['fat'] as num).toInt() : 0;
+        final restaurant = (map['restaurant'] ?? '').toString().trim();
+        final menuCategory = (map['menuCategory'] ?? '').toString().trim();
+        out.add(MealModelV3(
+          id: id,
+          name: name,
+          description: description,
+          calories: calories,
+          protein: protein,
+          carbs: carbs,
+          fat: fat,
+          ingredients: ingredients,
+          allergens: allergens,
+          icon: Icons.fastfood,
+          imageUrl: imageUrl,
+          mealType: inferredType,
+          price: price,
+          restaurant: restaurant.isEmpty ? null : restaurant,
+          menuCategory: menuCategory.isEmpty ? null : menuCategory,
+        ));
+        if (out.length >= limit) break;
+      }
+      return out;
     } catch (e) {
       debugPrint('[MealServiceV3] getAllMeals error: $e');
-      return [];
+      final local = await _mealsFromJsonAsset(mealType: 'lunch', limit: limit); // minimal fallback
+      return local;
     }
   }
 

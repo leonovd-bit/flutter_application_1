@@ -119,13 +119,13 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
   MealPlanType _getMealPlanType(int mealsPerDay) {
     switch (mealsPerDay) {
       case 1:
-        return MealPlanType.nutritious; // Standard (1 meal/day)
+        return MealPlanType.standard; // Standard (1 meal/day)
       case 2:
-        return MealPlanType.dietKnight; // Premium (2 meals/day)
+        return MealPlanType.pro; // Pro (2 meals/day)
       case 3:
-        return MealPlanType.leanFreak; // Pro (3 meals/day)
+        return MealPlanType.premium; // Premium (3 meals/day)
       default:
-        return MealPlanType.nutritious;
+        return MealPlanType.standard;
     }
   }
 
@@ -291,7 +291,7 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
         OrderModelV3(
           id: 'mock_order_1',
           userId: 'mock_user',
-          mealPlanType: MealPlanType.nutritious,
+          mealPlanType: MealPlanType.standard,
           meals: [sampleMeal],
           deliveryAddress: '123 Mock St, Springfield',
           orderDate: DateTime.now().subtract(const Duration(hours: 1)),
@@ -799,12 +799,12 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
 
   String _getMealPlanDisplayName(MealPlanType type) {
     switch (type) {
-      case MealPlanType.nutritious:
-        return 'NutritiousJr Plan';
-      case MealPlanType.dietKnight:
-        return 'DietKnight Plan';
-      case MealPlanType.leanFreak:
-        return 'LeanFreak Plan';
+      case MealPlanType.standard:
+        return 'Standard Plan';
+      case MealPlanType.pro:
+        return 'Pro Plan';
+      case MealPlanType.premium:
+        return 'Premium Plan';
     }
   }
 
@@ -907,6 +907,7 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
         builder: (_) => InteractiveMenuPageV3(
           menuType: current?.mealType ?? 'lunch',
           day: _formatDeliveryTime(order.estimatedDeliveryTime ?? order.deliveryDate),
+          menuCategory: 'premade',
           onMealSelected: (m) => Navigator.of(context).pop(m),
           selectedMeal: current,
         ),

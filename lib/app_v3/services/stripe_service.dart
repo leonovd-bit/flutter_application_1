@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'dart:io' show Platform;
 
 class StripeService {
   StripeService._();
@@ -45,6 +46,28 @@ class StripeService {
 
   Future<bool> addPaymentMethod(BuildContext context) async {
     try {
+      // Windows desktop doesn't support flutter_stripe - use server-side for development
+      final isWindows = !kIsWeb && Platform.isWindows;
+      
+      if (isWindows) {
+        debugPrint('[Stripe] Windows desktop detected - simulating payment method addition for development');
+        // Windows development mode: simulate successful payment method addition
+        // without calling Cloud Functions (to avoid network issues)
+        await Future.delayed(const Duration(milliseconds: 800)); // Simulate network delay
+        
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✓ Payment method added (Windows dev mode - simulated)'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+        debugPrint('[Stripe] Windows dev mode: Payment method addition simulated');
+        return true;
+      }
+      
       // Web platform: Stripe payment sheet not fully supported yet
       // For now, use backend API to create payment method
       if (kIsWeb) {

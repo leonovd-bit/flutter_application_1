@@ -9,18 +9,21 @@ import '../services/scheduler_service_v3.dart';
 import '../services/order_generation_service.dart';
 import '../services/stripe_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../models/mock_user_model.dart';
 import 'package:flutter/foundation.dart';
 
 class PaymentPageV3 extends StatefulWidget {
   final MealPlanModelV3 mealPlan;
   final Map<String, Map<String, dynamic>> weeklySchedule;
   final Map<String, Map<String, MealModelV3?>> selectedMeals;
+  final MockUser? mockUser;
   
   const PaymentPageV3({
     super.key,
     required this.mealPlan,
     required this.weeklySchedule,
     required this.selectedMeals,
+    this.mockUser,
   });
 
   @override
@@ -28,12 +31,18 @@ class PaymentPageV3 extends StatefulWidget {
 }
 
 class _PaymentPageV3State extends State<PaymentPageV3> {
+  MockUser? _mockUser;
   bool _isProcessing = false;
   String _selectedPaymentMethod = 'card';
   
   // Monthly price derived from model getter ($13/meal * meals/day * 30)
   double get _monthlyPrice => widget.mealPlan.monthlyPrice;
 
+  @override
+  void initState() {
+    super.initState();
+    _mockUser = widget.mockUser;
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -460,7 +469,7 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
       
       // Generate orders from meal selections
       try {
-        final uid = FirebaseAuth.instance.currentUser?.uid;
+  final uid = _mockUser?.uid ?? FirebaseAuth.instance.currentUser?.uid;
         if (uid != null) {
           debugPrint('[Payment] Starting order generation for user: $uid');
           
@@ -498,7 +507,7 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
       } catch (e) {
         debugPrint('[Payment] Failed to generate orders: $e');
         // Fall back to legacy order generation
-        final uid = FirebaseAuth.instance.currentUser?.uid;
+  final uid = _mockUser?.uid ?? FirebaseAuth.instance.currentUser?.uid;
         if (uid != null) {
           await _generateOrdersLegacy(uid);
         }
