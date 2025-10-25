@@ -74,7 +74,7 @@ class _PageViewerV3State extends State<PageViewerV3> {
     // Main App Pages
     PageInfo('Home', () => const HomePageV3()),
   PageInfo('Profile', () => ProfilePageV3(mockUser: mockUser)),
-  PageInfo('Settings', () => SettingsPageV3(mockUser: mockUser)),
+  PageInfo('Settings', () => const SettingsPageV3()),
     PageInfo('Manage Subscription', () => const ManageSubscriptionPageV3()),
   ];
 

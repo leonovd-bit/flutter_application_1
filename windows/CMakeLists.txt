@@ -32,6 +32,13 @@ set(CMAKE_CXX_FLAGS_PROFILE "${CMAKE_CXX_FLAGS_RELEASE}")
 # Use Unicode for all projects.
 add_definitions(-DUNICODE -D_UNICODE)
 
+# Work around MSVC PDB concurrency errors when compiling multiple sources in parallel
+# See error C1041: cannot open program database 'vc143.pdb'; if multiple CL.EXE write to the same .PDB file, please use /FS
+if(MSVC)
+  add_compile_options(/FS)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /FS")
+endif()
+
 # Compilation settings that should be applied to most targets.
 #
 # Be cautious about adding new options here, as plugins use this function by
