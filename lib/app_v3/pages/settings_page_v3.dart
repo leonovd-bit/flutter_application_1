@@ -22,11 +22,8 @@ import 'delivery_schedule_page_v5.dart';
 import 'meal_schedule_page_v3.dart';
 import '../services/fcm_service_v3.dart';
 
-import '../models/mock_user_model.dart';
-
 class SettingsPageV3 extends StatefulWidget {
-  final MockUser? mockUser;
-  const SettingsPageV3({super.key, this.mockUser});
+  const SettingsPageV3({super.key});
 
   @override
   State<SettingsPageV3> createState() => _SettingsPageV3State();
