@@ -2,7 +2,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/mock_user_model.dart';
-import '../services/firestore_service_v3.dart';
+import '../services/auth/firestore_service_v3.dart';
 import '../models/meal_model_v3.dart';
 import '../models/protein_model_v3.dart';
 import 'package:shared_preferences/shared_preferences.dart';

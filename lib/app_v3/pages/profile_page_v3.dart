@@ -5,7 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 // image_picker is temporarily disabled to unblock Android builds.
 // The _pickImage method will act as a no-op stub until re-enabled.
 import '../theme/app_theme_v3.dart';
-import '../services/firestore_service_v3.dart';
+import '../services/auth/firestore_service_v3.dart';
 import 'dart:io';
 
 import '../models/mock_user_model.dart';

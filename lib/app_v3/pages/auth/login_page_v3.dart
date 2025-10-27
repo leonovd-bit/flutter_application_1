@@ -3,11 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../theme/app_theme_v3.dart';
-import '../services/connectivity_service_v3.dart';
-import '../services/offline_auth_service_v3.dart';
+import '../../theme/app_theme_v3.dart';
+import '../../services/connectivity_service_v3.dart';
 import 'signup_page_v3.dart';
-import 'home_page_v3.dart';
+import '../home_page_v3.dart';
 import 'welcome_page_v3.dart';
 
 class LoginPageV3 extends StatefulWidget {
@@ -444,30 +443,15 @@ class _LoginPageV3State extends State<LoginPageV3> {
     // Check internet connectivity first
     final hasConnection = await ConnectivityServiceV3.hasInternetConnection();
     if (!hasConnection) {
-      // Try offline authentication first
-      final offlineSuccess = await OfflineAuthServiceV3.signInOffline(
-        _emailController.text.trim(),
-        _passwordController.text,
-      );
       if (!mounted) return;
-      if (offlineSuccess) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Signed in offline! Some features may be limited.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomePageV3()),
-        );
-        return;
-      } else {
-        setState(() => _isLoading = false);
-        _showNetworkErrorDialog();
-        return;
-      }
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No internet connection. Please check your network and try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
     }
 
     try {
@@ -534,26 +518,7 @@ class _LoginPageV3State extends State<LoginPageV3> {
       }
     } catch (e) {
       debugPrint('Sign in error: $e');
-      // Try offline authentication as fallback
-      final offlineSuccess = await OfflineAuthServiceV3.signInOffline(
-        _emailController.text.trim(),
-        _passwordController.text,
-      );
       if (!mounted) return;
-      if (offlineSuccess) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Signed in offline! Some features may be limited.'),
-            backgroundColor: Colors.black,
-          ),
-        );
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomePageV3()),
-        );
-        return;
-      }
       
       String errorMessage = 'Failed to sign in';
       
@@ -794,41 +759,5 @@ class _LoginPageV3State extends State<LoginPageV3> {
         const SnackBar(content: Text('Failed to send password reset email')),
       );
     }
-  }
-
-  void _showNetworkErrorDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Connection Problem'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(ConnectivityServiceV3.getNetworkErrorMessage()),
-            const SizedBox(height: 16),
-            const Text(
-              'Offline Demo Accounts:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(OfflineAuthServiceV3.getOfflineAccountsInfo()),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _signInWithEmail();
-            },
-            child: const Text('Try Again'),
-          ),
-        ],
-      ),
-    );
   }
 }

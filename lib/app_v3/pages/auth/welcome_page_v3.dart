@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../theme/app_theme_v3.dart';
+import '../../theme/app_theme_v3.dart';
 import 'signup_page_v3.dart';
-import 'menu_page_v3.dart';
+import '../menu_page_v3.dart';
 
 class WelcomePageV3 extends StatefulWidget {
   const WelcomePageV3({super.key});

@@ -28,19 +28,14 @@ class MealModelV3 {
   // Getter for compatibility with interactive menu
   String get type => mealType;
 
-  // Get image path - returns asset path if imageUrl is empty
+  // Get image path - returns empty string if no image available
   String get imagePath {
     if (imageUrl.isNotEmpty) {
       return imageUrl;
     }
     
-    // Generate asset path from meal name using slug logic
-    final slug = name
-        .toLowerCase()
-        .replaceAll(RegExp(r"[^a-z0-9]+"), '-')
-        .replaceAll(RegExp(r"(^-|-$)"), '');
-    
-    return 'assets/images/meals/$slug.jpg';
+    // No local images available - return empty string
+    return '';
   }
 
   MealModelV3({

@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/meal_model_v3.dart';
-import '../services/firestore_service_v3.dart';
+import '../services/auth/firestore_service_v3.dart';
 import 'delivery_schedule_page_v5.dart';
 
 class ChooseMealPlanPageV3 extends StatefulWidget {

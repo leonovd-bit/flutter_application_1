@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/meal_model_v3.dart';
-import '../services/firestore_service_v3.dart';
+import '../services/auth/firestore_service_v3.dart';
 import '../theme/app_theme_v3.dart';
 import 'payment_methods_page_v3.dart';
 import '../services/order_functions_service.dart';

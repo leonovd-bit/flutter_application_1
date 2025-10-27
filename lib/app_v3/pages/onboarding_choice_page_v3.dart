@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme_v3.dart';
 import 'choose_meal_plan_page_v3.dart';
-import 'ai_onboarding_page_v3.dart';
 
 class OnboardingChoicePageV3 extends StatelessWidget {
   const OnboardingChoicePageV3({super.key});
@@ -123,68 +122,6 @@ class OnboardingChoicePageV3 extends StatelessWidget {
                   ],
                 ),
               ),
-              
-              // AI Setup Option
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppThemeV3.surface,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppThemeV3.border),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.psychology,
-                          color: AppThemeV3.accent,
-                          size: 24,
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'AI Assisted Setup',
-                          style: AppThemeV3.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: AppThemeV3.textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Let our AI learn about your health goals, dietary preferences, and lifestyle to create a personalized meal plan just for you.',
-                      style: AppThemeV3.textTheme.bodyMedium?.copyWith(
-                        color: AppThemeV3.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () => _navigateToAISetup(context),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppThemeV3.accent,
-                          side: const BorderSide(color: AppThemeV3.accent),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        child: Text(
-                          'Start AI Setup',
-                          style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                            color: AppThemeV3.accent,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
         ),
@@ -198,16 +135,6 @@ class OnboardingChoicePageV3 extends StatelessWidget {
       context,
       MaterialPageRoute(
         builder: (context) => const ChooseMealPlanPageV3(isSignupFlow: true),
-      ),
-    );
-  }
-
-  void _navigateToAISetup(BuildContext context) {
-    print('[OnboardingChoice] Navigating to AI setup');
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const AIOnboardingPageV3(),
       ),
     );
   }

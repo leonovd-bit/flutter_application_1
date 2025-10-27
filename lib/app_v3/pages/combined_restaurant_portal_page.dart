@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../theme/app_theme_v3.dart';
-import '../services/square_integration_service.dart';
+import '../services/auth/square_integration_service.dart';
 import '../utils/web_utils.dart';
 
 /// Comprehensive Restaurant Portal that combines onboarding and ongoing portal features

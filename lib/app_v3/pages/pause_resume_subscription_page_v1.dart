@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../theme/app_theme_v3.dart';
-import '../services/firestore_service_v3.dart';
+import '../services/auth/firestore_service_v3.dart';
 import '../services/order_functions_service.dart';
 
 class PauseResumeSubscriptionPageV1 extends StatefulWidget {

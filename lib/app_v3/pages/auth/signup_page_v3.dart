@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
-import '../theme/app_theme_v3.dart';
-import '../services/progress_manager.dart';
-import '../services/auth_wrapper.dart' show ExplicitSetupApproval; // approve explicit setup
+import '../../theme/app_theme_v3.dart';
+import '../../services/auth/progress_manager.dart';
+import '../../services/auth/auth_wrapper.dart' show ExplicitSetupApproval; // approve explicit setup
 import 'email_verification_page_v3.dart';
 import 'login_page_v3.dart';
-import 'choose_meal_plan_page_v3.dart';
+import '../choose_meal_plan_page_v3.dart';
 import 'welcome_page_v3.dart';
 
 class SignUpPageV3 extends StatefulWidget {

@@ -15,7 +15,7 @@ import 'upcoming_orders_page_v3.dart';
 import 'past_orders_page_v3.dart';
 import 'address_page_v3.dart';
 import 'menu_page_v3.dart';
-import '../services/firestore_service_v3.dart';
+import '../services/auth/firestore_service_v3.dart';
 import '../services/order_service_v3.dart';
 import '../widgets/app_image.dart';
 

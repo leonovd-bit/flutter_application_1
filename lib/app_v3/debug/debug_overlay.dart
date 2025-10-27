@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../config/feature_flags.dart';
+import '../services/data_clear_service.dart';
 import 'debug_state.dart';
 
 /// A small draggable / tappable overlay showing current route, user id, and setup approval.
@@ -73,6 +74,8 @@ class _DebugOverlayState extends State<DebugOverlay> {
                     _kv('User', snap.userId?.substring(0, snap.userId!.length.clamp(0, 8)) ?? '∅'),
                     _kv('Approved', snap.explicitApproved ? 'yes' : 'no'),
                     _kv('Updated', _timeSince(snap.updatedAt)),
+                    const SizedBox(height: 8),
+                    _buildClearDataButton(),
                     const SizedBox(height: 4),
                     const Text('Tap header to collapse', style: TextStyle(fontSize: 9, color: Colors.white54)),
                   ]
@@ -99,5 +102,44 @@ class _DebugOverlayState extends State<DebugOverlay> {
     if (diff.inSeconds < 60) return '${diff.inSeconds}s';
     if (diff.inMinutes < 60) return '${diff.inMinutes}m';
     return '${diff.inHours}h';
+  }
+
+  Widget _buildClearDataButton() {
+    return GestureDetector(
+      onTap: () async {
+        try {
+          await DataClearService.clearAllLocalData();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('All local data cleared'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error clearing data: $e'),
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.3),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: Colors.red.withOpacity(0.5)),
+        ),
+        child: const Text(
+          'Clear All Data',
+          style: TextStyle(fontSize: 10, color: Colors.red, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
   }
 }

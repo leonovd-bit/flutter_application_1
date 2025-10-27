@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
-import '../theme/app_theme_v3.dart';
+import '../../theme/app_theme_v3.dart';
 
 class ChangePasswordPageV3 extends StatefulWidget {
   const ChangePasswordPageV3({super.key});

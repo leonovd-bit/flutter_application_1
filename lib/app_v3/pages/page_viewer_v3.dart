@@ -1,19 +1,17 @@
 import 'package:flutter/material.dart';
-import '../pages/ai_onboarding_page_v3.dart';
 import '../pages/choose_meal_plan_page_v3.dart';
 import '../pages/delivery_schedule_page_v5.dart';
-import '../pages/email_verification_page_v3.dart';
+import 'auth/email_verification_page_v3.dart';
 import '../pages/home_page_v3.dart';
-import '../pages/login_page_v3.dart';
+import 'auth/login_page_v3.dart';
 import '../pages/meal_schedule_page_v3_fixed.dart';
 import '../pages/onboarding_choice_page_v3.dart';
 import '../pages/payment_page_v3.dart';
-import '../pages/payment_methods_page_v3.dart';
 import '../pages/profile_page_v3.dart';
 import '../pages/settings_page_v3.dart';
 import '../pages/manage_subscription_page_v3.dart';
-import '../pages/splash_page_v3.dart';
-import '../pages/welcome_page_v3.dart';
+import 'auth/splash_page_v3.dart';
+import 'auth/welcome_page_v3.dart';
 import '../models/meal_model_v3.dart';
 import '../theme/app_theme_v3.dart';
 import '../models/mock_user_model.dart';
@@ -33,10 +31,6 @@ class _PageViewerV3State extends State<PageViewerV3> {
     PageInfo('Login', () => const LoginPageV3()),
     PageInfo('Email Verification', () => const EmailVerificationPageV3(email: 'demo@example.com')),
     PageInfo('Onboarding Choice', () => const OnboardingChoicePageV3()),
-    
-    // AI Onboarding Path
-    PageInfo('AI Onboarding', () => const AIOnboardingPageV3()),
-  PageInfo('Payment Methods', () => PaymentMethodsPageV3(onPaymentComplete: () {}, isOnboarding: true, mockUser: mockUser)),
     
     // Manual Onboarding Path
     PageInfo('Choose Meal Plan', () => const ChooseMealPlanPageV3()),

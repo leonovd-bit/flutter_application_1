@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/meal_model_v3.dart';
-import '../config/doordash_config.dart';
-import 'doordash_auth_service.dart';
+import '../../models/meal_model_v3.dart';
+import '../../config/doordash_config.dart';
+import '../doordash_auth_service.dart';
 
 /// DoorDash Drive API Integration Service
 /// Handles delivery requests, tracking, and status updates
