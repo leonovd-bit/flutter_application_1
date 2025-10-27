@@ -7,18 +7,18 @@ import 'firebase_options.dart';
 import 'app_v3/pages/auth/splash_page_v3.dart';
 import 'app_v3/pages/home_page_v3.dart';
 import 'app_v3/pages/page_viewer_v3.dart';
-import 'app_v3/pages/restaurant_onboarding_page_v3.dart';
-import 'app_v3/pages/square_restaurant_onboarding_page_v3.dart';
-import 'app_v3/pages/combined_restaurant_portal_page.dart';
+import 'app_v3/pages/restaurant/restaurant_onboarding_page_v3.dart';
+import 'app_v3/pages/restaurant/square_restaurant_onboarding_page_v3.dart';
+import 'app_v3/pages/restaurant/combined_restaurant_portal_page.dart';
 import 'app_v3/services/auth/auth_wrapper.dart';
 import 'app_v3/theme/app_theme_v3.dart';
 import 'app_v3/services/memory_optimizer.dart';
 import 'app_v3/config/feature_flags.dart';
 import 'app_v3/debug/debug_overlay.dart';
 import 'app_v3/debug/debug_state.dart';
-import 'app_v3/services/fcm_service_v3.dart';
+import 'app_v3/services/notifications/fcm_service_v3.dart';
 import 'app_v3/services/environment_service.dart';
-import 'app_v3/services/stripe_service.dart';
+import 'app_v3/services/payment/stripe_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 // Background message handler (must be top-level)

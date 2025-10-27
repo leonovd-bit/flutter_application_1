@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import '../services/simple_google_maps_service.dart';
+import '../services/maps/simple_google_maps_service.dart';
 import '../theme/app_theme_v3.dart';
 
 /// Simple address input widget - no complex autocomplete, just validation

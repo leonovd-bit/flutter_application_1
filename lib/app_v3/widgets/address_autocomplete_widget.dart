@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import '../services/google_places_service.dart';
+import '../services/maps/google_places_service.dart';
 import '../theme/app_theme_v3.dart';
 
 /// Advanced address input widget with Google Places autocomplete

@@ -7,7 +7,7 @@ import '../../services/auth/progress_manager.dart';
 import '../../services/auth/auth_wrapper.dart' show ExplicitSetupApproval; // approve explicit setup
 import 'email_verification_page_v3.dart';
 import 'login_page_v3.dart';
-import '../choose_meal_plan_page_v3.dart';
+import '../onboarding/choose_meal_plan_page_v3.dart';
 import 'welcome_page_v3.dart';
 
 class SignUpPageV3 extends StatefulWidget {

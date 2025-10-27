@@ -387,32 +387,6 @@ class _LoginPageV3State extends State<LoginPageV3> {
                     ),
                   ),
                   
-                  const SizedBox(height: 16),
-                  
-                  // Demo Account Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _isLoading ? null : _signInWithDemoAccount,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.black,
-                        side: BorderSide(color: Colors.black, width: 2),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      icon: const Icon(Icons.person_outline, size: 24),
-                      label: Text(
-                        'Try Demo Account',
-                        style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: Colors.black,
-                        ),
-                      ),
-                    ),
-                  ),
-                  
                   const SizedBox(height: 24),
                   
                   // Forgot password
@@ -656,79 +630,6 @@ class _LoginPageV3State extends State<LoginPageV3> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Failed to sign in with Apple')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  Future<void> _signInWithDemoAccount() async {
-    setState(() => _isLoading = true);
-
-    try {
-      // Try to sign in with a demo account
-      // If it doesn't exist, create it
-      const demoEmail = 'demo@victus.com';
-      const demoPassword = 'demo123456';
-
-      try {
-        final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
-          email: demoEmail,
-          password: demoPassword,
-        );
-
-        if (!mounted) return;
-        if (credential.user != null) {
-          // Navigate to home page
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomePageV3()),
-          );
-        }
-      } catch (signInError) {
-        // If sign in fails, try to create the demo account
-        if (signInError.toString().contains('user-not-found')) {
-          try {
-            final newCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-              email: demoEmail,
-              password: demoPassword,
-            );
-
-            // Mark the email as verified for demo purposes
-            await newCredential.user?.sendEmailVerification();
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Demo account created! You can now explore the app.'),
-                duration: Duration(seconds: 3),
-              ),
-            );
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const HomePageV3()),
-            );
-          } catch (createError) {
-            rethrow; // Re-throw the original error
-          }
-        } else {
-          throw signInError;
-        }
-      }
-    } catch (e) {
-  debugPrint('Demo account error: $e');
-  if (!mounted) return;
-  String errorMessage = 'Failed to sign in with demo account';
-      
-      if (e.toString().contains('network-request-failed') || 
-          e.toString().contains('timeout') ||
-          e.toString().contains('Failed host lookup')) {
-        errorMessage = 'Network error. The demo account requires an internet connection.';
-      }
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMessage)),
       );
     } finally {
       if (mounted) {

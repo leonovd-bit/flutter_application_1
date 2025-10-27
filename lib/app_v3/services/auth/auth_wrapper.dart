@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../pages/home_page_v3.dart';
-import '../../pages/auth/login_page_v3.dart';
+import '../../pages/auth/welcome_page_v3.dart';
 import '../../pages/auth/splash_page_v3.dart';
 import 'firestore_service_v3.dart';
 import '../../debug/debug_state.dart';
@@ -16,7 +16,7 @@ class AuthWrapper extends StatefulWidget {
 class _AuthWrapperState extends State<AuthWrapper> {
   bool _isInitialized = false;
   DateTime? _bootStartedAt;
-  static const Duration _minSplashDuration = Duration(seconds: 2);
+  static const Duration _minSplashDuration = Duration(milliseconds: 800);
 
   @override
   void initState() {
@@ -87,8 +87,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
           debugPrint('User authenticated: ${snapshot.data!.uid}');
           return const HomePageV3();
         } else {
-          debugPrint('No authenticated user, showing login page');
-          return const LoginPageV3();
+          debugPrint('No authenticated user, showing welcome page');
+          return const WelcomePageV3();
         }
       },
     );

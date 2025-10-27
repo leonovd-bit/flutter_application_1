@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/app_theme_v3.dart';
 import 'signup_page_v3.dart';
-import '../menu_page_v3.dart';
+import '../meals/menu_page_v3.dart';
 
 class WelcomePageV3 extends StatefulWidget {
   const WelcomePageV3({super.key});
@@ -55,7 +55,11 @@ class _WelcomePageV3State extends State<WelcomePageV3> {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const SignUpPageV3()),
+                      PageRouteBuilder(
+                        pageBuilder: (context, animation, secondaryAnimation) => const SignUpPageV3(),
+                        transitionDuration: Duration.zero,
+                        reverseTransitionDuration: Duration.zero,
+                      ),
                     );
                   },
                   style: ElevatedButton.styleFrom(

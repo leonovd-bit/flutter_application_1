@@ -8,15 +8,15 @@ import 'dart:math' as math;
 import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
 import '../models/protein_model_v3.dart';
-import 'map_page_v3.dart';
-import 'settings_page_v3.dart';
-import 'circle_of_health_page_v3.dart';
-import 'upcoming_orders_page_v3.dart';
-import 'past_orders_page_v3.dart';
-import 'address_page_v3.dart';
-import 'menu_page_v3.dart';
+import 'delivery/map_page_v3.dart';
+import 'profile/settings_page_v3.dart';
+import 'info/circle_of_health_page_v3.dart';
+import 'orders/upcoming_orders_page_v3.dart';
+import 'orders/past_orders_page_v3.dart';
+import 'delivery/address_page_v3.dart';
+import 'meals/menu_page_v3.dart';
 import '../services/auth/firestore_service_v3.dart';
-import '../services/order_service_v3.dart';
+import '../services/orders/order_service_v3.dart';
 import '../widgets/app_image.dart';
 
 class HomePageV3 extends StatefulWidget {

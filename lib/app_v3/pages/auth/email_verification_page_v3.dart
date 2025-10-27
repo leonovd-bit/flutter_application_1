@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import '../../theme/app_theme_v3.dart';
-import '../onboarding_choice_page_v3.dart';
+import '../onboarding/onboarding_choice_page_v3.dart';
 
 class EmailVerificationPageV3 extends StatefulWidget {
   final String email;
