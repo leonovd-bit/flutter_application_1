@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/app_theme_v3.dart';
 import 'signup_page_v3.dart';
 import '../meals/menu_page_v3.dart';
+import '../delivery/map_page_v3.dart';
 
 class WelcomePageV3 extends StatefulWidget {
   const WelcomePageV3({super.key});
@@ -152,87 +153,115 @@ class _WelcomePageV3State extends State<WelcomePageV3> {
               const SizedBox(height: 40),
               
               // Map section
-              Container(
-                height: 200,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: AppThemeV3.surface,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: AppThemeV3.border, // 2px black border
-                    width: 2,
+              MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: () {
+                    print('[Welcome] Map card tapped');
+                    _openMap(context);
+                  },
+                  child: Container(
+                  height: 200,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: AppThemeV3.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: AppThemeV3.border, // 2px black border
+                      width: 2,
+                    ),
+                    boxShadow: AppThemeV3.cardShadow,
                   ),
-                  boxShadow: AppThemeV3.cardShadow,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      // Map placeholder with location pins
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          color: AppThemeV3.surfaceElevated,
+                        ),
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              // Location pins scattered
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                children: [
+                                  _buildLocationPin(),
+                                  _buildLocationPin(),
+                                  _buildLocationPin(),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                children: [
+                                  _buildLocationPin(),
+                                  _buildLocationPin(),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // View Map button
+                      Positioned(
+                        bottom: 16,
+                        left: 16,
+                        right: 16,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            print('[Welcome] View Map button pressed');
+                            _openMap(context);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppThemeV3.primaryBlack,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: const BorderSide(
+                                color: AppThemeV3.border,
+                                width: 2,
+                              ),
+                            ),
+                          ),
+                          child: Text(
+                            'View Map',
+                            style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                child: Stack(
-                  children: [
-                    // Map placeholder with location pins
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        color: AppThemeV3.surfaceElevated,
-                      ),
-                      child: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            // Location pins scattered
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                _buildLocationPin(),
-                                _buildLocationPin(),
-                                _buildLocationPin(),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                _buildLocationPin(),
-                                _buildLocationPin(),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    // View Map button
-                    Positioned(
-                      bottom: 16,
-                      left: 16,
-                      right: 16,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          // Navigate to map page
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppThemeV3.primaryBlack,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            side: const BorderSide(
-                              color: AppThemeV3.border,
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                        child: Text(
-                          'View Map',
-                          style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
               ),
               
               const SizedBox(height: 24),
+              // Fallback explicit debug button
+              Align(
+                alignment: Alignment.center,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    print('[Welcome] Debug open map button pressed');
+                    _openMap(context);
+                  },
+                  icon: const Icon(Icons.map_outlined),
+                  label: const Text('Open map (debug)'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppThemeV3.textPrimary,
+                    side: const BorderSide(color: AppThemeV3.border),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -338,6 +367,22 @@ class _WelcomePageV3State extends State<WelcomePageV3> {
       context,
       MaterialPageRoute(
         builder: (context) => MenuPageV3(menuType: menuType),
+      ),
+    );
+  }
+
+  void _openMap(BuildContext context) {
+    print('[Welcome] _openMap called');
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.showSnackBar(
+      const SnackBar(
+        content: Text('Opening map...'),
+        duration: Duration(milliseconds: 800),
+      ),
+    );
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute(
+        builder: (context) => const MapPageV3(),
       ),
     );
   }

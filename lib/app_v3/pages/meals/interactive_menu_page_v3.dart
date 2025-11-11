@@ -31,41 +31,85 @@ class _InteractiveMenuPageV3State extends State<InteractiveMenuPageV3> {
   bool _isLoading = true;
   // Track which meal descriptions are expanded (by meal id)
   final Set<String> _expandedDescriptions = <String>{};
+  // Category toggle: 'premade' or 'custom'
+  String _selectedCategory = 'premade';
+  
+  Widget _buildCategoryPill(String label, String value) {
+    final isSelected = _selectedCategory == value;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          if (_selectedCategory == value) return;
+          setState(() {
+            _selectedCategory = value;
+            _isLoading = true;
+          });
+          _loadMeals();
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? AppThemeV3.accent : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: isSelected ? AppThemeV3.accent : AppThemeV3.border),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: AppThemeV3.textTheme.titleMedium?.copyWith(
+              color: isSelected ? Colors.white : AppThemeV3.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
   
   @override
   void initState() {
     super.initState();
     _selectedMealType = widget.menuType.capitalizeFirst();
+    // Initialize category from caller if provided
+    _selectedCategory = (widget.menuCategory == 'custom') ? 'custom' : 'premade';
     _loadMeals();
   }
   
   Future<void> _loadMeals() async {
+    setState(() => _isLoading = true);
+    
     try {
+      debugPrint('[InteractiveMenu] Loading meals for ${_selectedMealType.toLowerCase()}, category: ${_selectedCategory}');
+      
       final meals = await MealServiceV3.getMeals(
         mealType: _selectedMealType.toLowerCase(),
+        menuCategory: _selectedCategory,
         limit: 50,
       );
-      // Filter by menu category
-      // If no category specified, default to showing only premade meals
-      List<MealModelV3> filtered = widget.menuCategory == null
-          ? meals.where((m) => (m.menuCategory ?? 'premade').toLowerCase() == 'premade').toList()
-          : meals.where((m) => (m.menuCategory ?? 'premade').toLowerCase() == widget.menuCategory!.toLowerCase()).toList();
+      
+      debugPrint('[InteractiveMenu] Loaded ${meals.length} meals from Firestore');
+      
+      // If Firestore returns empty, try local JSON as fallback
+      List<MealModelV3> filtered = meals;
       if (filtered.isEmpty) {
+        debugPrint('[InteractiveMenu] No meals from Firestore, trying local JSON');
         final local = await MealServiceV3.getMealsFromLocal(
           mealType: _selectedMealType.toLowerCase(),
-          menuCategory: widget.menuCategory,
+          menuCategory: _selectedCategory,
           limit: 50,
         );
         if (local.isNotEmpty) {
           filtered = local;
+          debugPrint('[InteractiveMenu] Loaded ${local.length} meals from local JSON');
         }
       }
+      
       setState(() {
         _meals = filtered;
         _isLoading = false;
       });
     } catch (e) {
-      debugPrint('Error loading meals: $e');
+      debugPrint('[InteractiveMenu] Error loading meals: $e');
       setState(() {
         _meals = [];
         _isLoading = false;
@@ -85,7 +129,7 @@ class _InteractiveMenuPageV3State extends State<InteractiveMenuPageV3> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          '${widget.menuCategory == 'custom' ? 'Customize' : 'Select'} ${widget.menuType.capitalizeFirst()} for ${widget.day}',
+          '${_selectedCategory == 'custom' ? 'Customize' : 'Select'} ${widget.menuType.capitalizeFirst()} for ${widget.day}',
           style: AppThemeV3.textTheme.headlineMedium?.copyWith(
             fontWeight: FontWeight.w600,
           ),
@@ -105,6 +149,19 @@ class _InteractiveMenuPageV3State extends State<InteractiveMenuPageV3> {
               ],
             ),
           ),
+
+          // Category selector (Premade vs Custom)
+          Container(
+            color: AppThemeV3.surface,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: Row(
+              children: [
+                _buildCategoryPill('Premade', 'premade'),
+                const SizedBox(width: 8),
+                _buildCategoryPill('Custom', 'custom'),
+              ],
+            ),
+          ),
           
           // Victus Menu Header
           Container(
@@ -119,7 +176,7 @@ class _InteractiveMenuPageV3State extends State<InteractiveMenuPageV3> {
                   ),
                 ),
                 Text(
-                  widget.menuCategory == 'custom'
+                  _selectedCategory == 'custom'
                       ? '${_selectedMealType.toUpperCase()} • CUSTOMIZE'
                       : '${_selectedMealType.toUpperCase()} MENU',
                   style: AppThemeV3.textTheme.titleMedium?.copyWith(
@@ -300,7 +357,7 @@ class _InteractiveMenuPageV3State extends State<InteractiveMenuPageV3> {
                     GestureDetector(
                       onTap: () async {
                         // If this is a custom base, open the customizer first.
-                        final isCustom = (widget.menuCategory == 'custom') || ((meal.menuCategory ?? '').toLowerCase() == 'custom');
+                        final isCustom = (_selectedCategory == 'custom') || ((meal.menuCategory ?? '').toLowerCase() == 'custom');
                         if (isCustom) {
                           final result = await Navigator.push<MealModelV3>(
                             context,

@@ -113,7 +113,7 @@ class _OnboardingMealPlanPageV3State extends State<OnboardingMealPlanPageV3> {
                   Icon(
                     Icons.restaurant_menu,
                     size: 48,
-                    color: AppThemeV3.primaryColor,
+                    color: AppThemeV3.accent,
                   ),
                   const SizedBox(height: 16),
                   const Text(
@@ -156,7 +156,7 @@ class _OnboardingMealPlanPageV3State extends State<OnboardingMealPlanPageV3> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: isSelected ? AppThemeV3.primaryColor : Colors.grey[300]!,
+                            color: isSelected ? AppThemeV3.accent : Colors.grey[300]!,
                             width: isSelected ? 2 : 1,
                           ),
                           boxShadow: [
@@ -176,10 +176,10 @@ class _OnboardingMealPlanPageV3State extends State<OnboardingMealPlanPageV3> {
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                  color: isSelected ? AppThemeV3.primaryColor : Colors.grey[400]!,
+                                  color: isSelected ? AppThemeV3.accent : Colors.grey[400]!,
                                   width: 2,
                                 ),
-                                color: isSelected ? AppThemeV3.primaryColor : Colors.transparent,
+                                color: isSelected ? AppThemeV3.accent : Colors.transparent,
                               ),
                               child: isSelected
                                   ? const Icon(
@@ -239,7 +239,7 @@ class _OnboardingMealPlanPageV3State extends State<OnboardingMealPlanPageV3> {
               child: ElevatedButton(
                 onPressed: _saving ? null : _continue,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppThemeV3.primaryColor,
+                  backgroundColor: AppThemeV3.accent,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
@@ -278,6 +278,7 @@ class _OnboardingMealPlanPageV3State extends State<OnboardingMealPlanPageV3> {
           ],
         ),
       ),
-    ); // Close WillPopScope
+      ),
+    );
   }
 }

@@ -20,18 +20,59 @@ import {getFirestore, FieldValue, Timestamp} from "firebase-admin/firestore";
 import {getMessaging} from "firebase-admin/messaging";
 import {getAuth} from "firebase-admin/auth";
 
+// Initialize Firebase Admin
+initializeApp();
+
 // Export order generation and confirmation functions
 export {generateOrderFromMealSelection, sendOrderConfirmation} from "./order-functions";
+
+// (Removed) meal population function import
+// import {runPopulateMeals} from "./populate-meals";
 
 // Export Square integration functions
 export {
   initiateSquareOAuthHttp,
   completeSquareOAuthHttp,
+  squareOAuthTestPage,
+  diagnoseSquareOAuth,
+  devListRecentSquareOrders,
+  squareWhoAmI,
   syncSquareMenu,
   forwardOrderToSquare,
+  devForceSyncSquareMenu,
   sendWeeklyPrepSchedules,
   getRestaurantNotifications,
 } from "./square-integration";
+
+// Export manual OAuth helper (backup for when Square consent UI won't load)
+export {
+  manualOAuthEntry,
+} from "./manual-oauth-helper";
+
+// Export menu diagnostics
+export {
+  checkMenuSyncStatus,
+} from "./menu-diagnostics";
+
+// Export image proxy function
+export {
+  proxyImage,
+} from "./image-proxy";
+
+// Export meal URL proxy migration function
+export {
+  updateMealUrlsToProxy,
+} from "./meal-url-proxy";
+
+// Export diagnostic tools
+export {
+  diagnosticMeals,
+} from "./diagnostic-meals";
+
+// Export Square catalog checker
+export {
+  checkSquareCatalog,
+} from "./check-square-catalog";
 
 // Export restaurant notification functions
 export {
@@ -96,6 +137,25 @@ function isValidUid(uid: string): boolean {
   return typeof uid === "string" && uid.length > 0 && uid.length <= 128;
 }
 
+// Shared sanitizer for meal metadata (matches client-side logic)
+function sanitizeMealText(text: any): string {
+  if (typeof text !== "string") return "";
+  let out = text;
+  const patterns: RegExp[] = [
+    /(freshpunk|freskpunk)\s+edition/gi, // remove phrase regardless of case/typo
+    /\(\s*(freshpunk|freskpunk)\s*\)/gi, // remove (FreshPunk) or typo variant
+    /\(\s*(freshpunk|freskpunk)\s+edition\s*\)/gi, // remove (FreshPunk Edition)
+    /\s*[-–—]\s*(freshpunk|freskpunk)\s*edition/gi, // remove with leading dash
+  ];
+  for (const p of patterns) out = out.replace(p, " ");
+  // Remove empty parentheses left behind
+  out = out.replace(/\(\s*\)/g, " ");
+  // Normalize whitespace and trailing punctuation
+  out = out.replace(/\s{2,}/g, " ").trim();
+  out = out.replace(/\s*[-–—]\s*$/g, "").trim();
+  return out;
+}
+
 async function rateLimitCheck(identifier: string, limit = 100, windowMs = 60000): Promise<boolean> {
   const now = Date.now();
   const key = identifier;
@@ -136,8 +196,6 @@ async function logAuditEvent(
   }
 }
 
-// Initialize Admin SDK
-initializeApp();
 const db = getFirestore();
 
 // Enhanced connectivity check with rate limiting
@@ -294,17 +352,20 @@ export const createPaymentIntent = onCall({secrets: [STRIPE_SECRET_KEY]}, async 
     const stripe = getStripe();
     const {amount, currency = "usd", customer, metadata} = sanitizeInput(request.data || {});
 
+    // Client-side misconfig guard: provide structured hints back.
+    const fieldErrors: Record<string, string> = {};
+
     // Comprehensive validation
-    if (typeof amount !== "number" || !Number.isInteger(amount) || amount <= 0) {
-      throw new HttpsError("invalid-argument", "Valid amount (integer, cents) is required");
-    }
+    if (typeof amount !== "number") fieldErrors.amount = "Amount must be a number in cents.";
+    if (typeof amount === "number" && !Number.isInteger(amount)) fieldErrors.amount = "Amount must be an integer (cents).";
+    if (typeof amount === "number" && amount <= 0) fieldErrors.amount = "Amount must be > 0.";
 
-    if (amount > 100000) { // $1000 max per transaction
-      throw new HttpsError("invalid-argument", "Amount exceeds maximum limit");
-    }
+    if (typeof amount === "number" && amount > 100000) fieldErrors.amount = "Amount exceeds $1000 limit.";
 
-    if (currency !== "usd") {
-      throw new HttpsError("invalid-argument", "Only USD currency is supported");
+    if (currency !== "usd") fieldErrors.currency = "Only 'usd' currency supported.";
+
+    if (Object.keys(fieldErrors).length > 0) {
+      throw new HttpsError("invalid-argument", JSON.stringify({message: "Validation failed", fieldErrors}));
     }
 
     // Create payment intent with enhanced metadata
@@ -339,9 +400,46 @@ export const createPaymentIntent = onCall({secrets: [STRIPE_SECRET_KEY]}, async 
     await logAuditEvent("payment_intent_failed", callerUid, {error: e.message}, false);
 
     if (e instanceof HttpsError) {
+      // Pass through structured validation / auth / rate limit errors.
       throw e;
     }
-    throw new HttpsError("internal", "Payment processing failed. Please try again.");
+
+    // Map common Stripe error types to more specific HttpsError codes for actionable client handling.
+    const type = e?.type || e?.code;
+    let mapped: HttpsError;
+    switch (type) {
+      case "StripeAuthenticationError":
+      case "authentication_error":
+        mapped = new HttpsError("failed-precondition", "Stripe authentication failed: check STRIPE_SECRET_KEY.");
+        break;
+      case "StripePermissionError":
+      case "permission_error":
+        mapped = new HttpsError("permission-denied", "Stripe permission error: verify account capabilities.");
+        break;
+      case "StripeRateLimitError":
+      case "rate_limit_error":
+        mapped = new HttpsError("resource-exhausted", "Stripe rate limit exceeded. Please retry later.");
+        break;
+      case "StripeInvalidRequestError":
+      case "invalid_request_error":
+        mapped = new HttpsError("invalid-argument", `Invalid Stripe request: ${e.message}`);
+        break;
+      case "StripeAPIError":
+      case "api_error":
+        mapped = new HttpsError("unavailable", "Stripe API temporary error. Retry shortly.");
+        break;
+      case "StripeConnectionError":
+      case "connection_error":
+        mapped = new HttpsError("unavailable", "Network error contacting Stripe. Check connectivity.");
+        break;
+      case "StripeCardError":
+      case "card_error":
+        mapped = new HttpsError("failed-precondition", `Card error: ${e.message}`);
+        break;
+      default:
+        mapped = new HttpsError("internal", "Payment processing failed. Please try again.");
+    }
+    throw mapped;
   }
 });
 
@@ -478,6 +576,123 @@ async function sendOrderStatusNotification(userId: string, orderId: string, stat
     logger.error("Failed to send notification", {userId, orderId, status, error});
   }
 }
+
+// ============ Maintenance: Sanitize Meals Metadata ============
+export const sanitizeMealsMetadata = onCall(async (request: any) => {
+  // Optional confirmation gate to avoid accidental runs
+  const confirm: string | undefined = (request.data?.confirm as string | undefined)?.toUpperCase();
+  const dryRun = !!request.data?.dryRun;
+
+  if (confirm !== "CLEAN_MEALS" && !dryRun) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Pass { confirm: 'CLEAN_MEALS' } to execute, or { dryRun: true } to preview."
+    );
+  }
+
+  const db = getFirestore();
+  const updatedDocs: string[] = [];
+  let scanned = 0;
+  let modified = 0;
+
+  // Use shared sanitizer
+
+  // Use collection group query for meals at meals/{restaurant}/items/{mealId}
+  const snap = await db.collectionGroup("items").get();
+  const batchLimit = 400;
+  let batch = db.batch();
+  let ops = 0;
+
+  for (const doc of snap.docs) {
+    scanned++;
+    const data = doc.data() as any;
+    const name = typeof data.name === "string" ? data.name : "";
+    const desc = typeof data.description === "string" ? data.description : "";
+    const newName = sanitizeMealText(name);
+    const newDesc = sanitizeMealText(desc);
+    const needsUpdate = newName !== name || newDesc !== desc;
+    if (!needsUpdate) continue;
+
+    modified++;
+    updatedDocs.push(doc.ref.path);
+    if (!dryRun) {
+      batch.set(doc.ref, {name: newName, description: newDesc}, {merge: true});
+      ops++;
+      if (ops >= batchLimit) {
+        await batch.commit();
+        batch = db.batch();
+        ops = 0;
+      }
+    }
+  }
+
+  if (!dryRun && ops > 0) {
+    await batch.commit();
+  }
+
+  return {
+    scanned,
+    modified,
+    dryRun,
+    sample: updatedDocs.slice(0, 10),
+  };
+});
+
+// HTTP variant to trigger from a browser or CLI with explicit confirmation
+export const sanitizeMealsWeb = onRequest(async (req: any, res: any) => {
+  try {
+    const confirm = (req.query.confirm || "").toString().toUpperCase();
+    const dryRun = String(req.query.dryRun || "false").toLowerCase() === "true";
+    // Reuse callable logic by constructing a fake request
+    // Minimal duplication: run the same sanitizer inline
+    if (confirm !== "CLEAN_MEALS" && !dryRun) {
+      res.status(400).json({
+        error: "Pass ?confirm=CLEAN_MEALS to execute, or ?dryRun=true to preview.",
+      });
+      return;
+    }
+
+    const db = getFirestore();
+    const updatedDocs: string[] = [];
+    let scanned = 0;
+    let modified = 0;
+
+    // Use shared sanitizer
+
+    const snap = await db.collectionGroup("items").get();
+    const batchLimit = 400;
+    let batch = db.batch();
+    let ops = 0;
+    for (const doc of snap.docs) {
+      scanned++;
+      const data = doc.data() as any;
+      const name = typeof data.name === "string" ? data.name : "";
+      const desc = typeof data.description === "string" ? data.description : "";
+  const newName = sanitizeMealText(name);
+  const newDesc = sanitizeMealText(desc);
+      const needsUpdate = newName !== name || newDesc !== desc;
+      if (!needsUpdate) continue;
+      modified++;
+      updatedDocs.push(doc.ref.path);
+      if (!dryRun) {
+        batch.set(doc.ref, {name: newName, description: newDesc}, {merge: true});
+        ops++;
+        if (ops >= batchLimit) {
+          await batch.commit();
+          batch = db.batch();
+          ops = 0;
+        }
+      }
+    }
+    if (!dryRun && ops > 0) {
+      await batch.commit();
+    }
+
+    res.json({scanned, modified, dryRun, sample: updatedDocs.slice(0, 10)});
+  } catch (e: any) {
+    res.status(500).json({error: e?.message || String(e)});
+  }
+});
 
 // Create Customer
 export const createCustomer = onCall({secrets: [STRIPE_SECRET_KEY]}, async (request: any) => {
@@ -2005,3 +2220,524 @@ async function sendSMSInternal(toNumber: string, message: string, orderNumber?: 
     return {success: false, error: (error as Error).message};
   }
 }
+
+/**
+ * List all meal IDs for image naming reference
+ */
+export const listMealIds = onRequest({cors: true}, async (req, res) => {
+  try {
+    const db = getFirestore();
+
+    const output: string[] = [];
+    output.push("========================================");
+    output.push("     MEAL IMAGE NAMING REFERENCE");
+    output.push("========================================\n");
+
+    // Get all restaurants
+    const restaurantsSnapshot = await db.collection("meals").get();
+
+    let totalCount = 0;
+
+    for (const restaurantDoc of restaurantsSnapshot.docs) {
+      const restaurant = restaurantDoc.id;
+      output.push(`\n📍 Restaurant: ${restaurant.toUpperCase()}`);
+      output.push("─".repeat(60));
+
+      // Get all meals for this restaurant
+      const mealsSnapshot = await db
+        .collection("meals")
+        .doc(restaurant)
+        .collection("items")
+        .orderBy("name")
+        .get();
+
+      const meals: Array<{
+        id: string;
+        name: string;
+        type: string;
+        category: string;
+      }> = [];
+
+      mealsSnapshot.forEach((doc) => {
+        const meal = doc.data();
+        meals.push({
+          id: doc.id,
+          name: meal.name || "Unknown",
+          type: meal.mealType || "unknown",
+          category: meal.menuCategory || "premade",
+        });
+      });
+
+      // Group by meal type
+      const byType: Record<string, typeof meals> = {};
+      meals.forEach((meal) => {
+        if (!byType[meal.type]) byType[meal.type] = [];
+        byType[meal.type].push(meal);
+      });
+
+      // Output grouped by type
+      Object.keys(byType).sort().forEach((mealType) => {
+        output.push(`\n  ${mealType.toUpperCase()}:`);
+        byType[mealType].forEach((meal) => {
+          output.push(`    ✓ ${meal.id}.jpg`);
+          output.push(`      → "${meal.name}" (${meal.category})`);
+        });
+      });
+
+      output.push(`\n  Total meals: ${meals.length}`);
+      totalCount += meals.length;
+    }
+
+    output.push("\n========================================");
+    output.push(`  TOTAL MEALS: ${totalCount}`);
+    output.push("========================================\n");
+
+    output.push("📝 INSTRUCTIONS:");
+    output.push("  1. Rename your images to match the IDs above");
+    output.push("     Example: chicken_caesar_wrap.jpg");
+    output.push("  2. Extensions: .jpg, .jpeg, .webp, .jfif, .png");
+    output.push("  3. Put all images in one folder");
+    output.push("  4. Run: .\\upload_meal_images.ps1 -SourceFolder \"C:\\path\\to\\folder\"\n");
+
+    res.setHeader("Content-Type", "text/plain");
+    res.status(200).send(output.join("\n"));
+  } catch (error) {
+    logger.error("Error listing meal IDs:", error);
+    res.status(500).send("Error fetching meal IDs");
+  }
+});
+
+/**
+ * Update meal image URLs in Firestore
+ */
+export const updateMealImageUrls = onRequest({cors: true}, async (req, res) => {
+  try {
+    const db = getFirestore();
+
+    // Base URL for Firebase Storage
+    const STORAGE_BASE = "https://firebasestorage.googleapis.com/v0/b/freshpunk-48db1.appspot.com/o/meals%2FMeal%20Images%2F";
+
+    // Map of meal IDs to image extensions
+    const mealImages: Record<string, string> = {
+      "bun_cha_gio": "jpg",
+      "bun_heo_quay": "webp",
+      "bun_nuoc_tuong": "jfif",
+      "bun_thit_nuong": "jpg",
+      "california_cobb_salad": "jpeg",
+      "chicken_caesar_salad": "jpeg",
+      "chicken_caesar_wrap": "jpeg",
+      "chicken_chipotle_quesadilla": "jpeg",
+      "com_tam_suron_bi_cha": "jpg",
+      "custom_acai_bowl_base": "jpeg",
+      "custom_bagel_base": "jpeg",
+      "custom_grain_bowl_base": "jpeg",
+      "custom_greek_yogurt_bowl_base": "jpeg",
+      "custom_pasta_base": "jpeg",
+      "custom_quesadilla_base": "jpeg",
+      "custom_salad_base": "jpeg",
+      "custom_wrap_base": "jpeg",
+      "notos_greek_yogurt_bowl": "jpeg",
+      "pho_sen": "jpg",
+      "salmon_quinoa_crush_bowl": "jpeg",
+      "spicy_turkey_wrap": "jpeg",
+      "turkey_egg_avocado_bowl": "jpeg",
+      "turkey_sandwich": "jpg",
+    };
+
+    const output: string[] = [];
+    output.push("=== Updating Meal Image URLs ===\n");
+
+    const restaurantsSnapshot = await db.collection("meals").get();
+
+    let updated = 0;
+    let notFound = 0;
+
+    for (const restaurantDoc of restaurantsSnapshot.docs) {
+      const restaurant = restaurantDoc.id;
+      output.push(`\nRestaurant: ${restaurant}`);
+
+      const mealsSnapshot = await db
+        .collection("meals")
+        .doc(restaurant)
+        .collection("items")
+        .get();
+
+      for (const mealDoc of mealsSnapshot.docs) {
+        const mealId = mealDoc.id;
+        const ext = mealImages[mealId];
+
+        if (ext) {
+          const imageUrl = `${STORAGE_BASE}${mealId}.${ext}?alt=media`;
+          await mealDoc.ref.update({imageUrl});
+          output.push(`  ✓ Updated: ${mealId}`);
+          updated++;
+        } else {
+          output.push(`  ⚠ No image: ${mealId}`);
+          notFound++;
+        }
+      }
+    }
+
+    output.push("\n=== Complete ===");
+    output.push(`Updated: ${updated} | No image: ${notFound}`);
+
+    res.setHeader("Content-Type", "text/plain");
+    res.status(200).send(output.join("\n"));
+  } catch (error) {
+    logger.error("updateMealImageUrls error:", error);
+    res.status(500).send(`Error: ${error}`);
+  }
+});
+
+// (Removed) HTTP endpoint to populate Firestore with real meal data
+// export const populateMealsHttp = onRequest(async (req, res) => {
+//   try {
+//     await runPopulateMeals();
+//     res.status(200).send("✅ Successfully populated meals!");
+//   } catch (error) {
+//     logger.error("Error updating meal images:", error);
+//     res.status(500).send("Error updating meal images");
+//   }
+// });
+
+/**
+ * List all files in Firebase Storage meals folder for debugging
+ */
+export const listStorageImages = onRequest(async (req, res) => {
+  try {
+    const {getStorage} = await import("firebase-admin/storage");
+    // Use the default configured bucket for the project (respects FIREBASE_CONFIG)
+    const bucket = getStorage().bucket();
+    const [files] = await bucket.getFiles({prefix: "meals/"});
+
+    const output = [
+      "=== Firebase Storage: meals/ ===\n",
+      `Total files: ${files.length}\n`,
+    ];
+
+    files.forEach((file) => {
+      const size = file.metadata?.size ? (Number(file.metadata.size) / 1024).toFixed(1) : "?";
+      output.push(`  📁 ${file.name} (${size} KB)`);
+    });
+
+    res.setHeader("Content-Type", "text/plain");
+    res.status(200).send(output.join("\n"));
+  } catch (error) {
+    logger.error("Error listing storage:", error);
+    res.status(500).send(`Error: ${error}`);
+  }
+});
+
+/**
+ * Update meal image URLs with persistent download tokens so they work publicly
+ */
+export const updateMealImageUrlsWithTokens = onRequest(async (req, res) => {
+  try {
+    const db = getFirestore();
+    const {getStorage} = await import("firebase-admin/storage");
+    const {randomUUID} = await import("crypto");
+
+    // Map of meal IDs to image extensions
+    const mealImages: Record<string, string> = {
+      "bun_cha_gio": "jpg",
+      "bun_heo_quay": "webp",
+      "bun_nuoc_tuong": "jfif",
+      "bun_thit_nuong": "jpg",
+      "california_cobb_salad": "jpeg",
+      "chicken_caesar_salad": "jpeg",
+      "chicken_caesar_wrap": "jpeg",
+      "chicken_chipotle_quesadilla": "jpeg",
+      "com_tam_suron_bi_cha": "jpg",
+      "custom_acai_bowl_base": "jpeg",
+      "custom_bagel_base": "jpeg",
+      "custom_grain_bowl_base": "jpeg",
+      "custom_greek_yogurt_bowl_base": "jpeg",
+      "custom_pasta_base": "jpeg",
+      "custom_quesadilla_base": "jpeg",
+      "custom_salad_base": "jpeg",
+      "custom_wrap_base": "jpeg",
+      "notos_greek_yogurt_bowl": "jpeg",
+      "pho_sen": "jpg",
+      "salmon_quinoa_crush_bowl": "jpeg",
+      "spicy_turkey_wrap": "jpeg",
+      "turkey_egg_avocado_bowl": "jpeg",
+      "turkey_sandwich": "jpg",
+    };
+
+    const out: string[] = [];
+    out.push("=== Updating Meal Image URLs with tokens ===\n");
+
+    // Query all meals via collection group
+    const mealsGroup = await db.collectionGroup("items").get();
+
+    let updated = 0;
+    let skipped = 0;
+    let missingFiles = 0;
+
+    // Use the canonical appspot.com bucket for Firebase Storage
+    const bucket = getStorage().bucket("freshpunk-48db1.appspot.com");
+
+    for (const mealDoc of mealsGroup.docs) {
+      const mealId = mealDoc.id;
+      const ext = mealImages[mealId];
+      if (!ext) {
+        out.push(`  ⚠ No extension mapping for: ${mealId}`);
+        skipped++;
+        continue;
+      }
+
+      const storagePath = `meals/Meal Images/${mealId}.${ext}`;
+      const file = bucket.file(storagePath);
+      const [exists] = await file.exists();
+      if (!exists) {
+        out.push(`  ❌ Missing in Storage: ${storagePath}`);
+        missingFiles++;
+        continue;
+      }
+
+      // Ensure a download token exists on the object
+      const [metadata] = await file.getMetadata();
+      let token = metadata.metadata?.firebaseStorageDownloadTokens as string | undefined;
+      if (!token || token.trim().length === 0) {
+        token = randomUUID();
+        await file.setMetadata({
+          metadata: {
+            ...(metadata.metadata || {}),
+            firebaseStorageDownloadTokens: token,
+          },
+        });
+      }
+
+      const encoded = encodeURIComponent(storagePath);
+      const publicUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encoded}?alt=media&token=${token}`;
+      await mealDoc.ref.update({imageUrl: publicUrl});
+      out.push(`  ✓ Updated: ${mealId}`);
+      updated++;
+    }
+
+    out.push("\n=== Complete ===");
+    out.push(`Updated: ${updated} | Skipped(no ext): ${skipped} | Missing files: ${missingFiles}`);
+
+    res.setHeader("Content-Type", "text/plain");
+    res.status(200).send(out.join("\n"));
+  } catch (error) {
+    logger.error("updateMealImageUrlsWithTokens error:", error);
+    res.status(500).send(`Error: ${error}`);
+  }
+});
+
+/**
+ * Update meal image URLs using .firebasestorage.app domain (simple version - no file checks)
+ */
+export const updateMealImageUrlsSimple = onRequest(async (req, res) => {
+  try {
+    const db = getFirestore();
+
+    // Use your working token for all images
+    const token = "c9a65481-a3f7-4bdd-8703-02ff623e084f";
+    const bucketName = "freshpunk-48db1.firebasestorage.app";
+
+    const mealImages: Record<string, string> = {
+      "bun_cha_gio": "jpg",
+      "bun_heo_quay": "webp",
+      "bun_nuoc_tuong": "jfif",
+      "bun_thit_nuong": "jpg",
+      "california_cobb_salad": "jpeg",
+      "chicken_caesar_salad": "jpeg",
+      "chicken_caesar_wrap": "jpeg",
+      "chicken_chipotle_quesadilla": "jpeg",
+      "com_tam_suron_bi_cha": "jpg",
+      "custom_acai_bowl_base": "jpeg",
+      "custom_bagel_base": "jpeg",
+      "custom_grain_bowl_base": "jpeg",
+      "custom_greek_yogurt_bowl_base": "jpeg",
+      "custom_pasta_base": "jpeg",
+      "custom_quesadilla_base": "jpeg",
+      "custom_salad_base": "jpeg",
+      "custom_wrap_base": "jpeg",
+      "notos_greek_yogurt_bowl": "jpeg",
+      "pho_sen": "jpg",
+      "salmon_quinoa_crush_bowl": "jpeg",
+      "spicy_turkey_wrap": "jpeg",
+      "turkey_egg_avocado_bowl": "jpeg",
+      "turkey_sandwich": "jpg",
+    };
+
+    const out: string[] = [];
+    out.push("=== Updating Meal Image URLs (Simple) ===\n");
+    out.push(`Using bucket: ${bucketName}\n`);
+    out.push(`Using token: ${token}\n\n`);
+
+    const mealsGroup = await db.collectionGroup("items").get();
+    let updated = 0;
+    let skipped = 0;
+
+    for (const mealDoc of mealsGroup.docs) {
+      const mealId = mealDoc.id;
+      const ext = mealImages[mealId];
+      if (!ext) {
+        out.push(`  ⚠ No extension mapping for: ${mealId}`);
+        skipped++;
+        continue;
+      }
+
+      const storagePath = `meals/Meal Images/${mealId}.${ext}`;
+      const encoded = encodeURIComponent(storagePath);
+      const publicUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encoded}?alt=media&token=${token}`;
+
+      await mealDoc.ref.update({imageUrl: publicUrl});
+      out.push(`  ✓ Updated: ${mealId} -> ${publicUrl.substring(0, 80)}...`);
+      updated++;
+    }
+
+    out.push("\n=== Complete ===");
+    out.push(`Updated: ${updated} | Skipped(no ext): ${skipped}`);
+
+    res.setHeader("Content-Type", "text/plain");
+    res.status(200).send(out.join("\n"));
+  } catch (error) {
+    logger.error("updateMealImageUrlsSimple error:", error);
+    res.status(500).send(`Error: ${error}`);
+  }
+});
+
+/**
+ * Update meal image URLs by listing Storage first (robust against false negatives)
+ * - Lists all files under meals/Meal Images/
+ * - Ensures each file has a firebaseStorageDownloadTokens metadata
+ * - Builds public download URLs and updates Firestore collectionGroup('items')
+ */
+export const updateMealImageUrlsFromListing = onRequest(async (req, res) => {
+  try {
+    const db = getFirestore();
+    const {getStorage} = await import("firebase-admin/storage");
+    const {randomUUID} = await import("crypto");
+
+    const bucket = getStorage().bucket(); // use default configured bucket
+    const prefix = "meals/Meal Images/";
+
+    const out: string[] = [];
+    out.push("=== Updating Meal Image URLs (from listing) ===\n");
+
+    // 1) List files in Storage under the prefix
+    const [files] = await bucket.getFiles({prefix});
+    out.push(`Found ${files.length} files under ${prefix}\n`);
+
+    // Build map: mealId -> { path, token, publicUrl }
+    const fileMap = new Map<string, {path: string; token: string; url: string}>();
+    for (const file of files) {
+      const name = file.name; // full path like 'meals/Meal Images/foo.jpeg'
+      if (!name || name.endsWith("/")) continue; // skip directories
+
+      // Extract basename and mealId (without extension)
+      const base = name.substring(name.lastIndexOf("/") + 1); // foo.jpeg
+      const dot = base.lastIndexOf(".");
+      if (dot <= 0) continue;
+      const mealId = base.substring(0, dot);
+
+      // Ensure token exists
+      const [metadata] = await file.getMetadata();
+      let token = metadata.metadata?.firebaseStorageDownloadTokens as string | undefined;
+      if (!token || token.trim().length === 0) {
+        token = randomUUID();
+        await file.setMetadata({
+          metadata: {
+            ...(metadata.metadata || {}),
+            firebaseStorageDownloadTokens: token,
+          },
+        });
+      }
+
+      const encoded = encodeURIComponent(name);
+      const url = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encoded}?alt=media&token=${token}`;
+      fileMap.set(mealId, {path: name, token, url});
+    }
+
+    // 2) Update Firestore docs in collectionGroup('items') if a matching file exists
+    const mealsSnap = await db.collectionGroup("items").get();
+    let updated = 0;
+    let missing = 0;
+    for (const doc of mealsSnap.docs) {
+      const mealId = doc.id;
+      const info = fileMap.get(mealId);
+      if (!info) {
+        out.push(`  ❌ No file found for ${mealId}`);
+        missing++;
+        continue;
+      }
+      await doc.ref.update({imageUrl: info.url});
+      out.push(`  ✓ Updated ${mealId} -> ${info.url.substring(0, 80)}...`);
+      updated++;
+    }
+
+    out.push("\n=== Complete ===");
+    out.push(`Updated: ${updated} | Missing file for doc: ${missing}`);
+
+    res.setHeader("Content-Type", "text/plain");
+    res.status(200).send(out.join("\n"));
+  } catch (error) {
+    logger.error("updateMealImageUrlsFromListing error:", error);
+    res.status(500).send(`Error: ${error}`);
+  }
+});
+
+/**
+ * Configure Cloud Storage CORS to allow images to load on Flutter Web (CanvasKit/HTML).
+ * Allows GET/HEAD from hosting origins so Image.network works without XHR/CORS failures.
+ */
+export const configureStorageCors = onRequest(async (req, res) => {
+  try {
+    const {getStorage} = await import("firebase-admin/storage");
+    const bucket = getStorage().bucket();
+
+    // Allowed web origins
+    const origins = [
+      "https://freshpunk-48db1.web.app",
+      "https://freshpunk-48db1.firebaseapp.com",
+      "http://localhost:5000",
+      "http://localhost:5173",
+      "http://localhost:8080",
+    ];
+
+    const corsConfig = [
+      {
+        origin: origins,
+        method: ["GET", "HEAD"],
+        responseHeader: [
+          "Content-Type",
+          "x-goog-meta-*",
+          "x-goog-stored-content-length",
+          "x-goog-stored-content-encoding",
+        ],
+        maxAgeSeconds: 3600,
+      },
+    ];
+
+    // Apply CORS configuration via bucket metadata
+    await bucket.setMetadata({cors: corsConfig as any});
+
+    // Read back to verify
+    const [metadata] = await bucket.getMetadata();
+    res.json({
+      bucket: bucket.name,
+      cors: metadata.cors || null,
+    });
+  } catch (e: any) {
+    logger.error("configureStorageCors error", e);
+    res.status(500).json({error: e?.message || String(e)});
+  }
+});
+
+/**
+ * Count meals across collection group 'items' for diagnostics
+ */
+export const countMeals = onRequest(async (req, res) => {
+  try {
+    const db = getFirestore();
+    const snap = await db.collectionGroup("items").count().get();
+    const total = (snap as any).data().count as number | undefined;
+    res.json({count: total ?? null});
+  } catch (e: any) {
+    res.status(500).json({error: e?.message || String(e)});
+  }
+});

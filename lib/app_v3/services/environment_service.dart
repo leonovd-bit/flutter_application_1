@@ -25,12 +25,40 @@ class EnvironmentService {
   }
 
   /// Get environment variable with optional fallback
+  /// Priority order (first non-empty wins):
+  /// 1) --dart-define (supported for selected keys)
+  /// 2) .env loaded via flutter_dotenv
+  /// 3) provided fallback or empty string
   static String get(String key, [String? fallback]) {
-    if (!_initialized) {
-      debugPrint('[Environment] Warning: Not initialized, using fallback for $key');
-      return fallback ?? '';
+    // NOTE: const String.fromEnvironment requires a literal, so we
+    // support only known keys here. Extend the switch as needed.
+    String fromDefine = '';
+    switch (key) {
+      case 'FCM_VAPID_KEY':
+        fromDefine = const String.fromEnvironment('FCM_VAPID_KEY');
+        break;
+      case 'GOOGLE_MAPS_API_KEY':
+        fromDefine = const String.fromEnvironment('GOOGLE_MAPS_API_KEY');
+        break;
+      case 'STRIPE_PUBLISHABLE_KEY':
+        fromDefine = const String.fromEnvironment('STRIPE_PUBLISHABLE_KEY');
+        break;
+      // Add other keys here if you want them to be overrideable via --dart-define
+      default:
+        fromDefine = '';
     }
-    return dotenv.env[key] ?? fallback ?? '';
+    if (fromDefine.isNotEmpty) return fromDefine;
+
+    // Then .env (if available)
+    if (_initialized) {
+      final fromEnv = dotenv.env[key];
+      if (fromEnv != null && fromEnv.isNotEmpty) return fromEnv;
+    } else {
+      debugPrint('[Environment] Warning: Not initialized, falling back for $key');
+    }
+
+    // Finally, explicit fallback
+    return fallback ?? '';
   }
 
   /// Check if running in debug mode
@@ -82,6 +110,12 @@ class EnvironmentService {
   static String get firebaseProjectId => get('FIREBASE_PROJECT_ID');
   static String get firebaseApiKey => get('FIREBASE_API_KEY');
   static String get firebaseAppId => get('FIREBASE_APP_ID');
+
+  // ===========================================
+  // FCM (Web) CONFIG
+  // ===========================================
+  
+  static String get fcmVapidKey => get('FCM_VAPID_KEY');
 
   // ===========================================
   // AI SERVICES (Optional)

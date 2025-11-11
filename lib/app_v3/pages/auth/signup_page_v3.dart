@@ -8,6 +8,7 @@ import '../../services/auth/auth_wrapper.dart' show ExplicitSetupApproval; // ap
 import 'email_verification_page_v3.dart';
 import 'login_page_v3.dart';
 import '../onboarding/choose_meal_plan_page_v3.dart';
+import '../home_page_v3.dart';
 import 'welcome_page_v3.dart';
 
 class SignUpPageV3 extends StatefulWidget {
@@ -34,6 +35,13 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
   bool _isPhoneValid = false;
   bool _emailTouched = false;
   bool _phoneTouched = false;
+
+  // Password complexity helpers (match Settings requirements)
+  bool get _hasMinLength => _passwordController.text.length >= 8;
+  bool get _hasLetter => RegExp(r'[A-Za-z]').hasMatch(_passwordController.text);
+  bool get _hasNumber => RegExp(r'[0-9]').hasMatch(_passwordController.text);
+  bool get _hasSymbol => RegExp(r'[^A-Za-z0-9]').hasMatch(_passwordController.text);
+  bool get _meetsPasswordComplexity => _hasMinLength && _hasLetter && _hasNumber && _hasSymbol;
 
   @override
   void initState() {
@@ -106,7 +114,7 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
     return _nameController.text.isNotEmpty &&
            _isEmailValid &&
            _isPhoneValid &&
-           _passwordController.text.length >= 6 &&
+           _meetsPasswordComplexity &&
            _passwordController.text == _confirmPasswordController.text;
   }
 
@@ -214,6 +222,46 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                 ),
                 
                 const SizedBox(height: 40),
+                // Security Notice (match Settings)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppThemeV3.accent.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppThemeV3.accent.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.security, color: AppThemeV3.accent, size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Security Notice',
+                              style: AppThemeV3.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: AppThemeV3.accent,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Choose a strong password with at least 8 characters, including letters, numbers, and symbols.',
+                              style: AppThemeV3.textTheme.bodySmall?.copyWith(
+                                color: AppThemeV3.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
                 
                 // Validation Requirements Panel
                 Container(
@@ -242,7 +290,8 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                       const SizedBox(height: 12),
                       _buildRequirementItem('Valid email address', _isEmailValid),
                       _buildRequirementItem('Valid 10-digit phone number', _isPhoneValid),
-                      _buildRequirementItem('Password (6+ characters)', _passwordController.text.length >= 6),
+                      _buildRequirementItem('Password (8+ characters)', _hasMinLength),
+                      _buildRequirementItem('Contains letters, numbers, and symbols', _hasLetter && _hasNumber && _hasSymbol),
                       _buildRequirementItem('Passwords match', _confirmPasswordController.text == _passwordController.text && _passwordController.text.isNotEmpty),
                     ],
                   ),
@@ -421,14 +470,14 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                   controller: _passwordController,
                   obscureText: !_isPasswordVisible,
                   decoration: InputDecoration(
-                    hintText: 'Password (minimum 6 characters)',
+                    hintText: 'Password (8+ with letters, numbers, symbols)',
                     suffixIcon: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (_passwordController.text.isNotEmpty)
                           Icon(
-                            _passwordController.text.length >= 6 ? Icons.check_circle : Icons.error,
-                            color: _passwordController.text.length >= 6 ? Colors.green : Colors.red,
+                            _meetsPasswordComplexity ? Icons.check_circle : Icons.error,
+                            color: _meetsPasswordComplexity ? Colors.green : Colors.red,
                             size: 20,
                           ),
                         IconButton(
@@ -445,7 +494,7 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide(
                         color: _passwordController.text.isNotEmpty
-                            ? (_passwordController.text.length >= 6 ? Colors.green : Colors.red)
+                            ? (_meetsPasswordComplexity ? Colors.green : Colors.red)
                             : AppThemeV3.border,
                       ),
                     ),
@@ -453,7 +502,7 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide(
                         color: _passwordController.text.isNotEmpty
-                            ? (_passwordController.text.length >= 6 ? Colors.green : Colors.red)
+                            ? (_meetsPasswordComplexity ? Colors.green : Colors.red)
                             : AppThemeV3.border,
                       ),
                     ),
@@ -461,7 +510,7 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide(
                         color: _passwordController.text.isNotEmpty
-                            ? (_passwordController.text.length >= 6 ? Colors.green : Colors.red)
+                            ? (_meetsPasswordComplexity ? Colors.green : Colors.red)
                             : AppThemeV3.accent,
                       ),
                     ),
@@ -470,8 +519,14 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                     if (value == null || value.isEmpty) {
                       return 'Please enter a password';
                     }
-                    if (value.length < 6) {
-                      return 'Password must be at least 6 characters';
+                    if (value.length < 8) {
+                      return 'Password must be at least 8 characters';
+                    }
+                    final hasLetter = RegExp(r'[A-Za-z]').hasMatch(value);
+                    final hasNumber = RegExp(r'[0-9]').hasMatch(value);
+                    final hasSymbol = RegExp(r'[^A-Za-z0-9]').hasMatch(value);
+                    if (!(hasLetter && hasNumber && hasSymbol)) {
+                      return 'Use letters, numbers, and symbols';
                     }
                     return null;
                   },
@@ -794,15 +849,27 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
       final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
   debugPrint('Firebase sign-in successful: ${userCredential.user?.uid}'); // Debug
 
-  // Move to choose plan step after SSO signup
-  await ProgressManager.saveCurrentStep(OnboardingStep.signup);
+      // Check if this is a new user or existing user
+      final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
+      debugPrint('Is new user: $isNewUser'); // Debug
 
       if (mounted) {
-        // Navigate to choose meal plan first
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const ChooseMealPlanPageV3()),
-        );
+        if (isNewUser) {
+          // New user - go through setup process with isSignupFlow
+          debugPrint('New user detected - starting onboarding'); // Debug
+          await ProgressManager.saveCurrentStep(OnboardingStep.signup);
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const ChooseMealPlanPageV3(isSignupFlow: true)),
+          );
+        } else {
+          // Existing user who came to signup page - redirect to home
+          debugPrint('Existing user detected - going to home'); // Debug
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const HomePageV3()),
+          );
+        }
       }
     } on FirebaseAuthException catch (e) {
       debugPrint('Firebase Auth Exception in Google sign-in: ${e.code} - ${e.message}'); // Debug
@@ -850,17 +917,29 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
         accessToken: credential.authorizationCode,
       );
 
-      await FirebaseAuth.instance.signInWithCredential(oauthCredential);
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(oauthCredential);
 
-  // Move to choose plan step after successful Apple sign-in
-  await ProgressManager.saveCurrentStep(OnboardingStep.signup);
+      // Check if this is a new user or existing user
+      final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
+      debugPrint('Apple Sign-In - Is new user: $isNewUser'); // Debug
 
       if (mounted) {
-        // Navigate to choose meal plan first
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const ChooseMealPlanPageV3()),
-        );
+        if (isNewUser) {
+          // New user - go through setup process with isSignupFlow
+          debugPrint('New Apple user - starting onboarding'); // Debug
+          await ProgressManager.saveCurrentStep(OnboardingStep.signup);
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const ChooseMealPlanPageV3(isSignupFlow: true)),
+          );
+        } else {
+          // Existing user who came to signup page - redirect to home
+          debugPrint('Existing Apple user - going to home'); // Debug
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const HomePageV3()),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {

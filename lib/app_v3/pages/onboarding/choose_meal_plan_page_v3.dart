@@ -21,26 +21,22 @@ class ChooseMealPlanPageV3 extends StatefulWidget {
 class _ChooseMealPlanPageV3State extends State<ChooseMealPlanPageV3> {
   final _auth = FirebaseAuth.instance;
   bool _isLoading = false;
-  String _selectedPlan = ''; // 'standard', 'premium', 'pro'
-  bool _proteinPlusEnabled = false;
+  String _selectedPlan = ''; // 'standard', 'pro', 'premium'
 
   final Map<String, Map<String, dynamic>> _planDetails = {
     'standard': {
       'name': 'Standard',
       'mealsPerDay': 1,
-      'price': 390, // Monthly price
       'description': '1 meal per day',
     },
     'pro': {
       'name': 'Pro',
       'mealsPerDay': 2,
-      'price': 780,
       'description': '2 meals per day',
     },
     'premium': {
       'name': 'Premium',
       'mealsPerDay': 3,
-      'price': 1170,
       'description': '3 meals per day',
     },
   };
@@ -64,7 +60,6 @@ class _ChooseMealPlanPageV3State extends State<ChooseMealPlanPageV3> {
 
       if (kDebugMode) {
         debugPrint('[ChooseMealPlan] Selected plan: $_selectedPlan');
-        debugPrint('[ChooseMealPlan] Protein+ enabled: $_proteinPlusEnabled');
       }
 
       // Save to SharedPreferences
@@ -73,7 +68,6 @@ class _ChooseMealPlanPageV3State extends State<ChooseMealPlanPageV3> {
       
       await prefs.setString('selectedPlan', _selectedPlan);
       await prefs.setInt('mealsPerDay', planDetails['mealsPerDay'] as int);
-      await prefs.setBool('proteinPlusEnabled', _proteinPlusEnabled);
 
       // Find the meal plan model by matching mealsPerDay
       final availablePlans = MealPlanModelV3.getAvailablePlans();
@@ -93,7 +87,6 @@ class _ChooseMealPlanPageV3State extends State<ChooseMealPlanPageV3> {
       FirestoreServiceV3.updateUserProfile(user.uid, {
         'selectedPlan': _selectedPlan,
         'mealsPerDay': planDetails['mealsPerDay'],
-        'proteinPlusEnabled': _proteinPlusEnabled,
         'planSelectedAt': DateTime.now().toIso8601String(),
       }).then((_) {
         if (kDebugMode) {
@@ -143,21 +136,31 @@ class _ChooseMealPlanPageV3State extends State<ChooseMealPlanPageV3> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text(
-          'Choose your meal plan',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            color: Colors.black,
-          ),
-        ),
+    return PopScope(
+      canPop: !widget.isSignupFlow, // Prevent back navigation during signup
+      onPopInvoked: (bool didPop) {
+        // Prevent back navigation during signup flow
+        if (widget.isSignupFlow && !didPop) {
+          if (kDebugMode) {
+            debugPrint('[ChooseMealPlan] Back navigation blocked during signup');
+          }
+        }
+      },
+      child: Scaffold(
         backgroundColor: Colors.white,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black),
-      ),
-      body: SingleChildScrollView(
+        appBar: AppBar(
+          title: const Text(
+            'Choose your meal plan',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: Colors.black,
+            ),
+          ),
+          backgroundColor: Colors.white,
+          elevation: 0,
+          automaticallyImplyLeading: !widget.isSignupFlow, // Remove back button during signup
+        ),
+        body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           // Make all children span the available width so cards are full-bleed within padding
@@ -215,8 +218,8 @@ class _ChooseMealPlanPageV3State extends State<ChooseMealPlanPageV3> {
 
             const SizedBox(height: 32),
 
-            // Plan selection
-            ...['standard', 'premium', 'pro'].map((planId) {
+            // Plan selection (Standard → Pro → Premium)
+            ...['standard', 'pro', 'premium'].map((planId) {
               final plan = _planDetails[planId]!;
               final isSelected = _selectedPlan == planId;
 
@@ -245,7 +248,7 @@ class _ChooseMealPlanPageV3State extends State<ChooseMealPlanPageV3> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${plan['mealsPerDay']} meal(s) per day • from \$${plan['price']}/mo',
+                          '${plan['mealsPerDay']} meal(s) per day',
                           style: TextStyle(
                             fontSize: 14,
                             color: isSelected ? Colors.grey.shade200 : Colors.black87,
@@ -257,101 +260,6 @@ class _ChooseMealPlanPageV3State extends State<ChooseMealPlanPageV3> {
                 ),
               );
             }).toList(),
-
-            const SizedBox(height: 24),
-
-            // Protein+ Option
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.black, width: 2),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.black,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Center(
-                          child: Text('💪', style: TextStyle(fontSize: 24)),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Protein + Option',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.black,
-                              ),
-                            ),
-                            Text(
-                              'Customize your protein choices',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () => setState(() => _proteinPlusEnabled = !_proteinPlusEnabled),
-                        child: Container(
-                          width: 48,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            color: _proteinPlusEnabled ? Colors.black : Colors.grey.shade300,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: AnimatedAlign(
-                            duration: const Duration(milliseconds: 200),
-                            alignment: _proteinPlusEnabled ? Alignment.centerRight : Alignment.centerLeft,
-                            child: Container(
-                              width: 20,
-                              height: 20,
-                              margin: const EdgeInsets.symmetric(horizontal: 2),
-                              decoration: const BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (_proteinPlusEnabled) ...[
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade200, width: 2),
-                      ),
-                      child: const Text(
-                        '✓ Select specific proteins for your meals in the next step',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
 
             const SizedBox(height: 32),
 
@@ -390,6 +298,7 @@ class _ChooseMealPlanPageV3State extends State<ChooseMealPlanPageV3> {
           ],
         ),
       ),
+    ),
     );
   }
 }

@@ -4,6 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../environment_service.dart';
 import '../orders/order_functions_service.dart';
 
 /// Enhanced Firebase Cloud Messaging (Push Notifications) Service
@@ -38,6 +39,17 @@ class FCMServiceV3 {
   Future<void> _initWeb() async {
     try {
       final messaging = FirebaseMessaging.instance;
+      final vapidKey = EnvironmentService.fcmVapidKey;
+      
+      // Debug: log first/last 6 chars to verify key is present
+      if (vapidKey.isNotEmpty) {
+        final preview = vapidKey.length > 12 
+          ? '${vapidKey.substring(0, 6)}...${vapidKey.substring(vapidKey.length - 6)}'
+          : vapidKey;
+        debugPrint('[FCMServiceV3] VAPID key loaded: $preview (length: ${vapidKey.length})');
+      } else {
+        debugPrint('[FCMServiceV3] VAPID key is empty');
+      }
       
       // Request permission
       await messaging.requestPermission(
@@ -50,10 +62,15 @@ class FCMServiceV3 {
         provisional: false,
       );
 
-      // Get token for web
-      final token = await messaging.getToken(
-        vapidKey: 'BDO-7nG8Qj9N4YX_K8RJ6vL5hF2P9M3C1K7H4X2J9S8E6F1R3V5G8N2M4Q6W8Y7U5E9R2T4', // Replace with your VAPID key
-      );
+      // Get token for web (only if we have a valid VAPID key)
+      String? token;
+      if (vapidKey.isNotEmpty && vapidKey.length > 50) {
+        token = await messaging.getToken(
+          vapidKey: vapidKey,
+        );
+      } else {
+        debugPrint('[FCMServiceV3] Skipping web push subscription: missing/invalid VAPID key');
+      }
 
       if (token != null) {
         await _registerToken(token, 'web');
@@ -96,13 +113,13 @@ class FCMServiceV3 {
       // Get FCM token
       final token = await messaging.getToken();
       if (token != null) {
-        final platform = Platform.isAndroid ? 'android' : Platform.isIOS ? 'ios' : 'other';
+        final platform = kIsWeb ? 'web' : (Platform.isAndroid ? 'android' : Platform.isIOS ? 'ios' : 'other');
         await _registerToken(token, platform);
       }
 
       // Handle token refresh
       FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
-        final platform = Platform.isAndroid ? 'android' : Platform.isIOS ? 'ios' : 'other';
+        final platform = kIsWeb ? 'web' : (Platform.isAndroid ? 'android' : Platform.isIOS ? 'ios' : 'other');
         await _registerToken(newToken, platform);
       });
 
@@ -124,8 +141,16 @@ class FCMServiceV3 {
   }
 
   /// Initialize local notifications for displaying foreground messages
+  /// Note: Not supported on web - only mobile platforms
   Future<void> _initLocalNotifications() async {
     if (_localNotificationsInitialized) return;
+    
+    // Local notifications not supported on web
+    if (kIsWeb) {
+      debugPrint('[FCMServiceV3] Skipping local notifications on web');
+      _localNotificationsInitialized = true;
+      return;
+    }
     
     try {
       const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -147,7 +172,7 @@ class FCMServiceV3 {
       );
 
       // Create notification channel for Android
-      if (Platform.isAndroid) {
+      if (!kIsWeb && Platform.isAndroid) {
         const channel = AndroidNotificationChannel(
           'order_updates',
           'Order Updates',
@@ -200,12 +225,18 @@ class FCMServiceV3 {
     }
   }
 
-  /// Show local notification
+  /// Show local notification (no-op on web)
   Future<void> _showLocalNotification({
     required String title,
     required String body,
     Map<String, dynamic>? data,
   }) async {
+    // No-op on web
+    if (kIsWeb) {
+      debugPrint('[FCMServiceV3] Skipping local notification display on web');
+      return;
+    }
+    
     const androidDetails = AndroidNotificationDetails(
       'order_updates',
       'Order Updates',

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../pages/home_page_v3.dart';
 import '../../pages/auth/welcome_page_v3.dart';
 import '../../pages/auth/splash_page_v3.dart';
+import '../../pages/onboarding/choose_meal_plan_page_v3.dart';
 import 'firestore_service_v3.dart';
 import '../../debug/debug_state.dart';
 
@@ -85,13 +87,42 @@ class _AuthWrapperState extends State<AuthWrapper> {
         
         if (snapshot.hasData && snapshot.data != null) {
           debugPrint('User authenticated: ${snapshot.data!.uid}');
-          return const HomePageV3();
+          
+          // Check if user has completed setup
+          return FutureBuilder<bool>(
+            future: _checkSetupCompleted(),
+            builder: (context, setupSnapshot) {
+              if (setupSnapshot.connectionState == ConnectionState.waiting) {
+                return const SplashPageV3();
+              }
+              
+              final setupCompleted = setupSnapshot.data ?? false;
+              
+              if (setupCompleted) {
+                debugPrint('Setup completed - showing home page');
+                return const HomePageV3();
+              } else {
+                debugPrint('Setup not completed - resuming onboarding');
+                return const ChooseMealPlanPageV3(isSignupFlow: true);
+              }
+            },
+          );
         } else {
           debugPrint('No authenticated user, showing welcome page');
           return const WelcomePageV3();
         }
       },
     );
+  }
+  
+  Future<bool> _checkSetupCompleted() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool('setup_completed') ?? false;
+    } catch (e) {
+      debugPrint('Error checking setup completion: $e');
+      return false;
+    }
   }
 }
 

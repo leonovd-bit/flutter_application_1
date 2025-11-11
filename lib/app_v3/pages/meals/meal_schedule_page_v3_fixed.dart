@@ -471,6 +471,7 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
     return _selectedMeals.values.any((m) => m[_selectedMealType] != null);
   }
 
+  // ignore: unused_element
   bool _isWeekComplete() {
     for (final day in _configuredDays) {
       for (final mt in _deriveMealTypes()) {
@@ -545,6 +546,7 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
   // Future<void> _randomizeCurrentMealType() async { /* removed */ }
 
   // Helper to fetch meals by type; tries Firestore via MealServiceV3 first, else falls back to simple defaults
+  // ignore: unused_element
   Future<List<MealModelV3>> _fetchMealsForType(String type) async {
     debugPrint('[MealSchedule] FETCHING meals for type: $type');
     
@@ -856,6 +858,25 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Category chip (Premade/Custom)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppThemeV3.border),
+                      ),
+                      child: Text(
+                        (selectedMeal.menuCategory ?? 'premade').toString().toUpperCase(),
+                        style: AppThemeV3.textTheme.labelSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ),
                   // Top row: Name spanning full width (centered)
                   Text(
                     selectedMeal.name,
@@ -1051,6 +1072,8 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
     );
   }
 
+  // (Removed) category toggle; per-day controls now include both options.
+
   // Day-then-apply card: show one selected day until apply, then reveal all
   Widget _buildDayThenApplyCard() {
     return Container(
@@ -1197,6 +1220,7 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
     return missing;
   }
 
+  // ignore: unused_element
   Future<void> _attemptProceed() async {
     final missing = _missingSelections();
     if (missing.isEmpty) {
@@ -1354,6 +1378,7 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
 
   void _selectMealForDay(String day) {
     final selectedMeal = _selectedMeals[day]?[_selectedMealType];
+    final initialCategory = selectedMeal?.menuCategory ?? 'premade';
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1361,7 +1386,7 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
           menuType: _selectedMealType.toLowerCase(),
           day: day,
           selectedMeal: selectedMeal,
-          menuCategory: 'premade',
+          menuCategory: initialCategory,
           onMealSelected: (meal) {
             setState(() => _selectedMeals[day]![_selectedMealType] = meal);
             _saveMealSelections();

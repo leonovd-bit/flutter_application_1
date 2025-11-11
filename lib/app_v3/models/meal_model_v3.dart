@@ -1,6 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+// Fallback mapping of meal id -> file extension for images stored in
+// Firebase Storage at: meals/meal images/{meal_id}.{ext}
+// This lets the app display images even if Firestore.imageUrl is empty.
+const Map<String, String> _kMealImageExt = {
+  // Premade
+  'bun_cha_gio': 'jpg',
+  'bun_heo_quay': 'webp',
+  'bun_nuoc_tuong': 'jfif',
+  'bun_thit_nuong': 'jpg',
+  'california_cobb_salad': 'jpeg',
+  'chicken_caesar_salad': 'jpeg',
+  'chicken_caesar_wrap': 'jpeg',
+  'chicken_chipotle_quesadilla': 'jpeg',
+  'com_tam_suron_bi_cha': 'jpg',
+  'notos_greek_yogurt_bowl': 'jpeg',
+  'pho_sen': 'jpg',
+  'salmon_quinoa_crush_bowl': 'jpeg',
+  'spicy_turkey_wrap': 'jpeg',
+  'turkey_egg_avocado_bowl': 'jpeg',
+  'turkey_sandwich': 'jpg',
+  // Custom bases
+  'custom_acai_bowl_base': 'jpeg',
+  'custom_bagel_base': 'jpeg',
+  'custom_grain_bowl_base': 'jpeg',
+  'custom_greek_yogurt_bowl_base': 'jpeg',
+  'custom_pasta_base': 'jpeg',
+  'custom_quesadilla_base': 'jpeg',
+  'custom_salad_base': 'jpeg',
+  'custom_wrap_base': 'jpeg',
+};
+
 enum MealPlanType {
   standard,
   pro,
@@ -24,6 +55,10 @@ class MealModelV3 {
   // Optional metadata
   final String? restaurant; // e.g., Greenblend, Sen Saigon
   final String? menuCategory; // 'premade' or 'custom'
+  // Square POS integration fields
+  final String? squareItemId;
+  final String? squareVariationId;
+  final String? restaurantId; // Restaurant partner ID for Square orders
 
   // Getter for compatibility with interactive menu
   String get type => mealType;
@@ -33,8 +68,16 @@ class MealModelV3 {
     if (imageUrl.isNotEmpty) {
       return imageUrl;
     }
-    
-    // No local images available - return empty string
+
+    // Fallback to public Firebase Storage URL if we know the file extension
+    final ext = _kMealImageExt[id];
+    if (ext != null && id.isNotEmpty) {
+      final encodedFile = '${Uri.encodeComponent(id)}.$ext';
+      // Using firebasestorage endpoint with alt=media for direct serving
+      return 'https://firebasestorage.googleapis.com/v0/b/freshpunk-48db1.appspot.com/o/meals%2FMeal%20Images%2F$encodedFile?alt=media';
+    }
+
+    // No image available
     return '';
   }
 
@@ -54,6 +97,9 @@ class MealModelV3 {
     this.price = 0.0,
     this.restaurant,
     this.menuCategory,
+    this.squareItemId,
+    this.squareVariationId,
+    this.restaurantId,
   });
 
   Map<String, dynamic> toJson() {
@@ -72,6 +118,9 @@ class MealModelV3 {
       'price': price,
       if (restaurant != null) 'restaurant': restaurant,
       if (menuCategory != null) 'menuCategory': menuCategory,
+      if (squareItemId != null) 'squareItemId': squareItemId,
+      if (squareVariationId != null) 'squareVariationId': squareVariationId,
+      if (restaurantId != null) 'restaurantId': restaurantId,
     };
   }
 
@@ -80,37 +129,105 @@ class MealModelV3 {
   }
 
   factory MealModelV3.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final raw = doc.data() as Map<String, dynamic>;
+    // Ensure the model always has the Firestore document id, even if not stored as a field
+    final data = Map<String, dynamic>.from(raw);
+    data['id'] = data['id'] ?? doc.id;
     return MealModelV3.fromJson(data);
   }
 
   factory MealModelV3.fromJson(Map<String, dynamic> json) {
-    final name = json['name'] ?? '';
-    final imageUrl = json['imageUrl'] ?? '';
-    
-    // Debug what we're getting from Firestore
+    String _sanitize(String s) {
+      if (s.isEmpty) return s;
+      // Remove variants like "FreshPunk Edition", "freshpunk edition", common typo "freskpunk edition",
+      // with or without surrounding dashes/parentheses.
+      final patterns = <RegExp>[
+        // Core phrase, optional leading dash and optional surrounding parentheses
+        RegExp(r"\s*[-–—]?\s*\(?\s*(freshpunk|freskpunk)\s+edition\s*\)?\s*", caseSensitive: false),
+        // Parentheses containing just the brand
+        RegExp(r"\s*\(\s*(freshpunk|freskpunk)\s*\)\s*", caseSensitive: false),
+        // Explicit parentheses containing the full phrase
+        RegExp(r"\s*\(\s*(freshpunk|freskpunk)\s+edition\s*\)\s*", caseSensitive: false),
+      ];
+      var out = s;
+      for (final p in patterns) {
+        out = out.replaceAll(p, ' ');
+      }
+      // Remove empty parentheses left behind
+      out = out.replaceAll(RegExp(r"\(\s*\)"), ' ');
+      // Collapse multiple spaces and trim
+      out = out.replaceAll(RegExp(r"\s{2,}"), ' ').trim();
+      // Remove lingering trailing separators
+      out = out.replaceAll(RegExp(r"\s*[-–—]\s*$"), '').trim();
+      return out;
+    }
+
+    final rawName = (json['name'] ?? '').toString();
+    final rawDesc = (json['description'] ?? '').toString();
+    final name = _sanitize(rawName);
+    final description = _sanitize(rawDesc);
+    String imageUrl = (json['imageUrl'] ?? '').toString().trim();
+
+    String _fixStorageDomain(String url) {
+      // Some documents use an incorrect bucket segment `freshpunk-48db1.firebasestorage.app`.
+      // The correct bucket (per firebase_options.dart) is `freshpunk-48db1.appspot.com`.
+      // Normalize if we detect the wrong segment.
+      const wrongBucket = 'freshpunk-48db1.firebasestorage.app';
+      const correctBucket = 'freshpunk-48db1.appspot.com';
+      if (url.contains('/b/$wrongBucket/')) {
+        return url.replaceAll('/b/$wrongBucket/', '/b/$correctBucket/');
+      }
+      return url;
+    }
+
+    String _ensureAltMedia(String url) {
+      // If it's a Firebase Storage REST URL but missing alt=media, append it.
+      if (url.startsWith('https://firebasestorage.googleapis.com/') &&
+          url.contains('/o/') && !url.contains('alt=media')) {
+        if (url.contains('?')) {
+          return '$url&alt=media';
+        } else {
+          return '$url?alt=media';
+        }
+      }
+      return url;
+    }
+
+    String _normalizeImageUrl(String url) {
+      if (url.isEmpty) return url;
+      url = _fixStorageDomain(url);
+      url = _ensureAltMedia(url);
+      return url;
+    }
+
+    imageUrl = _normalizeImageUrl(imageUrl);
+
+    // Debug what we're getting from Firestore (after normalization)
     print('🔄 Loading meal from JSON: $name');
-    print('   📦 Raw imageUrl from Firestore: "$imageUrl"');
+    print('   📦 Raw imageUrl from Firestore (normalized): "$imageUrl"');
     
     final meal = MealModelV3(
       id: json['id'] ?? '',
-      name: name,
-      description: json['description'] ?? '',
+  name: name,
+  description: description,
       calories: json['calories'] ?? 0,
       protein: json['protein'] ?? 0,
       carbs: json['carbs'] ?? 0,
       fat: json['fat'] ?? 0,
       ingredients: List<String>.from(json['ingredients'] ?? []),
       allergens: List<String>.from(json['allergens'] ?? []),
-      imageUrl: imageUrl,
+  imageUrl: imageUrl,
       mealType: json['mealType'] ?? 'breakfast',
       price: json['price']?.toDouble() ?? 0.0,
       icon: Icons.fastfood, // Default icon since IconData can't be serialized
       restaurant: json['restaurant'],
       menuCategory: json['menuCategory'],
+      squareItemId: json['squareItemId'],
+      squareVariationId: json['squareVariationId'],
+      restaurantId: json['restaurantId'],
     );
     
-    print('   📁 Final imagePath: "${meal.imagePath}"');
+  print('   📁 Final imagePath: "${meal.imagePath}"');
     return meal;
   }
 

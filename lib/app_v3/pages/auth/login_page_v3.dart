@@ -7,6 +7,7 @@ import '../../theme/app_theme_v3.dart';
 import '../../services/connectivity_service_v3.dart';
 import 'signup_page_v3.dart';
 import '../home_page_v3.dart';
+import '../onboarding/choose_meal_plan_page_v3.dart';
 import 'welcome_page_v3.dart';
 
 class LoginPageV3 extends StatefulWidget {
@@ -555,7 +556,7 @@ class _LoginPageV3State extends State<LoginPageV3> {
         idToken: googleAuth.idToken,
       );
 
-      await FirebaseAuth.instance.signInWithCredential(credential).timeout(
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(credential).timeout(
         const Duration(seconds: 30),
         onTimeout: () {
           throw Exception('Firebase authentication timeout. Please check your internet connection.');
@@ -563,11 +564,26 @@ class _LoginPageV3State extends State<LoginPageV3> {
       );
 
       if (!mounted) return;
-      // Navigate to home page
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomePageV3()),
-      );
+      
+      // Check if this is a new user or existing user
+      final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
+      debugPrint('Google Sign-In - Is new user: $isNewUser'); // Debug
+      
+      if (isNewUser) {
+        // New user accidentally used login page - send through setup with isSignupFlow
+        debugPrint('New user on login page - redirecting to onboarding'); // Debug
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const ChooseMealPlanPageV3(isSignupFlow: true)),
+        );
+      } else {
+        // Existing user - go to home
+        debugPrint('Existing user - going to home'); // Debug
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomePageV3()),
+        );
+      }
     } catch (e) {
   debugPrint('Google sign in error: $e');
       if (!mounted) return;
@@ -618,14 +634,29 @@ class _LoginPageV3State extends State<LoginPageV3> {
         accessToken: credential.authorizationCode,
       );
 
-      await FirebaseAuth.instance.signInWithCredential(oauthCredential);
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(oauthCredential);
 
       if (!mounted) return;
-      // Navigate to home page
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomePageV3()),
-      );
+      
+      // Check if this is a new user or existing user
+      final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
+      debugPrint('Apple Sign-In - Is new user: $isNewUser'); // Debug
+      
+      if (isNewUser) {
+        // New user accidentally used login page - send through setup with isSignupFlow
+        debugPrint('New Apple user on login page - redirecting to onboarding'); // Debug
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const ChooseMealPlanPageV3(isSignupFlow: true)),
+        );
+      } else {
+        // Existing user - go to home
+        debugPrint('Existing Apple user - going to home'); // Debug
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomePageV3()),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

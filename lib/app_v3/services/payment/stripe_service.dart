@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'dart:io' show Platform;
 
+
 class StripeService {
   StripeService._();
   static final StripeService instance = StripeService._();
@@ -46,30 +47,7 @@ class StripeService {
 
   Future<bool> addPaymentMethod(BuildContext context) async {
     try {
-      // Windows desktop doesn't support flutter_stripe - use server-side for development
-      final isWindows = !kIsWeb && Platform.isWindows;
-      
-      if (isWindows) {
-        debugPrint('[Stripe] Windows desktop detected - simulating payment method addition for development');
-        // Windows development mode: simulate successful payment method addition
-        // without calling Cloud Functions (to avoid network issues)
-        await Future.delayed(const Duration(milliseconds: 800)); // Simulate network delay
-        
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✓ Payment method added (Windows dev mode - simulated)'),
-              backgroundColor: Colors.orange,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-        debugPrint('[Stripe] Windows dev mode: Payment method addition simulated');
-        return true;
-      }
-      
-      // Web platform: Stripe payment sheet not fully supported yet
-      // For now, use backend API to create payment method
+      // Check if running on web first
       if (kIsWeb) {
         debugPrint('[Stripe] Web platform - using server-side payment method creation');
         final user = FirebaseAuth.instance.currentUser;
@@ -78,26 +56,67 @@ class StripeService {
         final customerId = await _ensureCustomer(email: user.email ?? '', name: user.displayName);
         if (customerId == null) throw Exception('Failed to create Stripe customer');
         
-        // For web, we'll create a test payment method server-side
-        // In production, you'd implement Stripe Elements here
-        final callable = _functions.httpsCallable('createTestPaymentMethod');
-        final result = await callable.call({'customer': customerId});
-        final data = result.data as Map?;
-        
-        if (data?['success'] == true) {
-          debugPrint('[Stripe] Web payment method created successfully');
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('✓ Payment method added (test mode)'),
-                backgroundColor: Colors.green,
-              ),
-            );
+        // For web, create a test payment method via Cloud Function
+        try {
+          final callable = _functions.httpsCallable('createTestPaymentMethod');
+          final result = await callable.call({'customer': customerId});
+          final data = result.data as Map?;
+          
+          if (data?['success'] == true) {
+            debugPrint('[Stripe] Test payment method created: ${data?['paymentMethodId']}');
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('✓ Test payment method added (Visa ****4242)'),
+                  backgroundColor: Colors.green,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+            return true;
           }
-          return true;
-        } else {
-          throw Exception('Failed to create payment method');
+        } catch (e) {
+          debugPrint('[Stripe] Failed to create test payment method: $e');
+          throw Exception('Failed to add payment method: $e');
         }
+        return false;
+      }
+      
+      // Windows desktop doesn't support flutter_stripe - use server-side for development
+      final isWindows = Platform.isWindows;
+      
+      if (isWindows) {
+        debugPrint('[Stripe] Windows desktop detected - using server-side payment method creation');
+        final user = FirebaseAuth.instance.currentUser;
+        if (user == null) throw Exception('Not signed in');
+        
+        final customerId = await _ensureCustomer(email: user.email ?? '', name: user.displayName);
+        if (customerId == null) throw Exception('Failed to create Stripe customer');
+        
+        // Create a test payment method via Cloud Function
+        try {
+          final callable = _functions.httpsCallable('createTestPaymentMethod');
+          final result = await callable.call({'customer': customerId});
+          final data = result.data as Map?;
+          
+          if (data?['success'] == true) {
+            debugPrint('[Stripe] Test payment method created: ${data?['paymentMethodId']}');
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('✓ Test payment method added (Visa ****4242)'),
+                  backgroundColor: Colors.green,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+            return true;
+          }
+        } catch (e) {
+          debugPrint('[Stripe] Failed to create test payment method: $e');
+          throw Exception('Failed to add payment method: $e');
+        }
+        return false;
       }
       
       // Mobile: Use native payment sheet

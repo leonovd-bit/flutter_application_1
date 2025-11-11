@@ -15,7 +15,9 @@ class MenuPageV3 extends StatefulWidget {
 
 class _MenuPageV3State extends State<MenuPageV3> {
   String _selectedMealType = 'Breakfast';
+  String _selectedCategory = 'Premade'; // New: category selector
   late Future<List<MealModelV3>> _mealsFuture;
+  final Set<String> _expandedDescriptions = {};
   
   @override
   void initState() {
@@ -66,6 +68,18 @@ class _MenuPageV3State extends State<MenuPageV3> {
             ),
           ),
           
+          // Category selector (Premade, Custom)
+          Container(
+            color: AppThemeV3.surface,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                _buildCategoryTab('Premade'),
+                _buildCategoryTab('Custom'),
+              ],
+            ),
+          ),
+          
           // Victus Menu Header
           Container(
             color: AppThemeV3.surface,
@@ -97,15 +111,18 @@ class _MenuPageV3State extends State<MenuPageV3> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                // Filter out any custom meals (double-check)
+                // Filter by selected category
                 final allMeals = (snapshot.data ?? []);
-                final list = allMeals.where((m) => (m.menuCategory ?? 'premade').toLowerCase() == 'premade').toList();
+                final list = allMeals.where((m) {
+                  final category = (m.menuCategory ?? 'premade').toLowerCase();
+                  return category == _selectedCategory.toLowerCase();
+                }).toList();
                 if (list.isEmpty) {
                   return Center(
                     child: Padding(
                       padding: const EdgeInsets.all(24.0),
                       child: Text(
-                        'No menu items found for ${_selectedMealType}.',
+                        'No $_selectedCategory meals found for ${_selectedMealType}.',
                         style: AppThemeV3.textTheme.titleMedium,
                         textAlign: TextAlign.center,
                       ),
@@ -151,6 +168,39 @@ class _MenuPageV3State extends State<MenuPageV3> {
           ),
           child: Text(
             mealType,
+            textAlign: TextAlign.center,
+            style: AppThemeV3.textTheme.titleMedium?.copyWith(
+              color: isSelected ? Colors.white : AppThemeV3.textSecondary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryTab(String category) {
+    final isSelected = category == _selectedCategory;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _selectedCategory = category;
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.black : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isSelected ? Colors.black : AppThemeV3.borderLight,
+              width: 2,
+            ),
+          ),
+          child: Text(
+            category,
             textAlign: TextAlign.center,
             style: AppThemeV3.textTheme.titleMedium?.copyWith(
               color: isSelected ? Colors.white : AppThemeV3.textSecondary,
@@ -212,13 +262,37 @@ class _MenuPageV3State extends State<MenuPageV3> {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        meal.description,
-                        style: AppThemeV3.textTheme.bodyMedium?.copyWith(
-                          color: AppThemeV3.textSecondary,
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            if (_expandedDescriptions.contains(meal.id)) {
+                              _expandedDescriptions.remove(meal.id);
+                            } else {
+                              _expandedDescriptions.add(meal.id);
+                            }
+                          });
+                        },
+                        child: AnimatedCrossFade(
+                          firstChild: Text(
+                            meal.description,
+                            style: AppThemeV3.textTheme.bodyMedium?.copyWith(
+                              color: AppThemeV3.textSecondary,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          secondChild: Text(
+                            meal.description,
+                            style: AppThemeV3.textTheme.bodyMedium?.copyWith(
+                              color: AppThemeV3.textSecondary,
+                            ),
+                            softWrap: true,
+                          ),
+                          crossFadeState: _expandedDescriptions.contains(meal.id)
+                              ? CrossFadeState.showSecond
+                              : CrossFadeState.showFirst,
+                          duration: const Duration(milliseconds: 200),
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),

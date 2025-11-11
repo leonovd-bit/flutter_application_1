@@ -481,8 +481,12 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
                 formattedMealSelections.add({
                   'day': day,
                   'mealType': mealType,
-                  'mealId': meal.id,
-                  'mealName': meal.name,
+                  'id': meal.id, // Changed from 'mealId' to 'id' to match Cloud Function
+                  'name': meal.name, // Changed from 'mealName' to 'name' to match Cloud Function
+                  'description': meal.description,
+                  'calories': meal.calories,
+                  'protein': meal.protein,
+                  'imageUrl': meal.imagePath,
                   'price': meal.price,
                 });
               }

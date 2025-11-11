@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -711,13 +712,15 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
 
           // Security Section
           _buildSectionHeader('Security'),
-          _buildSwitchTile(
-            icon: Icons.fingerprint,
-            title: 'Biometric Authentication',
-            subtitle: 'Use fingerprint or face ID to sign in',
-            value: _biometricEnabled,
-            onChanged: _toggleBiometric,
-          ),
+          // Hide biometric auth on web (not supported)
+          if (!kIsWeb)
+            _buildSwitchTile(
+              icon: Icons.fingerprint,
+              title: 'Biometric Authentication',
+              subtitle: 'Use fingerprint or face ID to sign in',
+              value: _biometricEnabled,
+              onChanged: _toggleBiometric,
+            ),
           _buildSettingsTile(
             icon: Icons.lock_outline,
             title: 'Change Password',

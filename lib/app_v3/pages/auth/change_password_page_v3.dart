@@ -241,6 +241,12 @@ class _ChangePasswordPageV3State extends State<ChangePasswordPageV3> {
                   if (value.length < 8) {
                     return 'Password must be at least 8 characters';
                   }
+                  final hasLetter = RegExp(r'[A-Za-z]').hasMatch(value);
+                  final hasNumber = RegExp(r'[0-9]').hasMatch(value);
+                  final hasSymbol = RegExp(r'[^A-Za-z0-9]').hasMatch(value);
+                  if (!(hasLetter && hasNumber && hasSymbol)) {
+                    return 'Use letters, numbers, and symbols';
+                  }
                   if (value == _currentPasswordController.text) {
                     return 'New password must be different from current password';
                   }
@@ -391,7 +397,7 @@ class _ChangePasswordPageV3State extends State<ChangePasswordPageV3> {
           ),
           const SizedBox(height: 8),
           _buildRequirement('At least 8 characters long'),
-          _buildRequirement('Contains both letters and numbers'),
+          _buildRequirement('Contains letters, numbers, and symbols'),
           _buildRequirement('Different from your current password'),
           _buildRequirement('Avoid common passwords'),
         ],

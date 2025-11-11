@@ -46,7 +46,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '433852717304',
     projectId: 'freshpunk-48db1',
     authDomain: 'freshpunk-48db1.firebaseapp.com',
-    storageBucket: 'freshpunk-48db1.firebasestorage.app',
+  storageBucket: 'freshpunk-48db1.appspot.com',
     measurementId: 'G-11FZ3EQS7Y',
   );
 
@@ -55,7 +55,7 @@ class DefaultFirebaseOptions {
     appId: '1:433852717304:android:aa920e65bae76c5fc0c30d',
     messagingSenderId: '433852717304',
     projectId: 'freshpunk-48db1',
-    storageBucket: 'freshpunk-48db1.firebasestorage.app',
+  storageBucket: 'freshpunk-48db1.appspot.com',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
@@ -63,7 +63,7 @@ class DefaultFirebaseOptions {
     appId: '1:433852717304:ios:7d8efe18144cb9f6c0c30d',
     messagingSenderId: '433852717304',
     projectId: 'freshpunk-48db1',
-    storageBucket: 'freshpunk-48db1.firebasestorage.app',
+  storageBucket: 'freshpunk-48db1.appspot.com',
     iosClientId: '433852717304-p815a2ucaro6nfatcuqio7qcgp8gu1jn.apps.googleusercontent.com',
     iosBundleId: 'com.example.flutterApplication1',
   );
@@ -73,7 +73,7 @@ class DefaultFirebaseOptions {
     appId: '1:433852717304:ios:7d8efe18144cb9f6c0c30d',
     messagingSenderId: '433852717304',
     projectId: 'freshpunk-48db1',
-    storageBucket: 'freshpunk-48db1.firebasestorage.app',
+  storageBucket: 'freshpunk-48db1.appspot.com',
     iosClientId: '433852717304-p815a2ucaro6nfatcuqio7qcgp8gu1jn.apps.googleusercontent.com',
     iosBundleId: 'com.example.flutterApplication1',
   );
@@ -84,7 +84,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '433852717304',
     projectId: 'freshpunk-48db1',
     authDomain: 'freshpunk-48db1.firebaseapp.com',
-    storageBucket: 'freshpunk-48db1.firebasestorage.app',
+  storageBucket: 'freshpunk-48db1.appspot.com',
     measurementId: 'G-FRZ5WV83ZL',
   );
 }

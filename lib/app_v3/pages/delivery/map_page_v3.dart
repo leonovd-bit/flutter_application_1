@@ -20,9 +20,12 @@ class _MapPageV3State extends State<MapPageV3> {
   
   // Use dynamic marker loading instead of storing all markers
   final Set<Marker> _markers = <Marker>{};
-  
+
+  // Default map center: Manhattan (Times Square)
+  static const double _manhattanLat = 40.7589;
+  static const double _manhattanLng = -73.9851;
   static const CameraPosition _initialPosition = CameraPosition(
-    target: LatLng(40.7589, -73.9851), // Times Square, NYC
+    target: LatLng(_manhattanLat, _manhattanLng),
     zoom: 12.0,
   );
 
@@ -44,7 +47,19 @@ class _MapPageV3State extends State<MapPageV3> {
     if (_hasLocationPermission) {
       await _getCurrentLocation();
     }
-    _addGhostKitchenMarkers();
+    // If we still don't have a current location, pin the default center (Manhattan)
+    if (!_hasLocationPermission || _currentPosition == null) {
+      _markers.add(
+        const Marker(
+          markerId: MarkerId('default_center'),
+          position: LatLng(_manhattanLat, _manhattanLng),
+          infoWindow: InfoWindow(title: 'Manhattan'),
+          icon: BitmapDescriptor.defaultMarker,
+        ),
+      );
+    }
+
+    _addPartnerKitchenMarkers();
     setState(() {
       _isLoading = false;
     });
@@ -102,57 +117,41 @@ class _MapPageV3State extends State<MapPageV3> {
     }
   }
 
-  void _addGhostKitchenMarkers() {
-    final ghostKitchens = [
+  void _addPartnerKitchenMarkers() {
+    // TODO: Replace lat/lng with the exact coordinates for the real partners.
+    // If you can share the street addresses, I can geocode and lock these in.
+    final partners = [
       {
-        'id': 'kitchen_1',
-        'name': 'FreshPunk Kitchen - Manhattan',
-        'address': '123 Broadway, New York, NY 10001',
-        'lat': 40.7505,
-        'lng': -73.9934,
+        'id': 'partner_green_blend',
+        'name': 'Green Blend',
+        'address': '387 8th Ave, New York, NY 10001',
+        'lat': 40.7489, // approx near Penn Station / 8th Ave
+        'lng': -73.9952,
         'rating': 4.8,
         'prepTime': '15-20 min',
       },
       {
-        'id': 'kitchen_2',
-        'name': 'FreshPunk Kitchen - Brooklyn',
-        'address': '456 Atlantic Ave, Brooklyn, NY 11217',
-        'lat': 40.6892,
-        'lng': -73.9442,
+        'id': 'partner_sen_saigon',
+        'name': 'Sen Saigon',
+        'address': '150 E Broadway, New York, NY 10002',
+        'lat': 40.7139, // approx Lower East Side (E Broadway)
+        'lng': -73.9903,
         'rating': 4.7,
         'prepTime': '20-25 min',
       },
-      {
-        'id': 'kitchen_3',
-        'name': 'FreshPunk Kitchen - Queens',
-        'address': '789 Northern Blvd, Queens, NY 11372',
-        'lat': 40.7282,
-        'lng': -73.8448,
-        'rating': 4.9,
-        'prepTime': '18-22 min',
-      },
-      {
-        'id': 'kitchen_4',
-        'name': 'FreshPunk Kitchen - Lower East Side',
-        'address': '321 Delancey St, New York, NY 10002',
-        'lat': 40.7184,
-        'lng': -73.9857,
-        'rating': 4.6,
-        'prepTime': '12-18 min',
-      },
     ];
 
-    for (final kitchen in ghostKitchens) {
+    for (final p in partners) {
       _markers.add(
         Marker(
-          markerId: MarkerId(kitchen['id'] as String),
-          position: LatLng(kitchen['lat'] as double, kitchen['lng'] as double),
+          markerId: MarkerId(p['id'] as String),
+          position: LatLng(p['lat'] as double, p['lng'] as double),
           infoWindow: InfoWindow(
-            title: kitchen['name'] as String,
-            snippet: '${kitchen['rating']} ⭐ • ${kitchen['prepTime']}',
+            title: p['name'] as String,
+            snippet: '${p['rating']} ⭐ • ${p['prepTime']}',
           ),
           icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-          onTap: () => _showKitchenDetails(kitchen),
+          onTap: () => _showKitchenDetails(p),
         ),
       );
     }
@@ -300,6 +299,13 @@ class _MapPageV3State extends State<MapPageV3> {
         ),
       );
     }
+
+    // After the map is ready, fit to all available markers (partners and/or default center)
+    // Delay slightly to ensure the map has a size on web before fitting bounds
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await Future.delayed(const Duration(milliseconds: 150));
+      _fitToAllMarkers();
+    });
   }
 
   @override
@@ -383,6 +389,39 @@ class _MapPageV3State extends State<MapPageV3> {
         duration: Duration(seconds: 3),
       ),
     );
+  }
+
+  void _fitToAllMarkers() {
+    final controller = _mapController;
+    if (controller == null || _markers.isEmpty) return;
+
+    double? minLat, maxLat, minLng, maxLng;
+    for (final m in _markers) {
+      final lat = m.position.latitude;
+      final lng = m.position.longitude;
+      minLat = (minLat == null) ? lat : (lat < minLat ? lat : minLat);
+      maxLat = (maxLat == null) ? lat : (lat > maxLat ? lat : maxLat);
+      minLng = (minLng == null) ? lng : (lng < minLng ? lng : minLng);
+      maxLng = (maxLng == null) ? lng : (lng > maxLng ? lng : maxLng);
+    }
+
+    if (minLat == null || maxLat == null || minLng == null || maxLng == null) return;
+
+    // If only one marker, zoom in to it
+    if (minLat == maxLat && minLng == maxLng) {
+      controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(target: LatLng(minLat, minLng), zoom: 14),
+        ),
+      );
+      return;
+    }
+
+    final bounds = LatLngBounds(
+      southwest: LatLng(minLat, minLng),
+      northeast: LatLng(maxLat, maxLng),
+    );
+    controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 60));
   }
 
   static const String _mapStyle = '''

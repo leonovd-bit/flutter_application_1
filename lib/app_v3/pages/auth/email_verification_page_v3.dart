@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import '../../theme/app_theme_v3.dart';
-import '../onboarding/onboarding_choice_page_v3.dart';
+import '../onboarding/choose_meal_plan_page_v3.dart';
 
 class EmailVerificationPageV3 extends StatefulWidget {
   final String email;
@@ -36,11 +36,11 @@ class _EmailVerificationPageV3State extends State<EmailVerificationPageV3> {
         timer.cancel();
         if (mounted) {
           try {
-            print('[EmailVerification] User verified, navigating to onboarding choice');
+            print('[EmailVerification] User verified, navigating to meal plan selection');
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (context) => const OnboardingChoicePageV3(),
+                builder: (context) => const ChooseMealPlanPageV3(isSignupFlow: true),
               ),
             );
           } catch (e) {
@@ -295,11 +295,11 @@ class _EmailVerificationPageV3State extends State<EmailVerificationPageV3> {
     if (user != null && user.emailVerified) {
       if (mounted) {
         try {
-          print('[EmailVerification] Manual check - user verified, navigating to onboarding choice');
+          print('[EmailVerification] Manual check - user verified, navigating to meal plan selection');
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => const OnboardingChoicePageV3(),
+              builder: (context) => const ChooseMealPlanPageV3(isSignupFlow: true),
             ),
           );
         } catch (e) {

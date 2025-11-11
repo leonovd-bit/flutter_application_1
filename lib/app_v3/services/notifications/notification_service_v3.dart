@@ -1,10 +1,11 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tzdata;
 
 // Local notification service used to remind users 1 hour before delivery.
+// Note: Not supported on web - all operations are no-ops on web platform.
 class NotificationServiceV3 {
   NotificationServiceV3._();
   static final NotificationServiceV3 instance = NotificationServiceV3._();
@@ -14,6 +15,13 @@ class NotificationServiceV3 {
 
   Future<void> init() async {
     if (_initialized) return;
+    
+    // Local notifications not supported on web
+    if (kIsWeb) {
+      debugPrint('[NotificationServiceV3] Skipping init on web (not supported)');
+      _initialized = true;
+      return;
+    }
 
     // Initialize timezone database; default to local if available.
     try {
@@ -82,6 +90,12 @@ class NotificationServiceV3 {
     required String body,
     String? payload,
   }) async {
+    // No-op on web
+    if (kIsWeb) {
+      debugPrint('[NotificationServiceV3] Skipping scheduleIfNotExists on web');
+      return;
+    }
+    
     // Respect user preference
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -111,6 +125,12 @@ class NotificationServiceV3 {
     required String body,
     String? payload,
   }) async {
+    // No-op on web
+    if (kIsWeb) {
+      debugPrint('[NotificationServiceV3] Skipping scheduleOneHourBefore on web');
+      return;
+    }
+    
     try {
       if (!_initialized) await init();
       final scheduled = deliveryTime.subtract(const Duration(hours: 1));
@@ -153,6 +173,12 @@ class NotificationServiceV3 {
   }
 
   Future<void> cancel(int id) async {
+    // No-op on web
+    if (kIsWeb) {
+      debugPrint('[NotificationServiceV3] Skipping cancel on web');
+      return;
+    }
+    
     try {
       if (!_initialized) await init();
       await _fln.cancel(id);
@@ -163,6 +189,12 @@ class NotificationServiceV3 {
   }
 
   Future<void> cancelAll() async {
+    // No-op on web
+    if (kIsWeb) {
+      debugPrint('[NotificationServiceV3] Skipping cancelAll on web');
+      return;
+    }
+    
     try {
       if (!_initialized) await init();
       await _fln.cancelAll();
@@ -173,6 +205,12 @@ class NotificationServiceV3 {
   }
 
   Future<void> showTestNotification() async {
+    // No-op on web
+    if (kIsWeb) {
+      debugPrint('[NotificationServiceV3] Skipping showTestNotification on web');
+      return;
+    }
+    
     try {
       if (!_initialized) await init();
       const androidDetails = AndroidNotificationDetails(

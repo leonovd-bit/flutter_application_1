@@ -40,6 +40,14 @@ class OrderFunctionsService {
     String? customer,
     String? orderId,
   }) async {
+    // Defensive client-side validation to avoid generic INTERNAL from server
+  // 'amount' is already declared as int (cents); no need for runtime type check.
+    if (amount <= 0) {
+      throw Exception('Amount must be positive integer (cents).');
+    }
+    if (currency != 'usd') {
+      throw Exception('Only USD currency is supported at this time.');
+    }
     final callable = _functions.httpsCallable('createPaymentIntent');
     final res = await callable.call({
       'amount': amount,

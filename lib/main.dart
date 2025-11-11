@@ -20,6 +20,7 @@ import 'app_v3/services/notifications/fcm_service_v3.dart';
 import 'app_v3/services/environment_service.dart';
 import 'app_v3/services/payment/stripe_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:freshpunk/services/billing_service.dart';
 
 // Background message handler (must be top-level)
 @pragma('vm:entry-point')
@@ -59,16 +60,25 @@ void main() {
 
     // MemoryOptimizer.optimizeImageCache(); // Disabled for web compatibility
 
-    // Initialize Stripe (must be done before using payment methods)
-    try {
-      await StripeService.instance.init();
-      debugPrint('[Stripe] Initialized successfully');
-    } catch (e) {
-      debugPrint('[Stripe] Initialization failed: $e');
+    // Initialize Stripe (mobile/desktop only; skip on web)
+    if (!kIsWeb) {
+      try {
+        await StripeService.instance.init();
+        debugPrint('[Stripe] Initialized successfully');
+      } catch (e) {
+        debugPrint('[Stripe] Initialization failed: $e');
+      }
+    } else {
+      debugPrint('[Stripe] Skipping init on web');
     }
 
     // Initialize enhanced FCM service (FREE push notifications)
     await FCMServiceV3.instance.initAndRegisterToken();
+
+    // Initialize Stripe publishable key (mobile/desktop only)
+    if (!kIsWeb) {
+      await BillingService.initialize();
+    }
 
   runApp(const MyApp());
   }, (error, stack) {

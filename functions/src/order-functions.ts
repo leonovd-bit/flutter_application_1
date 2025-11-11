@@ -30,6 +30,10 @@ export const generateOrderFromMealSelection = onCall(async (request: any) => {
     // Input validation
     const {mealSelections, deliverySchedule, deliveryAddress} = data;
 
+    logger.info("Received meal selections:", JSON.stringify(mealSelections));
+    logger.info("Received delivery schedule:", JSON.stringify(deliverySchedule));
+    logger.info("Received delivery address:", deliveryAddress);
+
     if (!Array.isArray(mealSelections) || mealSelections.length === 0) {
       throw new HttpsError("invalid-argument", "Meal selections are required");
     }
@@ -56,7 +60,7 @@ export const generateOrderFromMealSelection = onCall(async (request: any) => {
     const now = new Date();
 
     // Process delivery schedule to create orders for the next 7 days
-    const daysOfWeek = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+    const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
     for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
       const deliveryDate = new Date(now);
@@ -88,16 +92,42 @@ export const generateOrderFromMealSelection = onCall(async (request: any) => {
         const mealIndex = (dayOffset * 3 + mealTypes.indexOf(mealType)) % mealSelections.length;
         const selectedMeal = mealSelections[mealIndex];
 
-        if (!selectedMeal || !selectedMeal.id) continue;
+        logger.info(`Day ${dayOffset} (${dayName}), ${mealType}: Selected meal index ${mealIndex}, meal:`, JSON.stringify(selectedMeal));
 
-        // Verify meal exists in database
-        const mealDoc = await db.collection("meals").doc(selectedMeal.id).get();
-        if (!mealDoc.exists) {
-          logger.warn(`Meal ${selectedMeal.id} not found in database`);
+        if (!selectedMeal || !selectedMeal.id) {
+          logger.warn(`Skipping ${dayName} ${mealType}: No valid meal found (selectedMeal: ${JSON.stringify(selectedMeal)})`);
           continue;
         }
 
-        const mealData = mealDoc.data()!;
+        // Verify meal exists in database - try flat structure first, then nested
+        const mealDoc = await db.collection("meals").doc(selectedMeal.id).get();
+        let mealData: any = null;
+
+        if (mealDoc.exists) {
+          // Found in flat structure
+          mealData = mealDoc.data()!;
+          logger.info(`Found meal ${selectedMeal.id} in flat structure`);
+        } else {
+          // Try nested structure: meals/{restaurantName}/items/{itemId}
+          // Search known restaurant collections
+          const restaurantNames = ["greenblend", "sen_saigon"];
+          logger.info(`Searching nested structure across restaurants: ${restaurantNames.join(", ")}`);
+
+          for (const restaurantName of restaurantNames) {
+            const nestedMealDoc = await db.collection("meals").doc(restaurantName).collection("items").doc(selectedMeal.id).get();
+            if (nestedMealDoc.exists) {
+              mealData = nestedMealDoc.data()!;
+              logger.info(`Found meal ${selectedMeal.id} in nested structure: meals/${restaurantName}/items`);
+              break;
+            }
+          }
+
+          if (!mealData) {
+            logger.warn(`Meal ${selectedMeal.id} (${selectedMeal.name}) not found in flat structure or nested structure across restaurants`);
+            continue;
+          }
+        }
+
         const orderPrice = mealData.price || 12.99;
 
         // Generate order
@@ -115,6 +145,10 @@ export const generateOrderFromMealSelection = onCall(async (request: any) => {
             imageUrl: selectedMeal.imageUrl || mealData.imageUrl,
             price: orderPrice,
             mealType: mealType,
+            // Include restaurant + Square mapping so forwarding works
+            restaurantId: mealData.restaurantId || null,
+            squareItemId: mealData.squareItemId || null,
+            squareVariationId: mealData.squareVariationId || mealData.id || null,
           }],
           deliveryAddress: mealConfig.address || deliveryAddress,
           orderDate: FieldValue.serverTimestamp(),

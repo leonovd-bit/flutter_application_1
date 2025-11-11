@@ -4,7 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/mock_user_model.dart';
 import '../../services/auth/firestore_service_v3.dart';
 import '../../models/meal_model_v3.dart';
-import '../../models/protein_model_v3.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../onboarding/choose_meal_plan_page_v3.dart';
@@ -66,12 +65,6 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
 
   // Day configurations: Map<Day, Map<MealType, {time, address}>>
   Map<String, Map<String, Map<String, dynamic>>> _dayConfigurations = {};
-
-  // Protein+ feature state
-  bool _proteinPlusEnabled = false;
-  List<String> _selectedProteins = []; // Max 3 protein IDs
-  Map<String, ProteinConfigV3> _proteinConfigs = {}; // proteinId -> config
-  String? _expandedProtein; // Currently expanded protein card
 
   // Meal type selections (breakfast, lunch, dinner)
   Set<String> _selectedMeals = {}; // Selected meal types for the schedule
@@ -142,7 +135,6 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
     _scheduleName = widget.initialScheduleName ?? '';
     _scheduleNameInputController = TextEditingController(text: _scheduleName);
     _loadCurrentPlan();
-    _loadProteinPlusSettings();
     _initializeDefaultSelections();
   }
 
@@ -211,24 +203,17 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
     }
   }
 
-  Future<void> _loadProteinPlusSettings() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final enabled = prefs.getBool('proteinPlusEnabled') ?? false;
-      
-      if (!mounted) return;
-      setState(() {
-        _proteinPlusEnabled = enabled;
-      });
-    } catch (e) {
-      debugPrint('[DeliveryScheduleV5] Error loading protein+ settings: $e');
-    }
-  }
-
-  Widget _buildProteinPlusSection() {
-    final availableProteins = ProteinOptionV3.getAvailableProteins();
-
-    return Column(
+  /* PROTEIN+ METHODS REMOVED - Commenting out corrupt methods to fix compile errors
+  // Build config card for all selected days (Apply to All Days enabled)
+  Widget _buildAllDaysConfigCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.black, width: 2),
+      ),
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
@@ -754,6 +739,110 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
       ),
     );
   }
+  */ // END PROTEIN+ METHODS REMOVED
+
+  // Build config card for all selected days (Apply to All Days enabled)
+  Widget _buildAllDaysConfigCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.black, width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Configuration for All Days',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 16),
+          
+          // For each selected meal type
+          ..._selectedMeals.map((meal) {
+            // Get controller for this meal type
+            final timeController = _allDaysTimeControllers.putIfAbsent(
+              meal,
+              () => TextEditingController(),
+            );
+            final addressController = _allDaysAddressControllers.putIfAbsent(
+              meal,
+              () => TextEditingController(),
+            );
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    meal.capitalize(),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  
+                  // Time input
+                  TextFormField(
+                    controller: timeController,
+                    decoration: InputDecoration(
+                      labelText: 'Time',
+                      hintText: 'e.g., 12:30',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Colors.black, width: 2),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade400, width: 2),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Colors.black, width: 2),
+                      ),
+                    ),
+                    onTap: () => _pickTimeForController(timeController),
+                    readOnly: true,
+                  ),
+                  const SizedBox(height: 8),
+                  
+                  // Address input
+                  TextFormField(
+                    controller: addressController,
+                    decoration: InputDecoration(
+                      labelText: 'Delivery Address',
+                      hintText: 'Enter address',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Colors.black, width: 2),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade400, width: 2),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Colors.black, width: 2),
+                      ),
+                    ),
+                    maxLines: 2,
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ],
+      ),
+    );
+  }
 
   // Build config card for individual day
   Widget _buildDayConfigCard(String day) {
@@ -1209,20 +1298,29 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text(
-          'Delivery Schedule',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            color: Colors.black,
-          ),
-        ),
+    return PopScope(
+      canPop: !widget.isSignupFlow, // Prevent back navigation during signup
+      onPopInvoked: (bool didPop) {
+        // Prevent back navigation during signup flow
+        if (widget.isSignupFlow && !didPop) {
+          debugPrint('[DeliverySchedule] Back navigation blocked during signup');
+        }
+      },
+      child: Scaffold(
         backgroundColor: Colors.white,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black),
-      ),
+        appBar: AppBar(
+          title: const Text(
+            'Delivery Schedule',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: Colors.black,
+            ),
+          ),
+          backgroundColor: Colors.white,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: Colors.black),
+          automaticallyImplyLeading: !widget.isSignupFlow, // Remove back button during signup
+        ),
       body: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -1285,7 +1383,6 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
                       debugPrint('[DeliveryScheduleV5] Returned from meal plan selection, reloading...');
                       if (mounted) {
                         await _loadCurrentPlan();
-                        await _loadProteinPlusSettings();
                       }
                     },
                     child: Container(
@@ -1336,12 +1433,6 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
 
                   // Only show configuration sections if a meal plan is selected
                   if (_selectedMealPlan != null) ...[
-                    // Protein+ Section
-                    if (_proteinPlusEnabled) ...[
-                      _buildProteinPlusSection(),
-                      const SizedBox(height: 24),
-                    ],
-
                     // Choose Meals Section
                     const Text(
                       'Choose Meals',
@@ -1518,7 +1609,10 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
 
                     // Configuration cards
                     if (_applyToAllDays)
-                      _buildAllDaysConfigCard()
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: _buildAllDaysConfigCard(),
+                      )
                     else
                       ..._selectedDays.map((day) => Padding(
                         padding: const EdgeInsets.only(bottom: 16),
@@ -1559,6 +1653,7 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
                 ],
               ),
             ),
+      ), // End of PopScope child
     );
   }
 }

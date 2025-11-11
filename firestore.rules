@@ -87,11 +87,15 @@ service cloud.firestore {
     // Orders collection with enhanced security
     match /orders/{orderId} {
       // Create: authenticated users can create orders for themselves only
-      allow create: if isAuthenticated() && isValidEmail() && 
+      allow create: if isAuthenticated() && 
                      request.resource.data.userId == request.auth.uid &&
                      request.resource.data.keys().hasAll(['userId', 'status', 'totalAmount']) &&
                      request.resource.data.totalAmount is number &&
                      request.resource.data.totalAmount > 0;
+
+      // Allow existence checks (get on non-existent doc) for authenticated users
+      allow get: if isAuthenticated() &&
+        !exists(/databases/$(database)/documents/orders/$(orderId));
 
       // Read: owner, admin, or kitchen partner can read
       allow read: if isAuthenticated() && (
@@ -107,17 +111,26 @@ service cloud.firestore {
         // Kitchen partners can update status and tracking
         (isKitchenPartner() && 
          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'trackingNumber', 'estimatedDeliveryTime', 'updatedAt'])) ||
-        // Users can only cancel their own orders
-        (isOwner(resource.data.userId) && 
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
-         request.resource.data.status == 'cancelled')
+        // Users (owners) may:
+        //  - update meals before confirmation (keep status the same and only touch meals/updatedAt)
+        //  - set status to confirmed or cancelled and update updatedAt
+        (isOwner(resource.data.userId) && (
+          (
+            resource.data.status == request.resource.data.status &&
+            resource.data.status == 'pending' &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['meals', 'updatedAt'])
+          ) || (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']) &&
+            (request.resource.data.status == 'confirmed' || request.resource.data.status == 'cancelled')
+          )
+        ))
       );
 
       // Delete: admin or user can delete their own orders
       allow delete: if isAdmin() || isOwner(resource.data.userId);
     }
 
-    // Global subscriptions collection (Stripe subscriptions)
+  // Global subscriptions collection (Stripe subscriptions)
     match /subscriptions/{subscriptionId} {
       // Users can read/write their own subscriptions
       allow read, write: if isAuthenticated() && isValidEmail() && 
@@ -131,20 +144,47 @@ service cloud.firestore {
       allow update: if true; // For webhook updates
     }
 
-    // Meals collection - public read, authenticated create for seeding, admin manage
+    // Addresses collection (top-level)
+    match /addresses/{addressId} {
+      // Create: user can create their own address docs
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      // Read/Update/Delete: only owner or admin
+      allow read, update, delete: if isAuthenticated() && (
+        (resource.data.userId == request.auth.uid) || isAdmin()
+      );
+    }
+
+    // Delivery schedules collection (top-level)
+    match /delivery_schedules/{scheduleId} {
+      // Create: user can create their own schedules
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      // Read/Update/Delete: owner, admin, or kitchen partner can read
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || isAdmin() || isKitchenPartner()
+      );
+      // Owner/admin can update/delete their own schedules
+      allow update, delete: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+    }
+
+    // Meals collection - public read
+    // Supports two structures:
+    // 1) Flat: /meals/{mealId}
+    // 2) Nested by restaurant: /meals/{restaurant}/items/{mealId}
     match /meals/{mealId} {
-      // Allow public read access so users can browse menus
+      // Public read so users can browse menus
       allow read: if true;
-      // Allow authenticated users to create meals (for seeding)
-      allow create: if isAuthenticated() && isValidEmail();
-      // Only admins can update/delete meals
-      allow update, delete: if isAdmin() && isValidEmail();
-      
-      // Validate meal data structure
-      allow create: if isAdmin() && 
-                     request.resource.data.keys().hasAll(['name', 'description', 'calories', 'protein']) &&
-                     request.resource.data.calories is number &&
-                     request.resource.data.calories > 0;
+      // Writes restricted to admins
+      allow create, update, delete: if isAdmin() && isValidEmail();
+    }
+
+    // Nested restaurant meals: /meals/{restaurant}/items/{mealId}
+    match /meals/{restaurant}/items/{mealId} {
+      // Public read so app can fetch menus without auth
+      allow read: if true;
+      // Only admins can create/update/delete meals
+      allow create, update, delete: if isAdmin() && isValidEmail();
     }
 
     // Kitchen operations for restaurant partners

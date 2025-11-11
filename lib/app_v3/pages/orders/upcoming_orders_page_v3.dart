@@ -90,7 +90,7 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
             orderDate: DateTime.now(),
             deliveryDate: mealData['deliveryDate'] ?? DateTime.now(),
             estimatedDeliveryTime: mealData['deliveryDate'] ?? DateTime.now(),
-            status: OrderStatus.confirmed,
+            status: OrderStatus.pending, // Start as pending, will confirm when ready
             totalAmount: currentPlan.pricePerMeal, // Use actual plan price
             mealPlanType: _getMealPlanType(currentPlan.mealsPerDay), // Determine type from meals per day
           );
@@ -249,8 +249,13 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
   Future<bool> _autoConfirmIfDue(OrderModelV3 order) async {
     final when = order.estimatedDeliveryTime ?? order.deliveryDate;
     final now = DateTime.now();
-    final isWithinAutoConfirmWindow = now.isAfter(when.subtract(const Duration(minutes: 15)));
+    final autoConfirmTime = when.subtract(const Duration(minutes: 15));
+    final isWithinAutoConfirmWindow = now.isAfter(autoConfirmTime);
     final isTerminal = order.status == OrderStatus.delivered || order.status == OrderStatus.cancelled;
+    
+    // Debug logging to understand why auto-confirm is triggering
+    print('Auto-confirm check: now=$now, delivery=$when, autoConfirmAt=$autoConfirmTime, shouldConfirm=$isWithinAutoConfirmWindow');
+    
     if (!isTerminal && order.status != OrderStatus.confirmed && isWithinAutoConfirmWindow) {
       try {
         await FirestoreServiceV3.updateOrderStatus(orderId: order.id, status: OrderStatus.confirmed);
@@ -883,7 +888,28 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
 
   Future<void> _confirmOrder(OrderModelV3 order) async {
     try {
-      await FirestoreServiceV3.updateOrderStatus(orderId: order.id, status: OrderStatus.confirmed);
+      // If order doesn't exist in Firestore yet, create it first
+      final orderDoc = await FirebaseFirestore.instance.collection('orders').doc(order.id).get();
+      if (!orderDoc.exists) {
+        debugPrint('[UpcomingOrders] Creating order in Firestore before confirming');
+        await FirebaseFirestore.instance.collection('orders').doc(order.id).set({
+          'id': order.id,
+          'userId': order.userId,
+          'meals': order.meals.map((m) => m.toFirestore()).toList(),
+          'deliveryAddress': order.deliveryAddress,
+          'totalAmount': order.totalAmount,
+          'status': 'confirmed', // Create as confirmed
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'orderDate': Timestamp.fromDate(order.orderDate),
+          'deliveryDate': Timestamp.fromDate(order.deliveryDate),
+          'estimatedDeliveryTime': Timestamp.fromDate(order.estimatedDeliveryTime ?? order.deliveryDate),
+        });
+      } else {
+        // Update existing order status
+        await FirestoreServiceV3.updateOrderStatus(orderId: order.id, status: OrderStatus.confirmed);
+      }
+      
       // Cancel any scheduled reminder notification since it's now confirmed
       await NotificationServiceV3.instance.cancel(order.id.hashCode & 0x7fffffff);
       if (!mounted) return;
@@ -892,6 +918,7 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
       );
       await _loadUpcomingOrders();
     } catch (e) {
+      debugPrint('[UpcomingOrders] Error confirming order: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to confirm: $e')),

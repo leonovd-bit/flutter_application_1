@@ -40,6 +40,16 @@ migrate_working_dir/
 .pub/
 /build/
 
+# Firebase local cache & hosting caches
+.firebase/
+.firebase/*.cache
+.firebase/**/hosting.*.cache
+
+# IDE and OS junk
+*.iml
+.idea/
+.DS_Store
+
 # Symbolication related
 app.*.symbols
 

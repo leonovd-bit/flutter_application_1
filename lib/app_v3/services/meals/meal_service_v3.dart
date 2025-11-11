@@ -483,17 +483,177 @@ class MealServiceV3 {
     }
   }
 
-  static Future<List<MealModelV3>> getMeals({String mealType = 'lunch', int limit = 50}) async {
-    debugPrint('[MealServiceV3] getMeals called - returning empty list (data fetching disabled)');
-    // Data fetching disabled - return empty list
-    return [];
+  /// Get meals from Firestore with filters
+  /// Structure: meals/{restaurant}/items/{mealId}
+  /// Filters by mealType (breakfast/lunch/dinner) and menuCategory (premade/custom)
+  static Future<List<MealModelV3>> getMeals({
+    String? mealType,
+    String? menuCategory,
+    String? restaurant,
+    int limit = 50,
+  }) async {
+    try {
+      debugPrint('[MealServiceV3] getMeals - mealType: $mealType, category: $menuCategory, restaurant: $restaurant');
+      
+      List<MealModelV3> allMeals = [];
+      
+      // Get meals from Greenblend
+      if (restaurant == null || restaurant == 'Greenblend') {
+        final greenblendMeals = await _getMealsFromRestaurant(
+          'greenblend',
+          mealType: mealType,
+          menuCategory: menuCategory,
+          limit: limit,
+        );
+        allMeals.addAll(greenblendMeals);
+      }
+      
+      // Get meals from Sen Saigon
+      if (restaurant == null || restaurant == 'Sen Saigon') {
+        final senSaigonMeals = await _getMealsFromRestaurant(
+          'sen_saigon',
+          mealType: mealType,
+          menuCategory: menuCategory,
+          limit: limit,
+        );
+        allMeals.addAll(senSaigonMeals);
+      }
+      
+      debugPrint('[MealServiceV3] Found ${allMeals.length} meals from Firestore');
+
+      // Fallback chain: if Firestore has no meals, try local JSON, then hardcoded samples
+      if (allMeals.isEmpty) {
+        final local = await getMealsFromLocal(
+          mealType: (mealType ?? 'lunch'),
+          menuCategory: menuCategory,
+          limit: limit,
+        );
+        debugPrint('[MealServiceV3] Using local fallback: ${local.length} meals');
+        
+        if (local.isEmpty) {
+          // Last resort: use built-in sample meals
+          final samples = MealModelV3.getSampleMeals();
+          final filtered = samples.where((m) {
+            if (mealType != null && m.mealType != mealType.toLowerCase()) return false;
+            if (menuCategory != null && (m.menuCategory ?? 'premade').toLowerCase() != menuCategory.toLowerCase()) return false;
+            return true;
+          }).toList();
+          debugPrint('[MealServiceV3] Using sample fallback: ${filtered.length} meals');
+          return filtered.take(limit).toList();
+        }
+        
+        return local;
+      }
+
+      return allMeals.take(limit).toList();
+    } catch (e) {
+      debugPrint('[MealServiceV3] getMeals error: $e');
+      // Even on error, try to return sample meals so UI isn't empty
+      try {
+        final samples = MealModelV3.getSampleMeals();
+        final filtered = samples.where((m) {
+          if (mealType != null && m.mealType != mealType.toLowerCase()) return false;
+          return true;
+        }).toList();
+        return filtered.take(limit).toList();
+      } catch (_) {
+        return [];
+      }
+    }
+  }
+  
+  /// Get meals from a specific restaurant subcollection
+  static Future<List<MealModelV3>> _getMealsFromRestaurant(
+    String restaurant, {
+    String? mealType,
+    String? menuCategory,
+    int limit = 50,
+  }) async {
+    try {
+      // Try multiple possible document IDs for the restaurant to be resilient
+      // to naming (spaces, underscores, casing).
+      final String r = restaurant.toLowerCase();
+      final List<String> candidates = r.contains('sen')
+          ? <String>{'sen_saigon', 'sen saigon', 'Sen Saigon', 'sensaigon'}.toList()
+          : <String>{'greenblend', 'Greenblend'}.toList();
+
+      List<QueryDocumentSnapshot<Map<String, dynamic>>> allDocs = [];
+      for (final rid in candidates) {
+        try {
+          final snapshot = await _db
+              .collection('meals')
+              .doc(rid)
+              .collection('items')
+              .limit(limit * 2)
+              .get();
+          allDocs.addAll(snapshot.docs);
+        } catch (_) {
+          // Ignore and try next candidate
+        }
+        if (allDocs.length >= limit * 2) break;
+      }
+
+      List<MealModelV3> meals = [];
+      for (final doc in allDocs) {
+        try {
+          final data = Map<String, dynamic>.from(doc.data());
+          // Always ensure id is set from document id for downstream logic (images, expansion, etc.)
+          data['id'] = data['id'] ?? doc.id;
+          
+          // Filter by active flag client-side: include if missing or true
+          final dynamic activeRaw = data['isActive'];
+          if (activeRaw is bool && activeRaw == false) continue;
+
+          // Check if meal is available for the specified mealType
+          if (mealType != null) {
+            final mtLower = mealType.toLowerCase();
+            final availableForRaw = (data['availableFor'] ?? []);
+            final List<String> availableFor = availableForRaw is List
+                ? availableForRaw.map((e) => e.toString().toLowerCase()).toList()
+                : <String>[];
+
+            bool include;
+            if (availableFor.isNotEmpty) {
+              include = availableFor.contains(mtLower);
+            } else if (data['mealType'] != null) {
+              include = data['mealType'].toString().toLowerCase() == mtLower;
+            } else {
+              // If no availability metadata is present, include by default
+              include = true;
+            }
+
+            if (!include) continue; // Skip this meal if it doesn't match
+          }
+          
+          // Filter by menuCategory (premade or custom)
+          if (menuCategory != null) {
+            final mealCategory = (data['menuCategory'] ?? 'premade').toString().toLowerCase();
+            if (mealCategory != menuCategory.toLowerCase()) continue;
+          }
+          
+          // Add restaurant field from document path if not present
+          if (!data.containsKey('restaurant')) {
+            final rr = r.contains('green') ? 'Greenblend' : 'Sen Saigon';
+            data['restaurant'] = rr;
+          }
+          
+          final meal = MealModelV3.fromJson(data);
+          meals.add(meal);
+        } catch (e) {
+          debugPrint('[MealServiceV3] Error parsing meal ${doc.id}: $e');
+        }
+      }
+      
+      return meals;
+    } catch (e) {
+      debugPrint('[MealServiceV3] _getMealsFromRestaurant error for $restaurant: $e');
+      return [];
+    }
   }
 
   // Get all meals without filtering by meal type
   static Future<List<MealModelV3>> getAllMeals({int limit = 50}) async {
-    debugPrint('[MealServiceV3] getAllMeals called - returning empty list (data fetching disabled)');
-    // Data fetching disabled - return empty list
-    return [];
+    return getMeals(limit: limit);
   }
 
   // Seed a token-based plan metadata document and ensure user profile fields exist

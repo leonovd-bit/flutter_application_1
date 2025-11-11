@@ -55,5 +55,20 @@
 	<!-- Google Maps API Key - Replace with your iOS API key -->
 	<key>GoogleMapsAPIKey</key>
 	<string>AIzaSyBCR1rEwwgZrhAOV1BI-thuCUjqHLYhRUA</string>
+	
+	<!-- Google Sign-In Configuration -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<!-- REVERSED_CLIENT_ID from GoogleService-Info.plist -->
+				<!-- Update this with your actual REVERSED_CLIENT_ID -->
+				<string>com.googleusercontent.apps.433852717304-p815a2ucaro6nfatcuqio7qcgp8gu1jn</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

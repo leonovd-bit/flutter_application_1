@@ -5,19 +5,18 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'dart:math' as math;
+import '../utils/date_utils.dart';
 import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
-import '../models/protein_model_v3.dart';
 import 'delivery/map_page_v3.dart';
 import 'profile/settings_page_v3.dart';
-import 'info/circle_of_health_page_v3.dart';
-import 'orders/upcoming_orders_page_v3.dart';
 import 'orders/past_orders_page_v3.dart';
 import 'delivery/address_page_v3.dart';
 import 'meals/menu_page_v3.dart';
 import '../services/auth/firestore_service_v3.dart';
 import '../services/orders/order_service_v3.dart';
 import '../widgets/app_image.dart';
+// Removed unused imports
 
 class HomePageV3 extends StatefulWidget {
   const HomePageV3({super.key});
@@ -29,16 +28,14 @@ class HomePageV3 extends StatefulWidget {
 class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
   // Optimized state management - reduce static data
   String _currentMealPlan = 'Pro';
-  final Map<String, int> _todayStats = {'calories': 850, 'protein': 45};
-  final String _mostEatenMealType = 'High Protein';
+  bool _hasComputedNextOrder = false; // Prevent fallback from overriding computed result
+
   
   // Lazy-loaded next order data
   Map<String, dynamic>? _nextOrder;
   
   // Real past orders from user data
   List<Map<String, dynamic>> _recentOrders = [];
-  bool _isLoadingOrders = false;
-  
   // User addresses (loaded from Firestore)
   List<AddressModelV3> _userAddresses = [];
   bool _isLoadingAddresses = false;
@@ -49,9 +46,18 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
   String? _expandedOrderId;
   List<Map<String, dynamic>> _cachedTimelineOrders = []; // Cache timeline orders
 
-  // Protein logging
-  bool _proteinSectionExpanded = false;
-  Map<String, Set<int>> _loggedProteinServings = {}; // proteinId -> Set of serving numbers (1-21)
+  // Protein logging (removed feature)
+
+  // Cached nutrition data
+  Map<String, Map<String, int>> _cachedNutritionData = {
+    'Mon': {'Calories': 0, 'Protein': 0, 'Fat': 0},
+    'Tue': {'Calories': 0, 'Protein': 0, 'Fat': 0},
+    'Wed': {'Calories': 0, 'Protein': 0, 'Fat': 0},
+    'Thu': {'Calories': 0, 'Protein': 0, 'Fat': 0},
+    'Fri': {'Calories': 0, 'Protein': 0, 'Fat': 0},
+    'Sat': {'Calories': 0, 'Protein': 0, 'Fat': 0},
+    'Sun': {'Calories': 0, 'Protein': 0, 'Fat': 0},
+  };
 
   @override
   void initState() {
@@ -61,6 +67,7 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
     _loadOrderData();
     _loadAddresses();
     _listenPlanFromFirestore();
+    _loadNutritionData(); // Load nutrition data from meal schedule
   }
 
   @override
@@ -77,6 +84,8 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       _loadAddresses();
       _loadOrderData();
+      // Also refresh nutrition totals so the weekly graph reflects latest selections
+      _loadNutritionData();
     }
   }
 
@@ -98,6 +107,11 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
   Future<void> _loadUpcomingOrderFromLocalData() async {
     try {
       debugPrint('[HomePage] Loading upcoming order from local data...');
+      // Do not override if already determined via schedule logic
+      if (_nextOrder != null || _hasComputedNextOrder) {
+        debugPrint('[HomePage] Skipping local-data fallback: next order already set by schedule');
+        return;
+      }
       
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
@@ -107,8 +121,20 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
       
       final prefs = await SharedPreferences.getInstance();
       
-      // Find meal selections data
-      final mealData = _findMealSelectionsData(prefs, user.uid);
+      // Prefer the user's selected schedule first; fallback to any meal selections key
+      final selectedSchedule = prefs.getString('selected_schedule_${user.uid}') ?? 'weekly';
+      Map<String, dynamic>? mealData;
+      final directKey = 'meal_selections_${user.uid}_$selectedSchedule';
+      final directJson = prefs.getString(directKey);
+      if (directJson != null) {
+        try {
+          mealData = json.decode(directJson) as Map<String, dynamic>;
+          debugPrint('[HomePage] Using meal selections from "$directKey"');
+        } catch (e) {
+          debugPrint('[HomePage] Error parsing "$directKey": $e');
+        }
+      }
+      mealData ??= _findMealSelectionsData(prefs, user.uid);
       if (mealData == null) {
         debugPrint('[HomePage] No meal selections found');
         return;
@@ -185,13 +211,16 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
               'meal': meal,
               'mealName': meal.name,
               'deliveryTime': formattedTime, // Store formatted time string
-              'imageUrl': meal.imageUrl,
+              'imageUrl': meal.imagePath, // Use imagePath getter instead of imageUrl
               'calories': meal.calories,
               'protein': meal.protein,
               'deliveryAddress': 'Your Address',
               'orderId': 'upcoming_${day}_$mealType',
               'day': day,
             };
+            // Reset timeline cache when upcoming order changes so status is rebuilt
+            _cachedTimelineOrders = [];
+            _expandedOrderId = null;
           });
           
           debugPrint('[HomePage] ✅ Set upcoming meal: ${meal.name} at $formattedTime');
@@ -243,22 +272,18 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    setState(() {
-      _isLoadingOrders = true;
-    });
+    // no-op loading state removed
 
     try {
       final orders = await OrderServiceV3.getUserRecentOrders(user.uid, limit: 3);
       if (mounted) {
         setState(() {
           _recentOrders = orders;
-          _isLoadingOrders = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _isLoadingOrders = false;
           // Keep empty list if there's an error
           _recentOrders = [];
         });
@@ -277,6 +302,10 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
       // Load from meal schedule data instead of Firestore orders
       final prefs = await SharedPreferences.getInstance();
       
+      // Check if this is a new subscription or existing one
+      final hasExisting = await DateUtilsV3.hasExistingSubscription();
+      debugPrint('[HomePage] Has existing subscription: $hasExisting');
+
       // Try current selected schedule first; if missing, pick the first meal_selections entry for this user
       String? mealSelectionsJson = prefs.getString('meal_selections_${user.uid}_${prefs.getString('selected_schedule_${user.uid}') ?? 'weekly'}');
       if (mealSelectionsJson == null) {
@@ -312,21 +341,39 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
       String? nextDeliveryAddress;
       String nextDay = '';
       
-      // Check today first, then future days
-  final daysToCheck = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-      final todayName = daysToCheck[today - 1];
+      // Days in order from Monday to Sunday
+      final daysToCheck = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+      final nextMonday = DateUtilsV3.getNextMonday();
       
-      for (int dayOffset = 0; dayOffset < 7; dayOffset++) {
-        final checkDayIndex = (today - 1 + dayOffset) % 7;
-        final checkDayName = daysToCheck[checkDayIndex];
+      // For new subscriptions, start from next Monday. For existing, start from today.
+      final firstValidDate = hasExisting ? now : nextMonday;
+      debugPrint('[HomePage] First valid date: ${firstValidDate.toIso8601String()}, hasExisting: $hasExisting');
+      
+      // Calculate the index offset based on firstValidDate's weekday
+      final startIndex = firstValidDate.weekday - 1; // 0-based index for Monday
+      debugPrint('[HomePage] Starting with weekday ${firstValidDate.weekday} (${daysToCheck[startIndex]})');
+
+      // Iterate through 7 days, starting from the firstValidDate's weekday
+      for (int offset = 0; offset < 7; offset++) {
+        final dayIndex = (startIndex + offset) % 7; // Wrap around at end of week
+        final checkDayName = daysToCheck[dayIndex];
+        final checkDate = firstValidDate.add(Duration(days: offset));
         
-  final dayMeals = _getDayMealsFlexible(mealSelections, checkDayName);
+        debugPrint('[HomePage] Checking day $checkDayName (${checkDate.toIso8601String()})');
+
+        // Skip invalid dates for new subscriptions
+        if (!hasExisting && checkDate.isBefore(nextMonday)) {
+          debugPrint('[HomePage] Skipping $checkDayName as it\'s before next Monday');
+          continue;
+        }
+        
+        final dayMeals = _getDayMealsFlexible(mealSelections, checkDayName);
         if (dayMeals == null) continue;
         
   final dayDelivery = _getDayMealsFlexible(deliverySchedule, checkDayName);
         
         // Check breakfast, lunch, dinner in chronological order
-        for (final mealType in ['breakfast', 'lunch', 'dinner']) {
+  for (final mealType in ['breakfast', 'lunch', 'dinner']) {
           final mealData = _getMealFlexible(dayMeals, mealType);
           if (mealData == null) continue;
           
@@ -343,7 +390,7 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
                 final mealTime = TimeOfDay(hour: hour, minute: minute);
                 
                 // If this is today, check if the time hasn't passed yet
-                if (dayOffset == 0) {
+                if (offset == 0) {
                   final mealMinutes = mealTime.hour * 60 + mealTime.minute;
                   final currentMinutes = currentTime.hour * 60 + currentTime.minute;
                   
@@ -372,20 +419,25 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
       }
       
       if (nextMeal != null && nextDeliveryTime != null) {
+        final MealModelV3 meal = nextMeal;
         setState(() {
           _nextOrder = {
             'mealType': nextMealType ?? 'lunch',
-            'mealName': nextMeal!.name,
+            'mealName': meal.name,
             'deliveryTime': nextDeliveryTime,
-            'imageUrl': nextMeal!.imageUrl,
-            'calories': nextMeal!.calories,
-            'protein': nextMeal!.protein,
+            'imageUrl': meal.imagePath, // Use imagePath getter instead of imageUrl
+            'calories': meal.calories,
+            'protein': meal.protein,
             'deliveryAddress': nextDeliveryAddress ?? 'Address not set',
             'orderId': 'meal_${nextDay}_${nextMealType}',
             'day': nextDay,
           };
+          // Reset timeline cache when upcoming order changes so status is rebuilt
+          _cachedTimelineOrders = [];
+          _expandedOrderId = null;
         });
-        debugPrint('[HomePage] Found next meal: ${nextMeal!.name} on $nextDay at $nextDeliveryTime');
+        _hasComputedNextOrder = true;
+        debugPrint('[HomePage] Found next meal: ${meal.name} on $nextDay at $nextDeliveryTime');
       } else {
         setState(() => _nextOrder = null);
         debugPrint('[HomePage] No upcoming meals found in schedule');
@@ -399,21 +451,570 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
 
   // Flexible accessors for mixed-case maps coming from different pages
   Map<String, dynamic>? _getDayMealsFlexible(Map<String, dynamic> map, String dayLower) {
-    return (map[dayLower] as Map<String, dynamic>?)
-        ?? (map[_toTitleCase(dayLower)] as Map<String, dynamic>?)
-        ?? (map[dayLower.toLowerCase()] as Map<String, dynamic>?);
+    debugPrint('[HomePage] 🔎 _getDayMealsFlexible called with dayLower="$dayLower"');
+    debugPrint('[HomePage] 🔎 Map has ${map.length} top-level entries');
+    debugPrint('[HomePage] 🔎 Top-level keys: ${map.keys.take(10).join(', ')}');
+    
+    if (dayLower.isEmpty) {
+      debugPrint('[HomePage] ❌ Empty day name provided');
+      return null;
+    }
+
+    // First standardize the input day name by removing any numbers and special characters
+    final searchDay = dayLower
+      .toLowerCase()
+      .trim()
+      .replaceAll(RegExp(r'[0-9]+'), '') // Remove numbers
+      .replaceAll(RegExp(r'[^a-z]'), '') // Remove non-letters
+      .trim();
+
+    if (searchDay.isEmpty) {
+      debugPrint('[HomePage] ❌ Day name contains no letters: "$dayLower"');
+      return null;
+    }
+
+    debugPrint('[HomePage] 🔍 Searching with standardized day: "$searchDay"');
+
+    // Core map of standard day names to normalized variations
+    const dayMappings = {
+      'monday': ['mon', 'monday', 'mondayall', 'monall', 'm'],
+      'tuesday': ['tue', 'tues', 'tuesday', 'tuesdayall', 'tueall', 't'],
+      'wednesday': ['wed', 'weds', 'wednesday', 'wednesdayall', 'wedall', 'w'],
+      'thursday': ['thu', 'thur', 'thurs', 'thursday', 'thursdayall', 'thuall', 'th'],
+      'friday': ['fri', 'friday', 'fridayall', 'friall', 'f'],
+      'saturday': ['sat', 'saturday', 'saturdayall', 'satall', 's'],
+      'sunday': ['sun', 'sunday', 'sundayall', 'sunall', 'su']
+    };
+
+    // Helper to normalize a key string
+    String normalizeKey(String key) {
+      return key
+        .toLowerCase()
+        .trim()
+        .replaceAll(RegExp(r'[0-9]+'), '')
+        .replaceAll(RegExp(r'[^a-z]'), '')
+        .trim();
+    }
+
+    // 1. First try direct key match
+    if (map.containsKey(dayLower)) {
+      debugPrint('[HomePage] ✅ Found exact key match for "$dayLower"');
+      return map[dayLower] as Map<String, dynamic>?;
+    }
+
+    // 2. Find standard day based on input
+    String? standardDay;
+    String? matchedVariant;
+
+    // Try exact match first
+    for (final entry in dayMappings.entries) {
+      if (entry.value.contains(searchDay)) {
+        standardDay = entry.key;
+        matchedVariant = searchDay;
+        break;
+      }
+    }
+
+    // If no exact match, try prefix match with minimum 3 chars
+    if (standardDay == null && searchDay.length >= 3) {
+      for (final entry in dayMappings.entries) {
+        for (final variant in entry.value) {
+          if (variant.startsWith(searchDay)) {
+            standardDay = entry.key;
+            matchedVariant = variant;
+            break;
+          }
+        }
+        if (standardDay != null) break;
+      }
+    }
+
+    if (standardDay == null) {
+      debugPrint('[HomePage] ❌ Could not determine standard day for "$searchDay"');
+      return null;
+    }
+
+    // 3. Try to find a matching key in various forms
+    final attempts = [
+      standardDay,
+      '${standardDay}1',
+      standardDay.substring(0, 3),
+      standardDay[0].toUpperCase() + standardDay.substring(1),
+      standardDay.toUpperCase(),
+      matchedVariant,
+    ];
+
+    // Try direct matches first
+    for (final attempt in attempts) {
+      if (map.containsKey(attempt)) {
+        debugPrint('[HomePage] ✅ Found direct match with attempt: "$attempt"');
+        return map[attempt] as Map<String, dynamic>?;
+      }
+    }
+
+    // Try case-insensitive matching on normalized keys
+    for (final key in map.keys) {
+      final normalizedKey = normalizeKey(key.toString());
+      if (attempts.contains(normalizedKey)) {
+        debugPrint('[HomePage] ✅ Found case-insensitive match: "$key" normalizes to "$normalizedKey"');
+        return map[key] as Map<String, dynamic>?;
+      }
+    }
+
+    // 4. Last resort: Partial matches on normalized strings
+    for (final key in map.keys) {
+      final normalizedKey = normalizeKey(key.toString());
+      if (normalizedKey.contains(searchDay) || searchDay.contains(normalizedKey)) {
+        debugPrint('[HomePage] ✅ Found partial match: "$key" contains or is contained by "$searchDay"');
+        return map[key] as Map<String, dynamic>?;
+      }
+    }
+
+    // 5. Try common nested containers (one level deep)
+    const likelyContainers = ['days', 'schedule', 'week', 'weeks', 'delivery', 'deliverydays', 'meals'];
+    for (final key in map.keys) {
+      final kLower = key.toString().toLowerCase();
+      if (!likelyContainers.contains(kLower)) continue;
+      final val = map[key];
+      if (val is Map<String, dynamic>) {
+        final found = _getDayMealsFlexible(val, dayLower);
+        if (found != null) {
+          debugPrint('[HomePage] ✅ Found day "$dayLower" in nested container "$key"');
+          return found;
+        }
+      }
+    }
+
+    // 6. Scan any nested maps (one level deep)
+    for (final entry in map.entries) {
+      final val = entry.value;
+      if (val is Map<String, dynamic>) {
+        final found = _getDayMealsFlexible(val, dayLower);
+        if (found != null) {
+          debugPrint('[HomePage] ✅ Found day "$dayLower" in nested map under key "${entry.key}"');
+          return found;
+        }
+      }
+    }
+    // 4. Last resort: Partial matches on normalized strings
+    debugPrint('[HomePage] ❌ No meals found for day "$dayLower" after exhausting all matching attempts');
+    return null;
   }
 
   Map<String, dynamic>? _getMealFlexible(Map<String, dynamic> dayMap, String mealLower) {
-    return (dayMap[mealLower] as Map<String, dynamic>?)
-        ?? (dayMap[_toTitleCase(mealLower)] as Map<String, dynamic>?)
-        ?? (dayMap[mealLower.toLowerCase()] as Map<String, dynamic>?);
+    // Map of standard meal types to all possible variations
+    final mealVariants = {
+      'breakfast': ['breakfast', 'b', 'bfast', 'brek', 'brk', 'Breakfast', 'BREAKFAST'],
+      'lunch': ['lunch', 'l', 'lun', 'Lunch', 'LUNCH'],
+      'dinner': ['dinner', 'd', 'din', 'Dinner', 'DINNER']
+    };
+
+    // Normalize input meal type
+    final searchMeal = mealLower.toLowerCase().trim();
+
+    // First try exact match
+    if (dayMap.containsKey(searchMeal)) {
+      return dayMap[searchMeal] as Map<String, dynamic>?;
+    }
+
+    // Find which standard meal type this matches
+    String? standardMeal;
+    for (final entry in mealVariants.entries) {
+      if (entry.value.contains(searchMeal)) {
+        standardMeal = entry.key;
+        break;
+      }
+    }
+
+    if (standardMeal != null) {
+      // Try all variants of this meal type
+      for (final variant in mealVariants[standardMeal]!) {
+        if (dayMap.containsKey(variant)) {
+          return dayMap[variant] as Map<String, dynamic>?;
+        }
+      }
+
+      // Try case-insensitive match
+      for (final key in dayMap.keys) {
+        if (mealVariants[standardMeal]!.contains(key.toString().toLowerCase().trim())) {
+          return dayMap[key] as Map<String, dynamic>?;
+        }
+      }
+    }
+
+    // Fallback to basic variations
+    return (dayMap[_toTitleCase(searchMeal)] as Map<String, dynamic>?)
+        ?? (dayMap[searchMeal.toUpperCase()] as Map<String, dynamic>?);
+  }
+
+  /// Confirm the next upcoming order and create it in Firestore
+  Future<void> _confirmOrder() async {
+    if (_nextOrder == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No order to confirm'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final orderId = _nextOrder!['orderId'] as String;
+      debugPrint('[HomePage] Confirming order: $orderId');
+
+      // Get meal data from SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final selectedSchedule = prefs.getString('selected_schedule_${user.uid}') ?? 'weekly';
+      final mealSelectionsJson = prefs.getString('meal_selections_${user.uid}_$selectedSchedule');
+      
+      if (mealSelectionsJson == null) {
+        throw Exception('No meal selections found');
+      }
+
+      final mealSelections = json.decode(mealSelectionsJson) as Map<String, dynamic>;
+      debugPrint('[HomePage] Available meal days: ${mealSelections.keys.join(', ')}');
+      
+      // Get day and meal type, with debug logging
+      final rawDay = _nextOrder!['day'] as String?;
+      // Clean day name and convert to TitleCase to match saved format
+      final cleanedDay = rawDay?.toLowerCase().replaceAll(RegExp(r'\s+\d+$'), '').trim();
+      final dayName = cleanedDay != null && cleanedDay.isNotEmpty
+          ? cleanedDay[0].toUpperCase() + cleanedDay.substring(1).toLowerCase()
+          : cleanedDay;
+      debugPrint('[HomePage] Looking up meals for day: "$dayName"');
+      
+      // Convert meal type to TitleCase to match saved format (Breakfast, Lunch, Dinner)
+      final rawMealType = (_nextOrder!['mealType'] as String?)?.toLowerCase();
+      final mealType = rawMealType != null && rawMealType.isNotEmpty
+          ? rawMealType[0].toUpperCase() + rawMealType.substring(1).toLowerCase()
+          : rawMealType;
+      
+      debugPrint('[HomePage] 📅 Raw day from _nextOrder: $rawDay');
+      debugPrint('[HomePage] 📅 Cleaned day name (TitleCase): $dayName');
+      debugPrint('[HomePage] 🍽️ Meal type (TitleCase): $mealType');
+      debugPrint('[HomePage] 🔍 Available days in selections: ${mealSelections.keys.join(', ')}');
+      
+      if (dayName == null || mealType == null) {
+        throw Exception('Invalid day or meal type');
+      }
+      
+      // DIAGNOSTICS: Log structure before lookup
+      debugPrint('[HomePage] 🔍 DIAGNOSTICS: About to look up day "$dayName" in mealSelections');
+      debugPrint('[HomePage] 🔍 Top-level keys: ${mealSelections.keys.take(10).join(', ')}');
+      final sample = mealSelections.entries.take(5).map((e) => '${e.key}:${e.value.runtimeType}').join(', ');
+      debugPrint('[HomePage] 🔍 Structure sample: $sample');
+      
+      // Try direct lookup first (TitleCase keys)
+      Map<String, dynamic>? dayMeals = mealSelections[dayName] as Map<String, dynamic>?;
+      
+      // Fall back to flexible lookup if direct fails
+      if (dayMeals == null) {
+        dayMeals = _getDayMealsFlexible(mealSelections, dayName);
+      }
+
+      // If not found, try scanning keys for close matches (case-insensitive or prefix)
+      if (dayMeals == null) {
+        debugPrint('[HomePage] ❌ FIRST NULL CHECK: Day lookup failed for "$dayName"');
+        debugPrint('[HomePage] Available keys: ${mealSelections.keys.join(', ')}');
+        // Extra diagnostics: show first-level structure and common containers
+        try {
+          for (final container in ['days','schedule','week','weeks','delivery','deliveryDays','meals']) {
+            final val = mealSelections[container] ?? mealSelections[container.toLowerCase()];
+            if (val is Map) {
+              debugPrint('[HomePage] Container "$container" has keys: ${val.keys.join(', ')}');
+            }
+          }
+        } catch (e) {
+          debugPrint('[HomePage] Error scanning containers: $e');
+        }
+        for (final k in mealSelections.keys) {
+          try {
+            final kLower = k.toString().toLowerCase();
+            if (kLower == dayName || kLower.startsWith(dayName.substring(0, 3))) {
+              final candidate = mealSelections[k] as Map<String, dynamic>?;
+              if (candidate != null) {
+                dayMeals = candidate;
+                debugPrint('[HomePage] Found day match by key "$k" for "$dayName"');
+                break;
+              }
+            }
+            // Title-case match
+            if (_toTitleCase(kLower) == _toTitleCase(dayName)) {
+              final candidate = mealSelections[k] as Map<String, dynamic>?;
+              if (candidate != null) {
+                dayMeals = candidate;
+                debugPrint('[HomePage] Found day match by TitleCase key "$k" for "$dayName"');
+                break;
+              }
+            }
+          } catch (_) {
+            // ignore malformed entries
+          }
+        }
+      }
+
+      if (dayMeals == null) throw Exception('No meals for $dayName');
+
+      // Try direct TitleCase lookup first
+      Map<String, dynamic>? mealData = dayMeals[mealType] as Map<String, dynamic>?;
+      
+      // Fall back to flexible lookup
+      if (mealData == null) {
+        mealData = _getMealFlexible(dayMeals, mealType);
+      }
+      
+      if (mealData == null) throw Exception('No $mealType meal for $dayName');
+
+  final meal = MealModelV3.fromJson(mealData);
+      
+      // Get delivery schedule to find the delivery date/time
+      final deliveryScheduleJson = prefs.getString('delivery_schedule_${user.uid}');
+      if (deliveryScheduleJson == null) throw Exception('No delivery schedule found');
+      
+  final deliverySchedule = json.decode(deliveryScheduleJson) as Map<String, dynamic>;
+  final daySchedule = _getDayMealsFlexible(deliverySchedule, dayName);
+  final mealSchedule = daySchedule == null ? null : _getMealFlexible(daySchedule, mealType);
+  final timeStr = mealSchedule?['time'] as String? ?? '12:30';
+  final address = mealSchedule?['address'] as String? ?? _nextOrder!['deliveryAddress'] ?? '350 5th ave';
+
+      // Calculate delivery date (next occurrence of this day)
+      debugPrint('[HomePage] 🗓️ Calculating delivery date for day: "$dayName"');
+      final now = DateTime.now();
+      final daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+      
+      // Normalize day name for comparison
+      final normalizedDayName = dayName.toLowerCase().trim();
+      debugPrint('[HomePage] 📅 Normalized day name: "$normalizedDayName"');
+      
+      // Find the day index with more flexible matching
+      int targetDayIndex = daysOfWeek.indexOf(normalizedDayName);
+      if (targetDayIndex == -1) {
+        // Try prefix matching (e.g., "mon" -> "monday")
+        targetDayIndex = daysOfWeek.indexWhere((day) => day.startsWith(normalizedDayName.substring(0, math.min(3, normalizedDayName.length))));
+      }
+      if (targetDayIndex == -1) {
+        // Use Monday as fallback
+        debugPrint('[HomePage] ⚠️ Could not determine day index for "$dayName", defaulting to Monday');
+        targetDayIndex = 0;
+      } else {
+        debugPrint('[HomePage] ✅ Found day index $targetDayIndex for "$dayName"');
+      }
+      
+      final todayIndex = (now.weekday - 1) % 7;
+      
+      int daysUntil = (targetDayIndex - todayIndex) % 7;
+      if (daysUntil == 0) daysUntil = 7; // Next week if it's today
+      
+      final deliveryDate = now.add(Duration(days: daysUntil));
+      final timeParts = timeStr.split(':');
+      final hour = int.tryParse(timeParts[0]) ?? 12;
+      final minute = timeParts.length > 1 ? int.tryParse(timeParts[1]) ?? 30 : 30;
+      
+      final deliveryDateTime = DateTime(
+        deliveryDate.year,
+        deliveryDate.month,
+        deliveryDate.day,
+        hour,
+        minute,
+      );
+
+      // Check if order already exists in Firestore
+      final orderDoc = await FirebaseFirestore.instance
+          .collection('orders')
+          .doc(orderId)
+          .get();
+
+      if (!orderDoc.exists) {
+        // Create order in Firestore with all Square fields
+        await FirebaseFirestore.instance.collection('orders').doc(orderId).set({
+          'id': orderId,
+          'userId': user.uid,
+          'userEmail': user.email ?? '',
+          'meals': [
+            {
+              'id': meal.id,
+              'name': meal.name,
+              'description': meal.description,
+              'calories': meal.calories,
+              'protein': meal.protein,
+              'fat': meal.fat,
+              'carbs': meal.carbs,
+              'imageUrl': meal.imagePath,
+              'price': meal.price,
+              'mealType': mealType,
+              // Include Square fields for order forwarding
+              'restaurantId': meal.restaurantId,
+              'squareItemId': meal.squareItemId,
+              'squareVariationId': meal.squareVariationId,
+            }
+          ],
+          'deliveryAddress': address,
+          'orderDate': FieldValue.serverTimestamp(),
+          'deliveryDate': Timestamp.fromDate(deliveryDateTime),
+          'estimatedDeliveryTime': Timestamp.fromDate(deliveryDateTime),
+          'status': 'confirmed', // Create as confirmed to trigger forwardOrderToSquare
+          'totalAmount': meal.price,
+          'dayName': dayName,
+          'mealType': mealType,
+          'source': 'home_page',
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        
+        debugPrint('[HomePage] ✅ Created order in Firestore: $orderId');
+        debugPrint('[HomePage] 📦 Meal: ${meal.name}');
+        debugPrint('[HomePage] 🏪 Restaurant ID: ${meal.restaurantId ?? "NULL - ORDER WILL NOT FORWARD!"}');
+        debugPrint('[HomePage] 🔲 Square Item ID: ${meal.squareItemId ?? "NULL - ORDER WILL NOT FORWARD!"}');
+        debugPrint('[HomePage] 🔲 Square Variation ID: ${meal.squareVariationId ?? "NULL - ORDER WILL NOT FORWARD!"}');
+      } else {
+        // Order exists, just update status to confirmed
+        await FirebaseFirestore.instance.collection('orders').doc(orderId).update({
+          'status': 'confirmed',
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        
+        debugPrint('[HomePage] ✅ Updated existing order to confirmed: $orderId');
+      }
+
+      // Update UI
+      if (mounted) {
+        setState(() {
+          _cachedTimelineOrders = _cachedTimelineOrders.map((order) {
+            if (order['id'] == orderId) {
+              return {...order, 'status': 'confirmed'};
+            }
+            return order;
+          }).toList();
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Order confirmed! Forwarding to restaurant...'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+
+    } catch (e) {
+      debugPrint('[HomePage] ❌ Error confirming order: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error confirming order: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   String _toTitleCase(String s) {
     if (s.isEmpty) return s;
     final t = s.trim();
     return t[0].toUpperCase() + t.substring(1).toLowerCase();
+  }
+
+  /// Calculate nutrition totals from user's meal schedule
+  Map<String, Map<String, int>> _calculateWeekNutrition() {
+    // Return cached data that was loaded in initState
+    return _cachedNutritionData;
+  }
+
+  /// Load nutrition data from SharedPreferences and cache it
+  Future<void> _loadNutritionData() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Find meal selections data
+      String? mealSelectionsJson;
+      final selectedSchedule = prefs.getString('selected_schedule_${user.uid}') ?? 'weekly';
+      mealSelectionsJson = prefs.getString('meal_selections_${user.uid}_$selectedSchedule');
+      
+      // Fallback: find any meal_selections entry for this user
+      if (mealSelectionsJson == null) {
+        final firstKey = prefs
+            .getKeys()
+            .firstWhere((k) => k.startsWith('meal_selections_${user.uid}_'), orElse: () => '');
+        if (firstKey.isNotEmpty) {
+          mealSelectionsJson = prefs.getString(firstKey);
+        }
+      }
+
+      if (mealSelectionsJson == null) return;
+
+      final mealSelections = json.decode(mealSelectionsJson) as Map<String, dynamic>;
+      
+      // Reset cached data
+      final newData = <String, Map<String, int>>{
+        'Mon': {'Calories': 0, 'Protein': 0, 'Fat': 0},
+        'Tue': {'Calories': 0, 'Protein': 0, 'Fat': 0},
+        'Wed': {'Calories': 0, 'Protein': 0, 'Fat': 0},
+        'Thu': {'Calories': 0, 'Protein': 0, 'Fat': 0},
+        'Fri': {'Calories': 0, 'Protein': 0, 'Fat': 0},
+        'Sat': {'Calories': 0, 'Protein': 0, 'Fat': 0},
+        'Sun': {'Calories': 0, 'Protein': 0, 'Fat': 0},
+      };
+      
+      // Map full day names to short names
+      final dayMapping = {
+        'monday': 'Mon',
+        'tuesday': 'Tue',
+        'wednesday': 'Wed',
+        'thursday': 'Thu',
+        'friday': 'Fri',
+        'saturday': 'Sat',
+        'sunday': 'Sun',
+      };
+
+      // Iterate through each day
+      for (final dayEntry in mealSelections.entries) {
+        final dayLower = dayEntry.key.toLowerCase();
+        final shortDay = dayMapping[dayLower];
+        if (shortDay == null) continue;
+
+        final dayMeals = dayEntry.value as Map<String, dynamic>?;
+        if (dayMeals == null) continue;
+
+        // Iterate through meal types (breakfast, lunch, dinner)
+        for (final mealEntry in dayMeals.entries) {
+          final mealData = mealEntry.value as Map<String, dynamic>?;
+          if (mealData == null) continue;
+
+          try {
+            final meal = MealModelV3.fromJson(mealData);
+            
+            // Add nutrition values
+            newData[shortDay]!['Calories'] = 
+                newData[shortDay]!['Calories']! + meal.calories;
+            newData[shortDay]!['Protein'] = 
+                newData[shortDay]!['Protein']! + meal.protein;
+            newData[shortDay]!['Fat'] = 
+                newData[shortDay]!['Fat']! + meal.fat;
+          } catch (e) {
+            debugPrint('[HomePage] Error parsing meal for $dayLower: $e');
+          }
+        }
+      }
+
+      // Update cached data and trigger rebuild
+      if (mounted) {
+        setState(() {
+          _cachedNutritionData = newData;
+        });
+      }
+    } catch (e) {
+      debugPrint('[HomePage] Error loading nutrition data: $e');
+    }
   }
 
   // Load the selected meal plan from storage
@@ -586,28 +1187,7 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _cacheAddresses(List<AddressModelV3> addresses) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final data = addresses
-          .map((a) => {
-                'id': a.id,
-                'userId': a.userId,
-                'label': a.label,
-                'streetAddress': a.streetAddress,
-                'apartment': a.apartment,
-                'city': a.city,
-                'state': a.state,
-                'zipCode': a.zipCode,
-                'isDefault': a.isDefault,
-                'createdAt': a.createdAt?.millisecondsSinceEpoch,
-              })
-          .toList();
-      await prefs.setString('cached_addresses', jsonEncode(data));
-    } catch (_) {
-      // ignore cache errors silently
-    }
-  }
+  // Removed unused _cacheAddresses helper
 
   Future<List<AddressModelV3>> _loadCachedAddresses() async {
     try {
@@ -681,10 +1261,8 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
                 
                 const SizedBox(height: 48), // More space after circle
                 
-                // Log Extra Protein Section
-                _buildLogExtraProteinSection(),
-                
-                const SizedBox(height: 24),
+                // Extra Protein logging removed
+                const SizedBox(height: 0),
                 
                 // Addresses Section
                 _buildAddressesSection(),
@@ -831,7 +1409,16 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
               color: Colors.black,
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 6),
+          Text(
+            'Plan: '+_currentMealPlan,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 14),
           _buildNutritionTabs(),
           const SizedBox(height: 20),
           _buildBarGraph(),
@@ -880,16 +1467,8 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
   }
 
   Widget _buildBarGraph() {
-    // Sample data - in real app this would come from user's logged meals
-    final Map<String, Map<String, int>> weekData = {
-      'Mon': {'Calories': 1850, 'Protein': 120, 'Fat': 60},
-      'Tue': {'Calories': 2100, 'Protein': 140, 'Fat': 70},
-      'Wed': {'Calories': 1950, 'Protein': 125, 'Fat': 65},
-      'Thu': {'Calories': 2200, 'Protein': 150, 'Fat': 75},
-      'Fri': {'Calories': 1800, 'Protein': 110, 'Fat': 55},
-      'Sat': {'Calories': 2050, 'Protein': 135, 'Fat': 68},
-      'Sun': {'Calories': 1900, 'Protein': 115, 'Fat': 62},
-    };
+    // Load real user meal data from schedule
+    final weekData = _calculateWeekNutrition();
 
     final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     final dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -1019,228 +1598,7 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildLogExtraProteinSection() {
-    // Sample selected proteins - in real app this would come from user's Protein+ selections
-    final availableProteins = ProteinOptionV3.getAvailableProteins();
-    final selectedProteins = [
-      availableProteins[0], // Cubed chicken
-      availableProteins[6], // Smoked turkey
-    ];
-
-    if (selectedProteins.isEmpty) {
-      return const SizedBox.shrink(); // Don't show if no proteins selected
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.black,
-          width: 2,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          InkWell(
-            onTap: () {
-              setState(() {
-                _proteinSectionExpanded = !_proteinSectionExpanded;
-              });
-            },
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.black,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: Colors.black,
-                          width: 2,
-                        ),
-                      ),
-                      child: const Icon(
-                        Icons.restaurant,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Log Extra Protein',
-                      style: AppThemeV3.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                  ],
-                ),
-                Icon(
-                  _proteinSectionExpanded ? Icons.expand_less : Icons.expand_more,
-                  color: Colors.black,
-                ),
-              ],
-            ),
-          ),
-          
-          if (_proteinSectionExpanded) ...[
-            const SizedBox(height: 16),
-            const Divider(color: Colors.black, thickness: 1),
-            const SizedBox(height: 16),
-            
-            // Protein items
-            ...selectedProteins.map((protein) {
-              final servingsLogged = _loggedProteinServings[protein.id]?.length ?? 0;
-              final maxServings = 21; // Max servings per week
-              
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          protein.emoji,
-                          style: const TextStyle(fontSize: 24),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                protein.name,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.black,
-                                ),
-                              ),
-                              Text(
-                                '$servingsLogged / $maxServings servings logged',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    
-                    // Checkbox grid (7 rows x 3 columns = 21 servings)
-                    ...List.generate(7, (row) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Row(
-                          children: List.generate(3, (col) {
-                            final servingNumber = row * 3 + col + 1;
-                            final isLogged = _loggedProteinServings[protein.id]?.contains(servingNumber) ?? false;
-                            
-                            return Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 4),
-                                child: InkWell(
-                                  onTap: () {
-                                    setState(() {
-                                      _loggedProteinServings[protein.id] ??= {};
-                                      if (isLogged) {
-                                        _loggedProteinServings[protein.id]!.remove(servingNumber);
-                                      } else {
-                                        _loggedProteinServings[protein.id]!.add(servingNumber);
-                                      }
-                                    });
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 10),
-                                    decoration: BoxDecoration(
-                                      color: isLogged ? Colors.black : Colors.white,
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: Colors.black, width: 2),
-                                    ),
-                                    child: Text(
-                                      isLogged ? '✓ $servingNumber' : '$servingNumber',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w700,
-                                        color: isLogged ? Colors.white : Colors.black,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          }),
-                        ),
-                      );
-                    }).toList(),
-                  ],
-                ),
-              );
-            }).toList(),
-            
-            // Nutrition added info
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.black, width: 2),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    '💡 Logged servings update your bar graph',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      // Save to Firestore
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Protein servings saved!'),
-                          backgroundColor: Colors.black,
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Text(
-                      'Save',
-                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
+  // Extra protein logger removed (per product decision)
 
   Widget _buildAddressesSection() {
     return Container(
@@ -1497,19 +1855,22 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
       final dayRaw = (_nextOrder!['day'] as String? ?? '').toString();
       final dayDisp = dayRaw.isEmpty ? 'Today' : _toTitleCase(dayRaw);
       final time = _nextOrder!['deliveryTime'] as String? ?? '12:30 PM';
-      final imageUrl = _nextOrder!['imageUrl'];
+      final imageUrl = _nextOrder!['imageUrl'] ?? mealObj?.imagePath ?? '';
       final address = _nextOrder!['deliveryAddress'] as String? ?? 'Address not set';
       final calories = _nextOrder!['calories'] ?? mealObj?.calories ?? 0;
       final protein = _nextOrder!['protein'] ?? mealObj?.protein ?? 0;
       final fat = mealObj?.fat ?? 0;
       final carbs = mealObj?.carbs ?? 0;
 
+      debugPrint('[HomePage] Building upcoming order with imageUrl: $imageUrl');
+
       _cachedTimelineOrders = [{
         'id': _nextOrder!['orderId'] ?? 'order-1',
         'day': dayDisp,
         'time': time,
         'mealType': _toTitleCase(mealType),
-        'status': 'confirmed',
+        // Start as pending so the UI shows the Confirm button
+        'status': 'pending',
         'nutrition': {
           'calories': calories,
           'protein': protein,
@@ -1677,7 +2038,7 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
               Row(
                 children: [
                   // Meal image
-                  if (order['imageUrl'] != null)
+                  if (order['imageUrl'] != null && order['imageUrl'].toString().isNotEmpty)
                     Container(
                       width: 60,
                       height: 60,
@@ -1685,21 +2046,17 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: Colors.black, width: 2),
                       ),
-                      child: ClipRRect(
+                      child: AppImage(
+                        order['imageUrl'],
+                        width: 60,
+                        height: 60,
+                        fit: BoxFit.cover,
                         borderRadius: BorderRadius.circular(6),
-                        child: Image.asset(
-                          order['imageUrl'],
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              color: Colors.grey.shade200,
-                              child: const Icon(Icons.restaurant, color: Colors.black54),
-                            );
-                          },
-                        ),
+                        fallbackIcon: Icons.restaurant,
                       ),
                     ),
-                  const SizedBox(width: 12),
+                  if (order['imageUrl'] != null && order['imageUrl'].toString().isNotEmpty)
+                    const SizedBox(width: 12),
                   // Meal details
                   Expanded(
                     child: Column(
@@ -1851,14 +2208,28 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
                     const SizedBox(width: 8),
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () {
-                          // Confirm/track order
+                        onPressed: () async {
+                          // Show loading state
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Order confirmed'),
-                              backgroundColor: Colors.black,
+                            const SnackBar(
+                              content: Text('Confirming order...'),
+                              duration: Duration(seconds: 1),
                             ),
                           );
+                          
+                          // Confirm order
+                          await _confirmOrder();
+                          
+                          // Update UI to show confirmed state
+                          setState(() {
+                            _expandedOrderId = null; // Collapse card
+                            _cachedTimelineOrders = _cachedTimelineOrders.map((order) {
+                              if (order['id'] == _nextOrder?['orderId']) {
+                                return {...order, 'status': 'confirmed'};
+                              }
+                              return order;
+                            }).toList();
+                          });
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.black,
@@ -1867,9 +2238,9 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child: Text(
-                          isCompleted ? 'Track' : 'Confirm',
-                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        child: const Text(
+                          'Confirm',
+                          style: TextStyle(fontWeight: FontWeight.w700),
                         ),
                       ),
                     ),

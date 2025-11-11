@@ -1,4 +1,13 @@
 {
+	"storage": {
+		"rules": "storage.rules",
+		"cors": [{
+			"origin": ["https://freshpunk-48db1--preview-inxvdmoc.web.app", "https://freshpunk-48db1.web.app"],
+			"method": ["GET", "HEAD", "PUT", "POST", "DELETE"],
+			"maxAgeSeconds": 3600,
+			"responseHeader": ["Content-Type", "Access-Control-Allow-Origin", "Access-Control-Allow-Methods", "Access-Control-Allow-Headers"]
+		}]
+	},
 	"emulators": {
 		"dataconnect": { "dataDir": "dataconnect/.dataconnect/pgliteData" }
 	},
@@ -13,21 +22,6 @@
 		{
 			"source": "functions",
 			"codebase": "default",
-			"predeploy": [
-				"npm --prefix \"$RESOURCE_DIR\" run lint",
-				"npm --prefix \"$RESOURCE_DIR\" run build"
-			]
-		},
-		{
-			"source": "genkit-functions",
-			"codebase": "functions",
-			"ignore": [
-				"node_modules",
-				".git",
-				"firebase-debug.log",
-				"firebase-debug.*.log",
-				"*.local"
-			],
 			"predeploy": [
 				"npm --prefix \"$RESOURCE_DIR\" run lint",
 				"npm --prefix \"$RESOURCE_DIR\" run build"
@@ -53,21 +47,14 @@
 			{ "source": "/flutter_bootstrap.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
 			{ "source": "/main.dart.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
 			{ "source": "/index.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
-			{ "source": "/kitchen.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
-			{ "source": "/kitchen_backup.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
-			{ "source": "/kitchen_pro.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
-			{ "source": "/kitchen_organized.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
 			{ "source": "/restaurant.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
 		],
 		"rewrites": [
+            { "source": "/square_test.html", "function": { "functionId": "squareOAuthTestPage", "region": "us-east4" } },
 			{ "source": "/restaurant", "destination": "/restaurant.html" },
 			{ "source": "/restaurant/**", "destination": "/restaurant.html" },
 			{ "source": "/restaurant-portal", "destination": "/index.html" },
 			{ "source": "/restaurant-portal/**", "destination": "/index.html" },
-			{ "source": "!/kitchen.html", "destination": "/index.html" },
-			{ "source": "!/kitchen_backup.html", "destination": "/index.html" },
-			{ "source": "!/kitchen_pro.html", "destination": "/index.html" },
-			{ "source": "!/kitchen_organized.html", "destination": "/index.html" },
 			{ "source": "!/restaurant.html", "destination": "/index.html" }
 		]
 	},
