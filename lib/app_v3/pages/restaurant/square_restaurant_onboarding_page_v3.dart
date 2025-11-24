@@ -3,6 +3,8 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../utils/cloud_functions_helper.dart';
+
 class SquareRestaurantOnboardingPageV3 extends StatefulWidget {
   const SquareRestaurantOnboardingPageV3({Key? key}) : super(key: key);
 
@@ -15,6 +17,17 @@ class _SquareRestaurantOnboardingPageV3State extends State<SquareRestaurantOnboa
   final _restaurantNameController = TextEditingController();
   final _contactEmailController = TextEditingController();
   final _contactPhoneController = TextEditingController();
+  static const _region = 'us-central1';
+  final FirebaseFunctions _functions =
+      FirebaseFunctions.instanceFor(region: _region);
+
+  HttpsCallable _callable(String name) {
+    return callableForPlatform(
+      functions: _functions,
+      functionName: name,
+      region: _region,
+    );
+  }
   
   bool _isLoading = false;
 
@@ -365,7 +378,7 @@ class _SquareRestaurantOnboardingPageV3State extends State<SquareRestaurantOnboa
     });
 
     try {
-      final callable = FirebaseFunctions.instance.httpsCallable('initiateSquareOAuth');
+  final callable = _callable('initiateSquareOAuth');
       final result = await callable.call({
         'restaurantName': _restaurantNameController.text.trim(),
         'contactEmail': _contactEmailController.text.trim(),

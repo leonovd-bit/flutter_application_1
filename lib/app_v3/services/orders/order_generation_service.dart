@@ -2,8 +2,19 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../../utils/cloud_functions_helper.dart';
+
 class OrderGenerationService {
-  static final FirebaseFunctions _functions = FirebaseFunctions.instance;
+  static const _region = 'us-central1';
+  static final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(region: _region);
+
+  static HttpsCallable _callable(String name) {
+    return callableForPlatform(
+      functions: _functions,
+      functionName: name,
+      region: _region,
+    );
+  }
 
   /// Generates orders from meal selections and delivery schedule
   /// This replaces the manual order creation with server-side validation
@@ -18,12 +29,18 @@ class OrderGenerationService {
       debugPrint('[OrderGenerationService] Delivery schedule days: ${deliverySchedule.keys.length}');
       debugPrint('[OrderGenerationService] Delivery address: $deliveryAddress');
 
-      final callable = _functions.httpsCallable('generateOrderFromMealSelection');
+      // Get user's timezone offset in hours (e.g., -5 for EST, -4 for EDT)
+      final now = DateTime.now();
+      final timezoneOffsetHours = now.timeZoneOffset.inHours;
+      debugPrint('[OrderGenerationService] Timezone offset: $timezoneOffsetHours hours');
+
+  final callable = _callable('generateOrderFromMealSelection');
       
       final result = await callable.call({
         'mealSelections': mealSelections,
         'deliverySchedule': deliverySchedule,
         'deliveryAddress': deliveryAddress,
+        'timezoneOffsetHours': timezoneOffsetHours,
       });
 
       final data = result.data as Map<String, dynamic>;
@@ -65,7 +82,7 @@ class OrderGenerationService {
       debugPrint('[OrderGenerationService] Sending order confirmation for: $orderId');
       debugPrint('[OrderGenerationService] Notification types: $notificationTypes');
 
-      final callable = _functions.httpsCallable('sendOrderConfirmation');
+  final callable = _callable('sendOrderConfirmation');
       
       final result = await callable.call({
         'orderId': orderId,
@@ -95,6 +112,38 @@ class OrderGenerationService {
       return {
         'success': false,
         'error': errorMessage,
+        'details': e.toString(),
+      };
+    }
+  }
+
+  /// Confirms the user's next pending order via Cloud Function
+  static Future<Map<String, dynamic>> confirmNextOrder({required String orderId}) async {
+    try {
+      debugPrint('[OrderGenerationService] Confirming next order: $orderId');
+      final callable = _callable('confirmNextOrder');
+      final result = await callable.call({'orderId': orderId});
+      final data = (result.data is Map<String, dynamic>)
+          ? result.data as Map<String, dynamic>
+          : <String, dynamic>{};
+
+      return {
+        'success': true,
+        ...data,
+      };
+    } on FirebaseFunctionsException catch (e) {
+      debugPrint('[OrderGenerationService] confirmNextOrder failed: ${e.code} ${e.message}');
+      return {
+        'success': false,
+        'code': e.code,
+        'error': e.message ?? 'Failed to confirm order',
+        'details': e.details,
+      };
+    } catch (e) {
+      debugPrint('[OrderGenerationService] confirmNextOrder error: $e');
+      return {
+        'success': false,
+        'error': 'Failed to confirm order',
         'details': e.toString(),
       };
     }

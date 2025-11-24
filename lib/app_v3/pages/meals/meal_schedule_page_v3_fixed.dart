@@ -11,6 +11,7 @@ import '../../theme/app_theme_v3.dart';
 import '../../widgets/app_image.dart';
 import '../delivery/delivery_schedule_page_v5.dart';
 import '../../services/meals/meal_service_v3.dart';
+import '../../services/meals/meal_repository_v3.dart';
 import 'interactive_menu_page_v3.dart';
 import '../payment/payment_page_v3.dart';
 // removed unused imports
@@ -152,6 +153,9 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
       
       debugPrint('[MealSchedule] ========== INIT END ==========');
     }
+
+    // Ensure selected meal type is valid even when meal types arrive later (async schedule load)
+    WidgetsBinding.instance.addPostFrameCallback((_) => _ensureValidSelectedMealType());
   }
 
   // Load saved schedule names (deduped) and optionally load one
@@ -283,6 +287,15 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
           };
   }
 
+  void _ensureValidSelectedMealType() {
+    final types = _deriveMealTypes();
+    if (types.isEmpty) return;
+    if (!types.contains(_selectedMealType)) {
+      debugPrint('[MealSchedule] Selected meal type "$_selectedMealType" not in derived list $types; resetting.');
+      setState(() => _selectedMealType = types.first);
+    }
+  }
+
   Future<void> _loadPersistedMealSelections() async {
     if (_selectedSchedule == null) return;
     final prefs = await SharedPreferences.getInstance();
@@ -307,7 +320,7 @@ class _MealSchedulePageV3State extends State<MealSchedulePageV3> {
           if (val is! Map) return; // skip invalid entries
           final mealJson = Map<String, dynamic>.from(val);
           try {
-            _selectedMeals[dayKey]![mtNorm] = MealModelV3.fromJson(mealJson);
+            _selectedMeals[dayKey]![mtNorm] = MealRepositoryV3.instance.fromJson(mealJson);
           } catch (e) {
             debugPrint('[MealSchedule] Skipping invalid saved meal for $dayKey/$mtNorm: $e');
           }

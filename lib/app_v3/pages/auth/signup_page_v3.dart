@@ -5,7 +5,8 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../../theme/app_theme_v3.dart';
 import '../../services/auth/progress_manager.dart';
 import '../../services/auth/auth_wrapper.dart' show ExplicitSetupApproval; // approve explicit setup
-import 'email_verification_page_v3.dart';
+import '../../services/auth/phone_verification_service.dart';
+import 'phone_verification_page_v3.dart';
 import 'login_page_v3.dart';
 import '../onboarding/choose_meal_plan_page_v3.dart';
 import '../home_page_v3.dart';
@@ -735,48 +736,62 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
     setState(() => _isLoading = true);
 
     try {
-  // Test Firebase connectivity first
-  debugPrint('Testing Firebase connectivity...'); // Debug
-  final currentUser = FirebaseAuth.instance.currentUser;
-  debugPrint('Current Firebase user: $currentUser'); // Debug
-      
-  debugPrint('Starting Firebase sign-up process...'); // Debug
-  debugPrint('Email: ${_emailController.text.trim()}'); // Debug
+      debugPrint('Starting Firebase sign-up process...');
+      debugPrint('Email: ${_emailController.text.trim()}');
       
       final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
 
-  debugPrint('User created successfully: ${credential.user?.uid}'); // Debug
+      debugPrint('User created successfully: ${credential.user?.uid}');
 
       // Update user profile
       await credential.user?.updateDisplayName(_nameController.text.trim());
-  debugPrint('Display name updated'); // Debug
+      debugPrint('Display name updated');
 
-      // Send email verification
-      await credential.user?.sendEmailVerification();
+      // Format phone number to E.164 format for Firebase
+      final digits = _phoneController.text.replaceAll(RegExp(r'\D'), '');
+      final phoneNumber = '+1$digits'; // Assuming US phone numbers
+
       // Mark explicit approval since user intentionally created an account
       if (mounted) {
         ExplicitSetupApproval.approve(context);
       }
-  debugPrint('Email verification sent'); // Debug
 
-  // Update progress to email verification step (explicit setup approved)
-      await ProgressManager.saveCurrentStep(OnboardingStep.emailVerification);
+      // Update progress to phone verification step
+      await ProgressManager.saveCurrentStep(OnboardingStep.phoneVerification);
 
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => EmailVerificationPageV3(
-              email: _emailController.text.trim(),
+      // Start phone verification
+      debugPrint('Starting phone verification for: $phoneNumber');
+      try {
+        await PhoneVerificationService.instance.startPhoneVerification(phoneNumber);
+        
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PhoneVerificationPageV3(
+                phoneNumber: phoneNumber,
+              ),
             ),
-          ),
-        );
+          );
+        }
+      } catch (e) {
+        debugPrint('Phone verification error: $e');
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to send verification SMS: $e'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 8),
+            ),
+          );
+        }
       }
     } on FirebaseAuthException catch (e) {
-      debugPrint('Firebase Auth Exception: ${e.code} - ${e.message}'); // Debug
+      debugPrint('Firebase Auth Exception: ${e.code} - ${e.message}');
       String message = 'An error occurred';
       if (e.code == 'weak-password') {
         message = 'The password provided is too weak.';
@@ -802,8 +817,8 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
         );
       }
     } catch (e) {
-      debugPrint('General Exception: $e'); // Debug
-      debugPrint('Exception type: ${e.runtimeType}'); // Debug
+      debugPrint('General Exception: $e');
+      debugPrint('Exception type: ${e.runtimeType}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

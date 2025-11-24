@@ -49,11 +49,42 @@
   
   <!-- Google Maps JavaScript API with async loading -->
   <script async defer
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCi_mKaxg-CRH3UJ5LVHGWTd7TUcl1H4qg&libraries=places&loading=async">
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCFeughLAfJ3THhLWVnxLqvvf2mjomkGxg&libraries=places&loading=async">
   </script>
   
   <!-- Stripe.js for payment processing -->
   <script src="https://js.stripe.com/v3/"></script>
+  <script>
+    // Global error instrumentation to capture early startup issues (e.g., null DOM property assignments).
+    (function() {
+      const startupErrors = [];
+      function logError(prefix, msg, extra) {
+        const payload = { time: Date.now(), prefix, message: msg, extra };
+        startupErrors.push(payload);
+        // Keep minimal console noise but surface full context.
+        console.error(prefix + ':', msg, extra);
+        // Expose for Dart retrieval if desired.
+        window.__startupErrors = startupErrors;
+      }
+      window.addEventListener('error', function(e) {
+        try {
+          logError('[GlobalError]', e.message, {
+            filename: e.filename,
+            lineno: e.lineno,
+            colno: e.colno,
+            error: e.error && e.error.stack ? e.error.stack : String(e.error || '')
+          });
+        } catch(_) {}
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        try {
+          logError('[UnhandledPromise]', e.reason && e.reason.message ? e.reason.message : String(e.reason), {
+            reason: e.reason && e.reason.stack ? e.reason.stack : String(e.reason || '')
+          });
+        } catch(_) {}
+      });
+    })();
+  </script>
 </head>
 <body>
   <script>

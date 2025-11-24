@@ -52,9 +52,9 @@
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>This app needs access to location to automatically fill your delivery address.</string>
 	
-	<!-- Google Maps API Key - Replace with your iOS API key -->
+	<!-- Google Maps API Key -->
 	<key>GoogleMapsAPIKey</key>
-	<string>AIzaSyBCR1rEwwgZrhAOV1BI-thuCUjqHLYhRUA</string>
+	<string>AIzaSyD9cpvMjyWUXcXfiqNv0ZpavDBgxmLV9x4</string>
 	
 	<!-- Google Sign-In Configuration -->
 	<key>CFBundleURLTypes</key>

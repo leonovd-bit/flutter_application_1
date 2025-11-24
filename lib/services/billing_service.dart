@@ -5,6 +5,8 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 
+import '../utils/cloud_functions_helper.dart';
+
 /// Service for managing Stripe billing operations
 /// Handles customer creation, payment intents, subscriptions, and payment methods
 class BillingService {
@@ -13,13 +15,27 @@ class BillingService {
   BillingService._internal();
 
   void _log(String message) => dev.log(message, name: 'BillingService');
+  static const _region = 'us-central1';
   final _firestore = FirebaseFirestore.instance;
-  final _functions = FirebaseFunctions.instance;
+  final _functions = FirebaseFunctions.instanceFor(region: _region);
   final _auth = FirebaseAuth.instance;
 
-  /// Stripe test mode publishable key
-  static const String publishableKey =
-      'pk_test_51Rly3MAQ9rq5N6YJ07JcCml88ysYYunZlcUfEacyfjSjY6DZgoM0HOTCkPBOZLVYg40JzUgT9ykwJjjho3hXADuJ00acajs99Q';
+  HttpsCallable _callable(String name) {
+    return callableForPlatform(
+      functions: _functions,
+      functionName: name,
+      region: _region,
+    );
+  }
+
+  /// Stripe publishable key
+  /// Reads from compile-time env STRIPE_PUBLISHABLE_KEY when provided (via --dart-define),
+  /// otherwise defaults to a test key for local/dev.
+  static const String publishableKey = String.fromEnvironment(
+    'STRIPE_PUBLISHABLE_KEY',
+    defaultValue:
+        'pk_test_51Rly3MAQ9rq5N6YJ07JcCml88ysYYunZlcUfEacyfjSjY6DZgoM0HOTCkPBOZLVYg40JzUgT9ykwJjjho3hXADuJ00acajs99Q',
+  );
 
   /// Initialize Stripe with the publishable key
   /// Call this once during app startup (e.g., in main())
@@ -51,7 +67,7 @@ class BillingService {
 
     // Create new customer via backend
     final user = _auth.currentUser!;
-    final result = await _functions.httpsCallable('createCustomer').call({
+  final result = await _callable('createCustomer').call({
       'email': user.email ?? '',
       'name': user.displayName ?? 'Customer',
     });
@@ -86,7 +102,7 @@ class BillingService {
   }) async {
     final customerId = await ensureCustomer();
 
-    final result = await _functions.httpsCallable('createPaymentIntent').call({
+  final result = await _callable('createPaymentIntent').call({
       'amount': amountCents,
       'currency': currency,
       'customer': customerId,
@@ -163,7 +179,7 @@ class BillingService {
   Future<String> createSetupIntent() async {
     final customerId = await ensureCustomer();
 
-    final result = await _functions.httpsCallable('createSetupIntent').call({
+  final result = await _callable('createSetupIntent').call({
       'customer': customerId,
     });
 
@@ -222,7 +238,7 @@ class BillingService {
   }) async {
     final customerId = await ensureCustomer();
 
-    final result = await _functions.httpsCallable('createSubscription').call({
+  final result = await _callable('createSubscription').call({
       'customer': customerId,
       'priceId': priceId,
       if (paymentMethodId != null) 'paymentMethod': paymentMethodId,
@@ -254,7 +270,7 @@ class BillingService {
   Future<List<Map<String, dynamic>>> listPaymentMethods() async {
     final customerId = await ensureCustomer();
 
-    final result = await _functions.httpsCallable('listPaymentMethods').call({
+  final result = await _callable('listPaymentMethods').call({
       'customer': customerId,
     });
 
@@ -265,7 +281,7 @@ class BillingService {
   Future<void> setDefaultPaymentMethod(String paymentMethodId) async {
     final customerId = await ensureCustomer();
 
-    await _functions.httpsCallable('setDefaultPaymentMethod').call({
+  await _callable('setDefaultPaymentMethod').call({
       'customer': customerId,
       'payment_method': paymentMethodId,
     });
@@ -275,7 +291,7 @@ class BillingService {
 
   /// Remove a saved payment method
   Future<void> detachPaymentMethod(String paymentMethodId) async {
-    await _functions.httpsCallable('detachPaymentMethod').call({
+  await _callable('detachPaymentMethod').call({
       'payment_method': paymentMethodId,
     });
 
@@ -284,7 +300,7 @@ class BillingService {
 
   /// Cancel a subscription (at period end)
   Future<void> cancelSubscription(String subscriptionId) async {
-    await _functions.httpsCallable('cancelSubscription').call({
+  await _callable('cancelSubscription').call({
       'subscriptionId': subscriptionId,
     });
 
@@ -296,7 +312,7 @@ class BillingService {
     required String subscriptionId,
     required String newPriceId,
   }) async {
-    await _functions.httpsCallable('updateSubscription').call({
+  await _callable('updateSubscription').call({
       'subscriptionId': subscriptionId,
       'newPriceId': newPriceId,
     });
@@ -306,7 +322,7 @@ class BillingService {
 
   /// Pause a subscription
   Future<void> pauseSubscription(String subscriptionId) async {
-    await _functions.httpsCallable('pauseSubscription').call({
+  await _callable('pauseSubscription').call({
       'subscriptionId': subscriptionId,
     });
 
@@ -315,18 +331,38 @@ class BillingService {
 
   /// Resume a paused subscription
   Future<void> resumeSubscription(String subscriptionId) async {
-    await _functions.httpsCallable('resumeSubscription').call({
+  await _callable('resumeSubscription').call({
       'subscriptionId': subscriptionId,
     });
 
     _log('Subscription resumed: $subscriptionId');
   }
 
+  /// Fetch canonical subscription doc from top-level /subscriptions/{uid}
+  Future<Map<String, dynamic>?> fetchCurrentSubscription() async {
+    final uid = _currentUserId;
+    final doc = await _firestore.collection('subscriptions').doc(uid).get();
+    return doc.data();
+  }
+
+  /// Convenience: returns stripeSubscriptionId if present
+  Future<String?> getStripeSubscriptionId() async {
+    final data = await fetchCurrentSubscription();
+    return data == null ? null : (data['stripeSubscriptionId'] as String? ?? data['id'] as String?);
+  }
+
+  /// Determine if subscription is paused (top-level doc)
+  Future<bool> isSubscriptionPaused() async {
+    final data = await fetchCurrentSubscription();
+    final status = data?['status'] as String?;
+    return status == 'paused';
+  }
+
   /// Get available billing options (installments, payment method types)
   Future<Map<String, dynamic>> getBillingOptions(int amountCents) async {
     final customerId = await ensureCustomer();
 
-    final result = await _functions.httpsCallable('getBillingOptions').call({
+  final result = await _callable('getBillingOptions').call({
       'amount': amountCents,
       'currency': 'usd',
       'customer': customerId,

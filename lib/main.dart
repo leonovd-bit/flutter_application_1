@@ -19,6 +19,7 @@ import 'app_v3/debug/debug_state.dart';
 import 'app_v3/services/notifications/fcm_service_v3.dart';
 import 'app_v3/services/environment_service.dart';
 import 'app_v3/services/payment/stripe_service.dart';
+import 'app_v3/services/auth/doordash_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:freshpunk/services/billing_service.dart';
 
@@ -78,6 +79,19 @@ void main() {
     // Initialize Stripe publishable key (mobile/desktop only)
     if (!kIsWeb) {
       await BillingService.initialize();
+    }
+
+    // Test DoorDash API connection only if credentials are configured
+    if (EnvironmentService.isDoorDashConfigured) {
+      debugPrint('[App] Testing DoorDash credentials...');
+      final doorDashConnected = await DoorDashService.instance.testConnection();
+      debugPrint('[App] DoorDash connection result: ${doorDashConnected ? '✅ CONNECTED' : '❌ FAILED'}');
+      // Optional: run a one-off delivery creation test in debug builds
+      if (kDebugMode) {
+        await testDoorDashDeliveryCreation();
+      }
+    } else {
+      debugPrint('[App] Skipping DoorDash tests: credentials not configured (set DOORDASH_* via --dart-define or .env)');
     }
 
   runApp(const MyApp());

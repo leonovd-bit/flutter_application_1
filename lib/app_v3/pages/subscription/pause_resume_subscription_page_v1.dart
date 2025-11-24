@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import '../../theme/app_theme_v3.dart';
 import '../../services/auth/firestore_service_v3.dart';
 import '../../services/orders/order_functions_service.dart';
+import '../payment/payment_methods_page_v3.dart';
 
 class PauseResumeSubscriptionPageV1 extends StatefulWidget {
   const PauseResumeSubscriptionPageV1({super.key});
@@ -31,13 +33,29 @@ class _PauseResumeSubscriptionPageV1State extends State<PauseResumeSubscriptionP
     }
     try {
       final sub = await FirestoreServiceV3.getActiveSubscription(uid);
+      debugPrint('[PauseResume] Loaded subscription: $sub');
       if (mounted) setState(() { _activeSub = sub; _loading = false; });
-    } catch (_) { if (mounted) setState(() { _loading = false; }); }
+    } catch (e) { 
+      debugPrint('[PauseResume] Error loading subscription: $e');
+      if (mounted) setState(() { _loading = false; }); 
+    }
   }
 
   Future<void> _pause() async {
-    final subId = (_activeSub?['stripeSubscriptionId'] ?? _activeSub?['id'])?.toString();
-    if (subId == null || subId.isEmpty) return;
+    final subId = _activeSub?['stripeSubscriptionId']?.toString() ??
+                 _activeSub?['stripe_subscription_id']?.toString() ??
+                 _activeSub?['subscriptionId']?.toString() ??
+                 _activeSub?['id']?.toString();
+    
+    debugPrint('[PauseResume] Attempting to pause subscription: $subId');
+    
+    if (subId == null || subId.isEmpty || subId == 'local' || subId.startsWith('temp_')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No valid Stripe subscription found')),
+      );
+      return;
+    }
+    
     setState(() { _working = true; });
     try {
       final ok = await OrderFunctionsService.instance.pauseSubscription(subId);
@@ -45,8 +63,9 @@ class _PauseResumeSubscriptionPageV1State extends State<PauseResumeSubscriptionP
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(ok ? 'Subscription paused' : 'Failed to pause')),
       );
-      Navigator.pop(context, ok);
+      if (ok) Navigator.pop(context, ok);
     } catch (e) {
+      debugPrint('[PauseResume] Error pausing subscription: $e');
       if (!mounted) return;
       final errorMsg = e.toString().toLowerCase();
       if (errorMsg.contains('unable to establish connection') || 
@@ -67,8 +86,20 @@ class _PauseResumeSubscriptionPageV1State extends State<PauseResumeSubscriptionP
   }
 
   Future<void> _resume() async {
-    final subId = (_activeSub?['stripeSubscriptionId'] ?? _activeSub?['id'])?.toString();
-    if (subId == null || subId.isEmpty) return;
+    final subId = _activeSub?['stripeSubscriptionId']?.toString() ??
+                 _activeSub?['stripe_subscription_id']?.toString() ??
+                 _activeSub?['subscriptionId']?.toString() ??
+                 _activeSub?['id']?.toString();
+    
+    debugPrint('[PauseResume] Attempting to resume subscription: $subId');
+    
+    if (subId == null || subId.isEmpty || subId == 'local' || subId.startsWith('temp_')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No valid Stripe subscription found')),
+      );
+      return;
+    }
+    
     setState(() { _working = true; });
     try {
       final ok = await OrderFunctionsService.instance.resumeSubscription(subId);
@@ -76,8 +107,9 @@ class _PauseResumeSubscriptionPageV1State extends State<PauseResumeSubscriptionP
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(ok ? 'Subscription resumed' : 'Failed to resume')),
       );
-      Navigator.pop(context, ok);
+      if (ok) Navigator.pop(context, ok);
     } catch (e) {
+      debugPrint('[PauseResume] Error resuming subscription: $e');
       if (!mounted) return;
       final errorMsg = e.toString().toLowerCase();
       if (errorMsg.contains('unable to establish connection') || 
@@ -99,6 +131,20 @@ class _PauseResumeSubscriptionPageV1State extends State<PauseResumeSubscriptionP
 
   @override
   Widget build(BuildContext context) {
+    // Try multiple field names for Stripe subscription ID
+    final stripeSubId = _activeSub?['stripeSubscriptionId']?.toString() ??
+                       _activeSub?['stripe_subscription_id']?.toString() ??
+                       _activeSub?['subscriptionId']?.toString() ??
+                       _activeSub?['id']?.toString();
+    
+    final hasStripeSub = stripeSubId != null && 
+                        stripeSubId.isNotEmpty && 
+                        stripeSubId != 'local' &&
+                        !stripeSubId.startsWith('temp_');
+    
+    debugPrint('[PauseResume] Stripe subscription ID: $stripeSubId, hasStripeSub: $hasStripeSub');
+    debugPrint('[PauseResume] Available fields: ${_activeSub?.keys.toList()}');
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('Pause / Resume Subscription'),
@@ -137,7 +183,7 @@ class _PauseResumeSubscriptionPageV1State extends State<PauseResumeSubscriptionP
                     children: [
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: _working ? null : _pause,
+                          onPressed: _working || !hasStripeSub ? null : _pause,
                           style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
                           child: Text(_working ? 'Working…' : 'Pause'),
                         ),
@@ -145,7 +191,7 @@ class _PauseResumeSubscriptionPageV1State extends State<PauseResumeSubscriptionP
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: _working ? null : _resume,
+                          onPressed: _working || !hasStripeSub ? null : _resume,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppThemeV3.primaryGreen,
                             foregroundColor: Colors.white,
@@ -156,6 +202,68 @@ class _PauseResumeSubscriptionPageV1State extends State<PauseResumeSubscriptionP
                       ),
                     ],
                   ),
+                  if (!hasStripeSub) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.shade200),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.info_outline, color: Colors.orange.shade700, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'No Stripe subscription linked',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.orange.shade900,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'You have selected a meal plan but haven\'t completed payment setup. To pause/resume your subscription, you need to:\n\n1. Add a payment method\n2. Subscribe to a plan via Stripe\n\nOnce you have an active Stripe subscription, you\'ll be able to pause and resume it here.',
+                                  style: TextStyle(
+                                    color: Colors.orange.shade800,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => const PaymentMethodsPageV3(),
+                                        ),
+                                      );
+                                    },
+                                    icon: const Icon(Icons.credit_card, size: 18),
+                                    label: const Text('Set Up Payment'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.orange.shade700,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                 ],
               ),

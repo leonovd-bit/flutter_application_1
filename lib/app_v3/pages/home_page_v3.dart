@@ -5,7 +5,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'dart:math' as math;
-import '../utils/date_utils.dart';
 import '../theme/app_theme_v3.dart';
 import '../models/meal_model_v3.dart';
 import 'delivery/map_page_v3.dart';
@@ -14,7 +13,9 @@ import 'orders/past_orders_page_v3.dart';
 import 'delivery/address_page_v3.dart';
 import 'meals/menu_page_v3.dart';
 import '../services/auth/firestore_service_v3.dart';
-import '../services/orders/order_service_v3.dart';
+import '../services/orders/order_generation_service.dart';
+import '../services/orders/order_functions_service.dart';
+import '../services/notifications/notification_service_v3.dart';
 import '../widgets/app_image.dart';
 // Removed unused imports
 
@@ -28,11 +29,13 @@ class HomePageV3 extends StatefulWidget {
 class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
   // Optimized state management - reduce static data
   String _currentMealPlan = 'Pro';
-  bool _hasComputedNextOrder = false; // Prevent fallback from overriding computed result
 
-  
   // Lazy-loaded next order data
   Map<String, dynamic>? _nextOrder;
+  bool _nextOrderFromFirestore = false;
+  bool _showingScheduleFallback = false;
+  bool _isLoadingNextOrder = true;
+  String? _confirmingOrderId;
   
   // Real past orders from user data
   List<Map<String, dynamic>> _recentOrders = [];
@@ -45,10 +48,6 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
   // Timeline orders - expanded state
   String? _expandedOrderId;
   List<Map<String, dynamic>> _cachedTimelineOrders = []; // Cache timeline orders
-
-  // Protein logging (removed feature)
-
-  // Cached nutrition data
   Map<String, Map<String, int>> _cachedNutritionData = {
     'Mon': {'Calories': 0, 'Protein': 0, 'Fat': 0},
     'Tue': {'Calories': 0, 'Protein': 0, 'Fat': 0},
@@ -58,16 +57,57 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
     'Sat': {'Calories': 0, 'Protein': 0, 'Fat': 0},
     'Sun': {'Calories': 0, 'Protein': 0, 'Fat': 0},
   };
+  static const Map<String, List<String>> _dayVariants = {
+    'monday': ['monday', 'mon', 'mondayall', 'monall', 'mo'],
+    'tuesday': ['tuesday', 'tue', 'tues', 'tuesdayall', 'tueall', 'tu'],
+    'wednesday': ['wednesday', 'wed', 'weds', 'wednesdayall', 'wedall', 'we'],
+    'thursday': ['thursday', 'thu', 'thur', 'thurs', 'thursdayall', 'thuall', 'th'],
+    'friday': ['friday', 'fri', 'fridayall', 'friall', 'fr'],
+    'saturday': ['saturday', 'sat', 'saturdayall', 'satall', 'sa'],
+    'sunday': ['sunday', 'sun', 'sundayall', 'sunall', 'su'],
+  };
+
+  static const Map<String, List<String>> _mealVariants = {
+    'breakfast': ['breakfast', 'bfast', 'b', 'brk', 'morning'],
+    'lunch': ['lunch', 'lun', 'l'],
+    'dinner': ['dinner', 'din', 'd', 'supper'],
+    'snack': ['snack', 'snk', 'sn'],
+  };
+
+  static const List<String> _scheduleContainers = [
+    'days',
+    'schedule',
+    'week',
+    'weeks',
+    'delivery',
+    'deliverydays',
+    'meals',
+  ];
+
+  static const List<String> _weekdayOrder = [
+    'monday',
+    'tuesday',
+    'wednesday',
+    'thursday',
+    'friday',
+    'saturday',
+    'sunday',
+  ];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _loadInitialData();
+  }
+
+  void _loadInitialData() {
     _loadCurrentMealPlan();
-    _loadOrderData();
-    _loadAddresses();
     _listenPlanFromFirestore();
-    _loadNutritionData(); // Load nutrition data from meal schedule
+    _loadNutritionData();
+    _loadAddresses();
+    _loadNextUpcomingOrder();
+    _loadRecentOrders();
   }
 
   @override
@@ -79,846 +119,179 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-    // Reload data when app comes to foreground
     if (state == AppLifecycleState.resumed) {
-      _loadAddresses();
-      _loadOrderData();
-      // Also refresh nutrition totals so the weekly graph reflects latest selections
-      _loadNutritionData();
+      _refreshVisibleData();
     }
   }
 
-  void _loadOrderData() {
-    // Load real user order data
-    _loadNextUpcomingOrder();
-    _loadRecentOrders();
-    
-    // Fallback: Try loading from SharedPreferences after delay
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        _loadUpcomingOrderFromLocalData();
-      }
-    });
+  Future<void> _refreshVisibleData() async {
+    await Future.wait([
+      _loadNextUpcomingOrder(),
+      _loadRecentOrders(),
+      _loadAddresses(),
+    ]);
   }
 
-  /// Loads upcoming order data directly from SharedPreferences
-  /// This serves as a fallback when Firebase data loading fails
-  Future<void> _loadUpcomingOrderFromLocalData() async {
-    try {
-      debugPrint('[HomePage] Loading upcoming order from local data...');
-      // Do not override if already determined via schedule logic
-      if (_nextOrder != null || _hasComputedNextOrder) {
-        debugPrint('[HomePage] Skipping local-data fallback: next order already set by schedule');
-        return;
-      }
-      
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        debugPrint('[HomePage] No user logged in');
-        return;
-      }
-      
-      final prefs = await SharedPreferences.getInstance();
-      
-      // Prefer the user's selected schedule first; fallback to any meal selections key
-      final selectedSchedule = prefs.getString('selected_schedule_${user.uid}') ?? 'weekly';
-      Map<String, dynamic>? mealData;
-      final directKey = 'meal_selections_${user.uid}_$selectedSchedule';
-      final directJson = prefs.getString(directKey);
-      if (directJson != null) {
-        try {
-          mealData = json.decode(directJson) as Map<String, dynamic>;
-          debugPrint('[HomePage] Using meal selections from "$directKey"');
-        } catch (e) {
-          debugPrint('[HomePage] Error parsing "$directKey": $e');
-        }
-      }
-      mealData ??= _findMealSelectionsData(prefs, user.uid);
-      if (mealData == null) {
-        debugPrint('[HomePage] No meal selections found');
-        return;
-      }
-      
-      // Find delivery schedule data  
-      final scheduleData = _findDeliveryScheduleData(prefs, user.uid);
-      if (scheduleData == null) {
-        debugPrint('[HomePage] No delivery schedule found');
-        return;
-      }
-      
-      // Parse and set upcoming order
-      _parseAndSetUpcomingOrder(mealData, scheduleData);
-      
-    } catch (e) {
-      debugPrint('[HomePage] Error loading from local data: $e');
-    }
-  }
-
-  /// Finds meal selections data in SharedPreferences
-  Map<String, dynamic>? _findMealSelectionsData(SharedPreferences prefs, String userId) {
-    final allKeys = prefs.getKeys();
-    
-    for (final key in allKeys) {
-      if (key.contains('meal_selections_${userId}_')) {
-        final jsonString = prefs.getString(key);
-        if (jsonString != null) {
-          try {
-            return json.decode(jsonString) as Map<String, dynamic>;
-          } catch (e) {
-            debugPrint('[HomePage] Error parsing meal selections: $e');
-          }
-        }
-      }
-    }
-    return null;
-  }
-
-  /// Finds delivery schedule data in SharedPreferences
-  Map<String, dynamic>? _findDeliveryScheduleData(SharedPreferences prefs, String userId) {
-    final jsonString = prefs.getString('delivery_schedule_$userId');
-    if (jsonString != null) {
-      try {
-        return json.decode(jsonString) as Map<String, dynamic>;
-      } catch (e) {
-        debugPrint('[HomePage] Error parsing delivery schedule: $e');
-      }
-    }
-    return null;
-  }
-
-  /// Parses meal and schedule data and sets the upcoming order
-  void _parseAndSetUpcomingOrder(Map<String, dynamic> mealSelections, Map<String, dynamic> deliverySchedule) {
-    for (final day in mealSelections.keys) {
-      final dayMeals = mealSelections[day] as Map<String, dynamic>?;
-      if (dayMeals == null) continue;
-      
-      for (final mealType in dayMeals.keys) {
-        final mealData = dayMeals[mealType] as Map<String, dynamic>?;
-        if (mealData == null) continue;
-        
-        // Get delivery time for this meal
-        final timeStr = _getDeliveryTime(deliverySchedule, day, mealType);
-        if (timeStr == null) continue;
-        
-        // Create meal object
-        try {
-          final meal = MealModelV3.fromJson(mealData);
-          final formattedTime = _formatTimeOnly(timeStr);
-          
-          setState(() {
-            _nextOrder = {
-              'meal': meal,
-              'mealName': meal.name,
-              'deliveryTime': formattedTime, // Store formatted time string
-              'imageUrl': meal.imagePath, // Use imagePath getter instead of imageUrl
-              'calories': meal.calories,
-              'protein': meal.protein,
-              'deliveryAddress': 'Your Address',
-              'orderId': 'upcoming_${day}_$mealType',
-              'day': day,
-            };
-            // Reset timeline cache when upcoming order changes so status is rebuilt
-            _cachedTimelineOrders = [];
-            _expandedOrderId = null;
-          });
-          
-          debugPrint('[HomePage] ✅ Set upcoming meal: ${meal.name} at $formattedTime');
-          return; // Found and set the first available meal
-          
-        } catch (e) {
-          debugPrint('[HomePage] Error creating meal object: $e');
-        }
-      }
-    }
-  }
-
-  /// Extracts delivery time from schedule data
-  String? _getDeliveryTime(Map<String, dynamic> deliverySchedule, String day, String mealType) {
-    Map<String, dynamic>? daySchedule = deliverySchedule[day] as Map<String, dynamic>?;
-    daySchedule ??= deliverySchedule[_toTitleCase(day)] as Map<String, dynamic>?;
-    daySchedule ??= deliverySchedule[day.toLowerCase()] as Map<String, dynamic>?;
-
-    if (daySchedule == null) return null;
-
-    Map<String, dynamic>? mealSchedule = daySchedule[mealType] as Map<String, dynamic>?;
-    mealSchedule ??= daySchedule[mealType.toLowerCase()] as Map<String, dynamic>?;
-    mealSchedule ??= daySchedule[_toTitleCase(mealType)] as Map<String, dynamic>?;
-    final val = mealSchedule?['time'];
-    if (val is String) return val;
-    return null;
-  }
-
-  /// Formats time string (HH:MM) to display format (H:MM AM/PM)
-  String _formatTimeOnly(String timeStr) {
-    try {
-      final parts = timeStr.split(':');
-      final hour = int.parse(parts[0]);
-      final minute = int.parse(parts[1]);
-      
-      final period = hour >= 12 ? 'PM' : 'AM';
-      final displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
-      final displayMinute = minute.toString().padLeft(2, '0');
-      
-      return '$displayHour:$displayMinute $period';
-    } catch (e) {
-      debugPrint('[HomePage] Error formatting time $timeStr: $e');
-      return timeStr; // Return original if formatting fails
-    }
-  }
-
-  // Load recent orders from Firebase
-  Future<void> _loadRecentOrders() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    // no-op loading state removed
-
-    try {
-      final orders = await OrderServiceV3.getUserRecentOrders(user.uid, limit: 3);
-      if (mounted) {
-        setState(() {
-          _recentOrders = orders;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          // Keep empty list if there's an error
-          _recentOrders = [];
-        });
-      }
-    }
-  }
-
-  Future<void> _loadNextUpcomingOrder() async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        setState(() => _nextOrder = null);
-        return;
-      }
-
-      // Load from meal schedule data instead of Firestore orders
-      final prefs = await SharedPreferences.getInstance();
-      
-      // Check if this is a new subscription or existing one
-      final hasExisting = await DateUtilsV3.hasExistingSubscription();
-      debugPrint('[HomePage] Has existing subscription: $hasExisting');
-
-      // Try current selected schedule first; if missing, pick the first meal_selections entry for this user
-      String? mealSelectionsJson = prefs.getString('meal_selections_${user.uid}_${prefs.getString('selected_schedule_${user.uid}') ?? 'weekly'}');
-      if (mealSelectionsJson == null) {
-        final firstKey = prefs
-            .getKeys()
-            .firstWhere((k) => k.startsWith('meal_selections_${user.uid}_'), orElse: () => '');
-        if (firstKey.isNotEmpty) {
-          mealSelectionsJson = prefs.getString(firstKey);
-        }
-      }
-      if (mealSelectionsJson == null) {
-        setState(() => _nextOrder = null);
-        return;
-      }
-
-      final mealSelections = json.decode(mealSelectionsJson) as Map<String, dynamic>;
-      
-      // Load delivery schedule to get times and addresses
-      final deliveryScheduleJson = prefs.getString('delivery_schedule_${user.uid}');
-      Map<String, dynamic> deliverySchedule = {};
-      if (deliveryScheduleJson != null) {
-        deliverySchedule = json.decode(deliveryScheduleJson) as Map<String, dynamic>;
-      }
-      
-      // Find the next upcoming meal delivery
-      final now = DateTime.now();
-      final today = now.weekday;
-      final currentTime = TimeOfDay.fromDateTime(now);
-      
-      MealModelV3? nextMeal;
-      String? nextMealType;
-      String? nextDeliveryTime;
-      String? nextDeliveryAddress;
-      String nextDay = '';
-      
-      // Days in order from Monday to Sunday
-      final daysToCheck = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-      final nextMonday = DateUtilsV3.getNextMonday();
-      
-      // For new subscriptions, start from next Monday. For existing, start from today.
-      final firstValidDate = hasExisting ? now : nextMonday;
-      debugPrint('[HomePage] First valid date: ${firstValidDate.toIso8601String()}, hasExisting: $hasExisting');
-      
-      // Calculate the index offset based on firstValidDate's weekday
-      final startIndex = firstValidDate.weekday - 1; // 0-based index for Monday
-      debugPrint('[HomePage] Starting with weekday ${firstValidDate.weekday} (${daysToCheck[startIndex]})');
-
-      // Iterate through 7 days, starting from the firstValidDate's weekday
-      for (int offset = 0; offset < 7; offset++) {
-        final dayIndex = (startIndex + offset) % 7; // Wrap around at end of week
-        final checkDayName = daysToCheck[dayIndex];
-        final checkDate = firstValidDate.add(Duration(days: offset));
-        
-        debugPrint('[HomePage] Checking day $checkDayName (${checkDate.toIso8601String()})');
-
-        // Skip invalid dates for new subscriptions
-        if (!hasExisting && checkDate.isBefore(nextMonday)) {
-          debugPrint('[HomePage] Skipping $checkDayName as it\'s before next Monday');
-          continue;
-        }
-        
-        final dayMeals = _getDayMealsFlexible(mealSelections, checkDayName);
-        if (dayMeals == null) continue;
-        
-  final dayDelivery = _getDayMealsFlexible(deliverySchedule, checkDayName);
-        
-        // Check breakfast, lunch, dinner in chronological order
-  for (final mealType in ['breakfast', 'lunch', 'dinner']) {
-          final mealData = _getMealFlexible(dayMeals, mealType);
-          if (mealData == null) continue;
-          
-          final deliveryConfig = dayDelivery == null ? null : _getMealFlexible(dayDelivery, mealType);
-          final timeStr = deliveryConfig?['time'] as String?;
-          
-          if (timeStr != null) {
-            final timeParts = timeStr.split(':');
-            if (timeParts.length == 2) {
-              final hour = int.tryParse(timeParts[0]);
-              final minute = int.tryParse(timeParts[1]);
-              
-              if (hour != null && minute != null) {
-                final mealTime = TimeOfDay(hour: hour, minute: minute);
-                
-                // If this is today, check if the time hasn't passed yet
-                if (offset == 0) {
-                  final mealMinutes = mealTime.hour * 60 + mealTime.minute;
-                  final currentMinutes = currentTime.hour * 60 + currentTime.minute;
-                  
-                  if (mealMinutes <= currentMinutes) {
-                    continue; // This meal time has already passed today
-                  }
-                }
-                
-                // Found the next upcoming meal
-                try {
-                  nextMeal = MealModelV3.fromJson(mealData);
-                  nextMealType = mealType;
-                  nextDeliveryTime = timeStr;
-                  nextDeliveryAddress = deliveryConfig?['address'] as String? ?? 'Address not set';
-                  nextDay = checkDayName;
-                  break;
-                } catch (e) {
-                  debugPrint('[HomePage] Error parsing meal data: $e');
-                }
-              }
-            }
-          }
-        }
-        
-        if (nextMeal != null) break;
-      }
-      
-      if (nextMeal != null && nextDeliveryTime != null) {
-        final MealModelV3 meal = nextMeal;
-        setState(() {
-          _nextOrder = {
-            'mealType': nextMealType ?? 'lunch',
-            'mealName': meal.name,
-            'deliveryTime': nextDeliveryTime,
-            'imageUrl': meal.imagePath, // Use imagePath getter instead of imageUrl
-            'calories': meal.calories,
-            'protein': meal.protein,
-            'deliveryAddress': nextDeliveryAddress ?? 'Address not set',
-            'orderId': 'meal_${nextDay}_${nextMealType}',
-            'day': nextDay,
-          };
-          // Reset timeline cache when upcoming order changes so status is rebuilt
-          _cachedTimelineOrders = [];
-          _expandedOrderId = null;
-        });
-        _hasComputedNextOrder = true;
-        debugPrint('[HomePage] Found next meal: ${meal.name} on $nextDay at $nextDeliveryTime');
-      } else {
-        setState(() => _nextOrder = null);
-        debugPrint('[HomePage] No upcoming meals found in schedule');
-      }
-      
-    } catch (e) {
-      debugPrint('[HomePage] Error loading upcoming meal from schedule: $e');
-      setState(() => _nextOrder = null);
-    }
-  }
-
-  // Flexible accessors for mixed-case maps coming from different pages
-  Map<String, dynamic>? _getDayMealsFlexible(Map<String, dynamic> map, String dayLower) {
-    debugPrint('[HomePage] 🔎 _getDayMealsFlexible called with dayLower="$dayLower"');
-    debugPrint('[HomePage] 🔎 Map has ${map.length} top-level entries');
-    debugPrint('[HomePage] 🔎 Top-level keys: ${map.keys.take(10).join(', ')}');
-    
-    if (dayLower.isEmpty) {
-      debugPrint('[HomePage] ❌ Empty day name provided');
+  Map<String, dynamic>? _getDayMealsFlexible(Map<String, dynamic>? source, String? dayName) {
+    if (source == null || source.isEmpty || dayName == null || dayName.trim().isEmpty) {
       return null;
     }
 
-    // First standardize the input day name by removing any numbers and special characters
-    final searchDay = dayLower
-      .toLowerCase()
-      .trim()
-      .replaceAll(RegExp(r'[0-9]+'), '') // Remove numbers
-      .replaceAll(RegExp(r'[^a-z]'), '') // Remove non-letters
-      .trim();
+    final normalizedTarget = _normalizeKey(dayName);
+    final canonicalTarget = _resolveDayKey(normalizedTarget);
 
-    if (searchDay.isEmpty) {
-      debugPrint('[HomePage] ❌ Day name contains no letters: "$dayLower"');
+    Map<String, dynamic>? search(Map<String, dynamic> candidate) {
+      // Direct key match
+      for (final entry in candidate.entries) {
+        final value = entry.value;
+        if (value is! Map) continue;
+        final normalizedKey = _normalizeKey(entry.key.toString());
+        if (normalizedKey == normalizedTarget || normalizedKey == canonicalTarget) {
+          return Map<String, dynamic>.from(value);
+        }
+      }
+
+      // Prefix match across day variants
+      for (final entry in candidate.entries) {
+        final value = entry.value;
+        if (value is! Map) continue;
+        final normalizedKey = _normalizeKey(entry.key.toString());
+        if (normalizedKey.startsWith(normalizedTarget) || normalizedTarget.startsWith(normalizedKey)) {
+          return Map<String, dynamic>.from(value);
+        }
+      }
+
+      // Search inside common container keys
+      for (final entry in candidate.entries) {
+        final value = entry.value;
+        if (value is! Map) continue;
+        final normalizedKey = _normalizeKey(entry.key.toString());
+        if (_scheduleContainers.contains(normalizedKey)) {
+          final nested = search(Map<String, dynamic>.from(value));
+          if (nested != null) {
+            return nested;
+          }
+        }
+      }
       return null;
     }
 
-    debugPrint('[HomePage] 🔍 Searching with standardized day: "$searchDay"');
+    return search(source);
+  }
 
-    // Core map of standard day names to normalized variations
-    const dayMappings = {
-      'monday': ['mon', 'monday', 'mondayall', 'monall', 'm'],
-      'tuesday': ['tue', 'tues', 'tuesday', 'tuesdayall', 'tueall', 't'],
-      'wednesday': ['wed', 'weds', 'wednesday', 'wednesdayall', 'wedall', 'w'],
-      'thursday': ['thu', 'thur', 'thurs', 'thursday', 'thursdayall', 'thuall', 'th'],
-      'friday': ['fri', 'friday', 'fridayall', 'friall', 'f'],
-      'saturday': ['sat', 'saturday', 'saturdayall', 'satall', 's'],
-      'sunday': ['sun', 'sunday', 'sundayall', 'sunall', 'su']
-    };
+  Map<String, dynamic>? _getMealFlexible(Map<String, dynamic>? dayMap, String? mealName) {
+    if (dayMap == null || dayMap.isEmpty || mealName == null || mealName.trim().isEmpty) {
+      return null;
+    }
 
-    // Helper to normalize a key string
-    String normalizeKey(String key) {
-      return key
+    final normalizedTarget = _normalizeKey(mealName);
+    final candidates = <String>[
+      mealName,
+      mealName.toLowerCase(),
+      _toTitleCase(mealName),
+      mealName.toUpperCase(),
+    ];
+
+    for (final key in candidates) {
+      final value = dayMap[key];
+      if (value is Map<String, dynamic>) {
+        return value;
+      }
+    }
+
+    String canonicalMeal = normalizedTarget;
+    for (final entry in _mealVariants.entries) {
+      if (entry.value.contains(normalizedTarget)) {
+        canonicalMeal = entry.key;
+        break;
+      }
+      if (entry.value.any((variant) => normalizedTarget.startsWith(variant) || variant.startsWith(normalizedTarget))) {
+        canonicalMeal = entry.key;
+        break;
+      }
+    }
+
+    for (final entry in dayMap.entries) {
+      final value = entry.value;
+      if (value is! Map<String, dynamic>) continue;
+      final normalizedKey = _normalizeKey(entry.key.toString());
+      if (normalizedKey == canonicalMeal || normalizedKey.startsWith(canonicalMeal)) {
+        return value;
+      }
+    }
+
+    return null;
+  }
+
+  String _normalizeKey(String value) {
+    return value
         .toLowerCase()
         .trim()
         .replaceAll(RegExp(r'[0-9]+'), '')
         .replaceAll(RegExp(r'[^a-z]'), '')
         .trim();
-    }
-
-    // 1. First try direct key match
-    if (map.containsKey(dayLower)) {
-      debugPrint('[HomePage] ✅ Found exact key match for "$dayLower"');
-      return map[dayLower] as Map<String, dynamic>?;
-    }
-
-    // 2. Find standard day based on input
-    String? standardDay;
-    String? matchedVariant;
-
-    // Try exact match first
-    for (final entry in dayMappings.entries) {
-      if (entry.value.contains(searchDay)) {
-        standardDay = entry.key;
-        matchedVariant = searchDay;
-        break;
-      }
-    }
-
-    // If no exact match, try prefix match with minimum 3 chars
-    if (standardDay == null && searchDay.length >= 3) {
-      for (final entry in dayMappings.entries) {
-        for (final variant in entry.value) {
-          if (variant.startsWith(searchDay)) {
-            standardDay = entry.key;
-            matchedVariant = variant;
-            break;
-          }
-        }
-        if (standardDay != null) break;
-      }
-    }
-
-    if (standardDay == null) {
-      debugPrint('[HomePage] ❌ Could not determine standard day for "$searchDay"');
-      return null;
-    }
-
-    // 3. Try to find a matching key in various forms
-    final attempts = [
-      standardDay,
-      '${standardDay}1',
-      standardDay.substring(0, 3),
-      standardDay[0].toUpperCase() + standardDay.substring(1),
-      standardDay.toUpperCase(),
-      matchedVariant,
-    ];
-
-    // Try direct matches first
-    for (final attempt in attempts) {
-      if (map.containsKey(attempt)) {
-        debugPrint('[HomePage] ✅ Found direct match with attempt: "$attempt"');
-        return map[attempt] as Map<String, dynamic>?;
-      }
-    }
-
-    // Try case-insensitive matching on normalized keys
-    for (final key in map.keys) {
-      final normalizedKey = normalizeKey(key.toString());
-      if (attempts.contains(normalizedKey)) {
-        debugPrint('[HomePage] ✅ Found case-insensitive match: "$key" normalizes to "$normalizedKey"');
-        return map[key] as Map<String, dynamic>?;
-      }
-    }
-
-    // 4. Last resort: Partial matches on normalized strings
-    for (final key in map.keys) {
-      final normalizedKey = normalizeKey(key.toString());
-      if (normalizedKey.contains(searchDay) || searchDay.contains(normalizedKey)) {
-        debugPrint('[HomePage] ✅ Found partial match: "$key" contains or is contained by "$searchDay"');
-        return map[key] as Map<String, dynamic>?;
-      }
-    }
-
-    // 5. Try common nested containers (one level deep)
-    const likelyContainers = ['days', 'schedule', 'week', 'weeks', 'delivery', 'deliverydays', 'meals'];
-    for (final key in map.keys) {
-      final kLower = key.toString().toLowerCase();
-      if (!likelyContainers.contains(kLower)) continue;
-      final val = map[key];
-      if (val is Map<String, dynamic>) {
-        final found = _getDayMealsFlexible(val, dayLower);
-        if (found != null) {
-          debugPrint('[HomePage] ✅ Found day "$dayLower" in nested container "$key"');
-          return found;
-        }
-      }
-    }
-
-    // 6. Scan any nested maps (one level deep)
-    for (final entry in map.entries) {
-      final val = entry.value;
-      if (val is Map<String, dynamic>) {
-        final found = _getDayMealsFlexible(val, dayLower);
-        if (found != null) {
-          debugPrint('[HomePage] ✅ Found day "$dayLower" in nested map under key "${entry.key}"');
-          return found;
-        }
-      }
-    }
-    // 4. Last resort: Partial matches on normalized strings
-    debugPrint('[HomePage] ❌ No meals found for day "$dayLower" after exhausting all matching attempts');
-    return null;
   }
 
-  Map<String, dynamic>? _getMealFlexible(Map<String, dynamic> dayMap, String mealLower) {
-    // Map of standard meal types to all possible variations
-    final mealVariants = {
-      'breakfast': ['breakfast', 'b', 'bfast', 'brek', 'brk', 'Breakfast', 'BREAKFAST'],
-      'lunch': ['lunch', 'l', 'lun', 'Lunch', 'LUNCH'],
-      'dinner': ['dinner', 'd', 'din', 'Dinner', 'DINNER']
-    };
-
-    // Normalize input meal type
-    final searchMeal = mealLower.toLowerCase().trim();
-
-    // First try exact match
-    if (dayMap.containsKey(searchMeal)) {
-      return dayMap[searchMeal] as Map<String, dynamic>?;
-    }
-
-    // Find which standard meal type this matches
-    String? standardMeal;
-    for (final entry in mealVariants.entries) {
-      if (entry.value.contains(searchMeal)) {
-        standardMeal = entry.key;
-        break;
+  String _resolveDayKey(String normalizedKey) {
+    for (final entry in _dayVariants.entries) {
+      if (entry.value.contains(normalizedKey)) {
+        return entry.key;
+      }
+      if (entry.value.any((variant) => normalizedKey.startsWith(variant) || variant.startsWith(normalizedKey))) {
+        return entry.key;
       }
     }
-
-    if (standardMeal != null) {
-      // Try all variants of this meal type
-      for (final variant in mealVariants[standardMeal]!) {
-        if (dayMap.containsKey(variant)) {
-          return dayMap[variant] as Map<String, dynamic>?;
-        }
-      }
-
-      // Try case-insensitive match
-      for (final key in dayMap.keys) {
-        if (mealVariants[standardMeal]!.contains(key.toString().toLowerCase().trim())) {
-          return dayMap[key] as Map<String, dynamic>?;
-        }
-      }
-    }
-
-    // Fallback to basic variations
-    return (dayMap[_toTitleCase(searchMeal)] as Map<String, dynamic>?)
-        ?? (dayMap[searchMeal.toUpperCase()] as Map<String, dynamic>?);
-  }
-
-  /// Confirm the next upcoming order and create it in Firestore
-  Future<void> _confirmOrder() async {
-    if (_nextOrder == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No order to confirm'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      return;
-    }
-
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-
-      final orderId = _nextOrder!['orderId'] as String;
-      debugPrint('[HomePage] Confirming order: $orderId');
-
-      // Get meal data from SharedPreferences
-      final prefs = await SharedPreferences.getInstance();
-      final selectedSchedule = prefs.getString('selected_schedule_${user.uid}') ?? 'weekly';
-      final mealSelectionsJson = prefs.getString('meal_selections_${user.uid}_$selectedSchedule');
-      
-      if (mealSelectionsJson == null) {
-        throw Exception('No meal selections found');
-      }
-
-      final mealSelections = json.decode(mealSelectionsJson) as Map<String, dynamic>;
-      debugPrint('[HomePage] Available meal days: ${mealSelections.keys.join(', ')}');
-      
-      // Get day and meal type, with debug logging
-      final rawDay = _nextOrder!['day'] as String?;
-      // Clean day name and convert to TitleCase to match saved format
-      final cleanedDay = rawDay?.toLowerCase().replaceAll(RegExp(r'\s+\d+$'), '').trim();
-      final dayName = cleanedDay != null && cleanedDay.isNotEmpty
-          ? cleanedDay[0].toUpperCase() + cleanedDay.substring(1).toLowerCase()
-          : cleanedDay;
-      debugPrint('[HomePage] Looking up meals for day: "$dayName"');
-      
-      // Convert meal type to TitleCase to match saved format (Breakfast, Lunch, Dinner)
-      final rawMealType = (_nextOrder!['mealType'] as String?)?.toLowerCase();
-      final mealType = rawMealType != null && rawMealType.isNotEmpty
-          ? rawMealType[0].toUpperCase() + rawMealType.substring(1).toLowerCase()
-          : rawMealType;
-      
-      debugPrint('[HomePage] 📅 Raw day from _nextOrder: $rawDay');
-      debugPrint('[HomePage] 📅 Cleaned day name (TitleCase): $dayName');
-      debugPrint('[HomePage] 🍽️ Meal type (TitleCase): $mealType');
-      debugPrint('[HomePage] 🔍 Available days in selections: ${mealSelections.keys.join(', ')}');
-      
-      if (dayName == null || mealType == null) {
-        throw Exception('Invalid day or meal type');
-      }
-      
-      // DIAGNOSTICS: Log structure before lookup
-      debugPrint('[HomePage] 🔍 DIAGNOSTICS: About to look up day "$dayName" in mealSelections');
-      debugPrint('[HomePage] 🔍 Top-level keys: ${mealSelections.keys.take(10).join(', ')}');
-      final sample = mealSelections.entries.take(5).map((e) => '${e.key}:${e.value.runtimeType}').join(', ');
-      debugPrint('[HomePage] 🔍 Structure sample: $sample');
-      
-      // Try direct lookup first (TitleCase keys)
-      Map<String, dynamic>? dayMeals = mealSelections[dayName] as Map<String, dynamic>?;
-      
-      // Fall back to flexible lookup if direct fails
-      if (dayMeals == null) {
-        dayMeals = _getDayMealsFlexible(mealSelections, dayName);
-      }
-
-      // If not found, try scanning keys for close matches (case-insensitive or prefix)
-      if (dayMeals == null) {
-        debugPrint('[HomePage] ❌ FIRST NULL CHECK: Day lookup failed for "$dayName"');
-        debugPrint('[HomePage] Available keys: ${mealSelections.keys.join(', ')}');
-        // Extra diagnostics: show first-level structure and common containers
-        try {
-          for (final container in ['days','schedule','week','weeks','delivery','deliveryDays','meals']) {
-            final val = mealSelections[container] ?? mealSelections[container.toLowerCase()];
-            if (val is Map) {
-              debugPrint('[HomePage] Container "$container" has keys: ${val.keys.join(', ')}');
-            }
-          }
-        } catch (e) {
-          debugPrint('[HomePage] Error scanning containers: $e');
-        }
-        for (final k in mealSelections.keys) {
-          try {
-            final kLower = k.toString().toLowerCase();
-            if (kLower == dayName || kLower.startsWith(dayName.substring(0, 3))) {
-              final candidate = mealSelections[k] as Map<String, dynamic>?;
-              if (candidate != null) {
-                dayMeals = candidate;
-                debugPrint('[HomePage] Found day match by key "$k" for "$dayName"');
-                break;
-              }
-            }
-            // Title-case match
-            if (_toTitleCase(kLower) == _toTitleCase(dayName)) {
-              final candidate = mealSelections[k] as Map<String, dynamic>?;
-              if (candidate != null) {
-                dayMeals = candidate;
-                debugPrint('[HomePage] Found day match by TitleCase key "$k" for "$dayName"');
-                break;
-              }
-            }
-          } catch (_) {
-            // ignore malformed entries
-          }
-        }
-      }
-
-      if (dayMeals == null) throw Exception('No meals for $dayName');
-
-      // Try direct TitleCase lookup first
-      Map<String, dynamic>? mealData = dayMeals[mealType] as Map<String, dynamic>?;
-      
-      // Fall back to flexible lookup
-      if (mealData == null) {
-        mealData = _getMealFlexible(dayMeals, mealType);
-      }
-      
-      if (mealData == null) throw Exception('No $mealType meal for $dayName');
-
-  final meal = MealModelV3.fromJson(mealData);
-      
-      // Get delivery schedule to find the delivery date/time
-      final deliveryScheduleJson = prefs.getString('delivery_schedule_${user.uid}');
-      if (deliveryScheduleJson == null) throw Exception('No delivery schedule found');
-      
-  final deliverySchedule = json.decode(deliveryScheduleJson) as Map<String, dynamic>;
-  final daySchedule = _getDayMealsFlexible(deliverySchedule, dayName);
-  final mealSchedule = daySchedule == null ? null : _getMealFlexible(daySchedule, mealType);
-  final timeStr = mealSchedule?['time'] as String? ?? '12:30';
-  final address = mealSchedule?['address'] as String? ?? _nextOrder!['deliveryAddress'] ?? '350 5th ave';
-
-      // Calculate delivery date (next occurrence of this day)
-      debugPrint('[HomePage] 🗓️ Calculating delivery date for day: "$dayName"');
-      final now = DateTime.now();
-      final daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-      
-      // Normalize day name for comparison
-      final normalizedDayName = dayName.toLowerCase().trim();
-      debugPrint('[HomePage] 📅 Normalized day name: "$normalizedDayName"');
-      
-      // Find the day index with more flexible matching
-      int targetDayIndex = daysOfWeek.indexOf(normalizedDayName);
-      if (targetDayIndex == -1) {
-        // Try prefix matching (e.g., "mon" -> "monday")
-        targetDayIndex = daysOfWeek.indexWhere((day) => day.startsWith(normalizedDayName.substring(0, math.min(3, normalizedDayName.length))));
-      }
-      if (targetDayIndex == -1) {
-        // Use Monday as fallback
-        debugPrint('[HomePage] ⚠️ Could not determine day index for "$dayName", defaulting to Monday');
-        targetDayIndex = 0;
-      } else {
-        debugPrint('[HomePage] ✅ Found day index $targetDayIndex for "$dayName"');
-      }
-      
-      final todayIndex = (now.weekday - 1) % 7;
-      
-      int daysUntil = (targetDayIndex - todayIndex) % 7;
-      if (daysUntil == 0) daysUntil = 7; // Next week if it's today
-      
-      final deliveryDate = now.add(Duration(days: daysUntil));
-      final timeParts = timeStr.split(':');
-      final hour = int.tryParse(timeParts[0]) ?? 12;
-      final minute = timeParts.length > 1 ? int.tryParse(timeParts[1]) ?? 30 : 30;
-      
-      final deliveryDateTime = DateTime(
-        deliveryDate.year,
-        deliveryDate.month,
-        deliveryDate.day,
-        hour,
-        minute,
-      );
-
-      // Check if order already exists in Firestore
-      final orderDoc = await FirebaseFirestore.instance
-          .collection('orders')
-          .doc(orderId)
-          .get();
-
-      if (!orderDoc.exists) {
-        // Create order in Firestore with all Square fields
-        await FirebaseFirestore.instance.collection('orders').doc(orderId).set({
-          'id': orderId,
-          'userId': user.uid,
-          'userEmail': user.email ?? '',
-          'meals': [
-            {
-              'id': meal.id,
-              'name': meal.name,
-              'description': meal.description,
-              'calories': meal.calories,
-              'protein': meal.protein,
-              'fat': meal.fat,
-              'carbs': meal.carbs,
-              'imageUrl': meal.imagePath,
-              'price': meal.price,
-              'mealType': mealType,
-              // Include Square fields for order forwarding
-              'restaurantId': meal.restaurantId,
-              'squareItemId': meal.squareItemId,
-              'squareVariationId': meal.squareVariationId,
-            }
-          ],
-          'deliveryAddress': address,
-          'orderDate': FieldValue.serverTimestamp(),
-          'deliveryDate': Timestamp.fromDate(deliveryDateTime),
-          'estimatedDeliveryTime': Timestamp.fromDate(deliveryDateTime),
-          'status': 'confirmed', // Create as confirmed to trigger forwardOrderToSquare
-          'totalAmount': meal.price,
-          'dayName': dayName,
-          'mealType': mealType,
-          'source': 'home_page',
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-        
-        debugPrint('[HomePage] ✅ Created order in Firestore: $orderId');
-        debugPrint('[HomePage] 📦 Meal: ${meal.name}');
-        debugPrint('[HomePage] 🏪 Restaurant ID: ${meal.restaurantId ?? "NULL - ORDER WILL NOT FORWARD!"}');
-        debugPrint('[HomePage] 🔲 Square Item ID: ${meal.squareItemId ?? "NULL - ORDER WILL NOT FORWARD!"}');
-        debugPrint('[HomePage] 🔲 Square Variation ID: ${meal.squareVariationId ?? "NULL - ORDER WILL NOT FORWARD!"}');
-      } else {
-        // Order exists, just update status to confirmed
-        await FirebaseFirestore.instance.collection('orders').doc(orderId).update({
-          'status': 'confirmed',
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-        
-        debugPrint('[HomePage] ✅ Updated existing order to confirmed: $orderId');
-      }
-
-      // Update UI
-      if (mounted) {
-        setState(() {
-          _cachedTimelineOrders = _cachedTimelineOrders.map((order) {
-            if (order['id'] == orderId) {
-              return {...order, 'status': 'confirmed'};
-            }
-            return order;
-          }).toList();
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Order confirmed! Forwarding to restaurant...'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-
-    } catch (e) {
-      debugPrint('[HomePage] ❌ Error confirming order: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error confirming order: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
+    return normalizedKey;
   }
 
   String _toTitleCase(String s) {
     if (s.isEmpty) return s;
     final t = s.trim();
     return t[0].toUpperCase() + t.substring(1).toLowerCase();
+  }
+
+  String _formatDeliveryDateLabel(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final target = DateTime(date.year, date.month, date.day);
+    if (target == today) return 'Today';
+    if (target == today.add(const Duration(days: 1))) return 'Tomorrow';
+    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final weekdayLabel = weekdays[target.weekday - 1];
+    final monthLabel = months[target.month - 1];
+    return '$weekdayLabel, $monthLabel ${target.day}';
+  }
+
+  String _formatTimeOnlyFromDate(DateTime date) {
+    final hour = date.hour;
+    final minute = date.minute.toString().padLeft(2, '0');
+    final ampm = hour >= 12 ? 'PM' : 'AM';
+    final h12 = hour % 12 == 0 ? 12 : hour % 12;
+    return '$h12:$minute $ampm';
+  }
+
+  DateTime? _parseDateField(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    if (value is Timestamp) return value.toDate();
+    if (value is int) {
+      // Heuristic: treat as milliseconds since epoch if large enough
+      return DateTime.fromMillisecondsSinceEpoch(value);
+    }
+    if (value is String) {
+      final parsed = DateTime.tryParse(value);
+      if (parsed != null) return parsed;
+      final numValue = int.tryParse(value);
+      if (numValue != null) {
+        return DateTime.fromMillisecondsSinceEpoch(numValue);
+      }
+    }
+    return null;
+  }
+
+  String _formatDispatchLabel(DateTime date) {
+    return '${_formatDeliveryDateLabel(date)} • ${_formatTimeOnlyFromDate(date)}';
   }
 
   /// Calculate nutrition totals from user's meal schedule
@@ -1017,11 +390,316 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _loadNextUpcomingOrder() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoadingNextOrder = true;
+    });
+
+    bool loadedFromFirestore = false;
+    try {
+      loadedFromFirestore = await _loadNextOrderFromFirestore();
+      if (!loadedFromFirestore) {
+        await _loadNextOrderPreviewFromSchedule();
+      }
+    } catch (e) {
+      debugPrint('[HomePage] Error loading next order: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingNextOrder = false;
+          _nextOrderFromFirestore = loadedFromFirestore;
+          _showingScheduleFallback = !loadedFromFirestore && _nextOrder != null;
+        });
+      }
+    }
+  }
+
+  Future<bool> _loadNextOrderFromFirestore() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return false;
+
+      final data = await FirestoreServiceV3.getNextUpcomingOrder(uid);
+      if (data == null) {
+        return false;
+      }
+
+      final order = OrderModelV3.fromJson(data);
+      final payload = _mapOrderToNextOrderPayload(order);
+
+      if (!mounted) return false;
+      setState(() {
+        _nextOrder = payload;
+        _cachedTimelineOrders = [_buildTimelineEntryFromPayload(payload)];
+        _nextOrderFromFirestore = true;
+        _showingScheduleFallback = false;
+      });
+      return true;
+    } catch (e) {
+      debugPrint('[HomePage] Error loading Firestore order: $e');
+      return false;
+    }
+  }
+
+  Future<void> _loadNextOrderPreviewFromSchedule() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final prefs = await SharedPreferences.getInstance();
+      final selectedSchedule = prefs.getString('selected_schedule_${user.uid}') ?? 'weekly';
+      final mealSelectionsJson = prefs.getString('meal_selections_${user.uid}_$selectedSchedule');
+      final deliveryScheduleJson = prefs.getString('delivery_schedule_${user.uid}');
+
+      if (mealSelectionsJson == null || deliveryScheduleJson == null) {
+        if (mounted) {
+          setState(() {
+            _nextOrder = null;
+            _cachedTimelineOrders = [];
+            _showingScheduleFallback = false;
+          });
+        }
+        return;
+      }
+
+      final mealSelections = Map<String, dynamic>.from(json.decode(mealSelectionsJson) as Map<String, dynamic>);
+      final deliverySchedule = Map<String, dynamic>.from(json.decode(deliveryScheduleJson) as Map<String, dynamic>);
+
+      final now = DateTime.now();
+      MealModelV3? chosenMeal;
+      DateTime? chosenDateTime;
+      String? chosenDayName;
+      String chosenMealType = 'lunch';
+      String deliveryAddress = _userAddresses.isNotEmpty ? _buildSmartAddress(_userAddresses.first) : 'Address not set';
+
+      for (int offset = 0; offset < 7; offset++) {
+        final candidateDate = DateTime(now.year, now.month, now.day).add(Duration(days: offset));
+        final dayName = _weekdayOrder[candidateDate.weekday - 1];
+        final dayMeals = _getDayMealsFlexible(mealSelections, dayName);
+        if (dayMeals == null) continue;
+
+        for (final mealType in ['lunch', 'dinner', 'breakfast']) {
+          final rawMeal = _getMealFlexible(dayMeals, mealType);
+          if (rawMeal == null) continue;
+
+          final scheduleDay = _getDayMealsFlexible(deliverySchedule, dayName);
+          final scheduleMeal = scheduleDay == null ? null : _getMealFlexible(scheduleDay, mealType);
+          final timeStr = (scheduleMeal?['time'] ?? scheduleMeal?['deliveryTime'] ?? '12:30').toString();
+          final parts = timeStr.split(':');
+          final hour = int.tryParse(parts.first) ?? 12;
+          final minute = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
+          final candidateDateTime = DateTime(candidateDate.year, candidateDate.month, candidateDate.day, hour, minute);
+          final scheduleAddress = (scheduleMeal?['address'] ?? '').toString().trim();
+
+          chosenMeal = MealModelV3.fromJson(Map<String, dynamic>.from(rawMeal));
+          chosenDateTime = candidateDateTime;
+          chosenDayName = dayName;
+          chosenMealType = mealType;
+          if (scheduleAddress.isNotEmpty) {
+            deliveryAddress = scheduleAddress;
+          }
+          break;
+        }
+
+        if (chosenMeal != null) {
+          break;
+        }
+      }
+
+      if (chosenMeal == null || chosenDateTime == null || chosenDayName == null) {
+        if (mounted) {
+          setState(() {
+            _nextOrder = null;
+            _cachedTimelineOrders = [];
+          });
+        }
+        return;
+      }
+
+      final payload = {
+        'orderId': 'preview-${chosenDateTime.millisecondsSinceEpoch}',
+        'id': 'preview-${chosenDateTime.millisecondsSinceEpoch}',
+        'meal': chosenMeal,
+        'mealName': chosenMeal.name,
+        'mealType': chosenMealType,
+        'day': _toTitleCase(chosenDayName),
+        'deliveryDateTime': chosenDateTime.toIso8601String(),
+        'deliveryTime': _formatTimeOnlyFromDate(chosenDateTime),
+        'deliveryAddress': deliveryAddress,
+        'status': 'pending',
+        'userConfirmed': false,
+        'dispatchReadyAt': null,
+        'dispatchWindowMinutes': 60,
+        'calories': chosenMeal.calories,
+        'protein': chosenMeal.protein,
+        'fat': chosenMeal.fat,
+        'carbs': chosenMeal.carbs,
+        'imageUrl': chosenMeal.imagePath,
+        'nutrition': {
+          'calories': chosenMeal.calories,
+          'protein': chosenMeal.protein,
+          'fat': chosenMeal.fat,
+          'carbs': chosenMeal.carbs,
+        },
+        'isPreview': true,
+      };
+
+      if (mounted) {
+        setState(() {
+          _nextOrder = payload;
+          _cachedTimelineOrders = [_buildTimelineEntryFromPayload(payload)];
+          _showingScheduleFallback = true;
+          _nextOrderFromFirestore = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('[HomePage] Error building schedule preview: $e');
+      if (mounted) {
+        setState(() {
+          _showingScheduleFallback = true;
+          _nextOrderFromFirestore = false;
+        });
+      }
+    }
+  }
+
+  Map<String, dynamic> _mapOrderToNextOrderPayload(OrderModelV3 order) {
+    final meal = order.meals.isNotEmpty ? order.meals.first : null;
+    final deliveryDateTime = order.estimatedDeliveryTime ?? order.deliveryDate;
+    final dispatchReadyAt = order.dispatchReadyAt;
+
+    return {
+      'orderId': order.id,
+      'id': order.id,
+      'meal': meal,
+      'mealName': meal?.name ?? 'Meal',
+      'mealType': meal?.mealType ?? 'lunch',
+      'day': _formatDeliveryDateLabel(deliveryDateTime),
+      'deliveryDateTime': deliveryDateTime.toIso8601String(),
+      'deliveryTime': _formatTimeOnlyFromDate(deliveryDateTime),
+      'deliveryAddress': order.deliveryAddress,
+      'status': order.status.name,
+      'userConfirmed': order.userConfirmed,
+      'dispatchReadyAt': dispatchReadyAt?.toIso8601String(),
+      'dispatchWindowMinutes': order.dispatchWindowMinutes,
+      'calories': meal?.calories ?? 0,
+      'protein': meal?.protein ?? 0,
+      'fat': meal?.fat ?? 0,
+      'carbs': meal?.carbs ?? 0,
+      'imageUrl': meal?.imagePath ?? meal?.imageUrl ?? '',
+      'nutrition': {
+        'calories': meal?.calories ?? 0,
+        'protein': meal?.protein ?? 0,
+        'fat': meal?.fat ?? 0,
+        'carbs': meal?.carbs ?? 0,
+      },
+      'isPreview': false,
+    };
+  }
+
+  Map<String, dynamic> _buildTimelineEntryFromPayload(Map<String, dynamic> payload) {
+    final MealModelV3? meal = payload['meal'] as MealModelV3?;
+    final DateTime? deliveryDateTime = _parseDateField(payload['deliveryDateTime']);
+    final nutrition = payload['nutrition'] as Map<String, dynamic>? ?? {
+      'calories': payload['calories'] ?? 0,
+      'protein': payload['protein'] ?? 0,
+      'fat': payload['fat'] ?? 0,
+      'carbs': payload['carbs'] ?? 0,
+    };
+
+    return {
+      'id': payload['orderId'] ?? payload['id'] ?? 'order-${DateTime.now().millisecondsSinceEpoch}',
+      'day': payload['day'] ?? (deliveryDateTime != null ? _formatDeliveryDateLabel(deliveryDateTime) : 'Today'),
+      'time': payload['deliveryTime'] ?? (deliveryDateTime != null ? _formatTimeOnlyFromDate(deliveryDateTime) : '12:30 PM'),
+      'mealType': _toTitleCase(payload['mealType']?.toString() ?? 'Lunch'),
+      'status': (payload['status'] ?? 'pending').toString(),
+      'userConfirmed': payload['userConfirmed'] == true,
+      'dispatchReadyAt': payload['dispatchReadyAt'],
+      'dispatchWindowMinutes': payload['dispatchWindowMinutes'] ?? 60,
+      'deliveryDateTime': deliveryDateTime?.toIso8601String(),
+      'nutrition': nutrition,
+      'address': payload['deliveryAddress'] ?? 'Address not set',
+      'mealName': payload['mealName'] ?? meal?.name ?? payload['mealType'] ?? 'Meal',
+      'imageUrl': payload['imageUrl'] ?? meal?.imagePath ?? '',
+    };
+  }
+
+  Future<void> _loadRecentOrders() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+
+      final orders = await FirestoreServiceV3.getPastOrders(uid);
+      if (!mounted) return;
+
+      final mapped = orders.take(12).map((order) {
+        final meals = (order['meals'] as List<dynamic>? ?? []);
+        String name = order['mealName']?.toString() ?? 'Meal';
+        if (meals.isNotEmpty) {
+          final first = meals.first;
+          if (first is Map<String, dynamic> && first['name'] != null) {
+            name = first['name'].toString();
+          }
+        }
+        return {
+          'id': order['id'] ?? '',
+          'name': name,
+        };
+      }).toList();
+
+      setState(() {
+        _recentOrders = mapped;
+      });
+    } catch (e) {
+      debugPrint('[HomePage] Error loading past orders: $e');
+    }
+  }
+
   // Load the selected meal plan from storage
   Future<void> _loadCurrentMealPlan() async {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Try to load from the saved delivery schedule
       if (uid != null) {
+        // Get the selected schedule name
+        final scheduleName = prefs.getString('selected_schedule_$uid');
+        if (scheduleName != null) {
+          // Load that schedule's data
+          final scheduleKey = 'delivery_schedule_${uid}_$scheduleName';
+          final scheduleJson = prefs.getString(scheduleKey);
+          if (scheduleJson != null) {
+            try {
+              final scheduleData = json.decode(scheduleJson) as Map<String, dynamic>;
+              final planDisplayName = scheduleData['mealPlanDisplayName'] as String?;
+              final planName = scheduleData['mealPlanName'] as String?;
+              final planId = scheduleData['mealPlanId'] as String?;
+              
+              if (planDisplayName != null && planDisplayName.isNotEmpty) {
+                if (!mounted) return;
+                setState(() => _currentMealPlan = planDisplayName);
+                return;
+              } else if (planName != null && planName.isNotEmpty) {
+                if (!mounted) return;
+                setState(() => _currentMealPlan = planName);
+                return;
+              } else if (planId != null && planId.isNotEmpty) {
+                // Derive from planId
+                final plans = MealPlanModelV3.getAvailablePlans();
+                final match = plans.firstWhere((p) => p.id == planId, orElse: () => plans.first);
+                if (!mounted) return;
+                setState(() => _currentMealPlan = match.displayName.isNotEmpty ? match.displayName : match.name);
+                return;
+              }
+            } catch (e) {
+              debugPrint('Error parsing schedule data: $e');
+            }
+          }
+        }
+        
+        // Fallback to server data
         final serverName = await FirestoreServiceV3.getDisplayPlanName(uid);
         if (serverName != null && serverName.isNotEmpty) {
           if (!mounted) return;
@@ -1029,8 +707,8 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
           return;
         }
       }
-      // Fallback to local preference
-      final prefs = await SharedPreferences.getInstance();
+      
+      // Last resort: local preference
       final prefName = prefs.getString('selected_meal_plan_display_name') ?? prefs.getString('selected_meal_plan_name');
       if (prefName != null && prefName.isNotEmpty) {
         if (!mounted) return;
@@ -1483,62 +1161,8 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
     // Add 10% padding to max
     maxValue = (maxValue * 1.1).round();
 
-    // Goal values
-    final Map<String, int> goals = {
-      'Calories': 2000,
-      'Protein': 150,
-      'Fat': 70,
-    };
-    
-    final currentTotal = weekData.values.fold<int>(
-      0,
-      (sum, data) => sum + (data[_selectedMetric] ?? 0),
-    );
-    final goalValue = goals[_selectedMetric] ?? 0;
-    final weeklyGoal = goalValue * 7;
-
     return Column(
       children: [
-        // Current vs Goal
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            RichText(
-              text: TextSpan(
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.black87,
-                  fontWeight: FontWeight.w600,
-                ),
-                children: [
-                  TextSpan(text: 'Current: '),
-                  TextSpan(
-                    text: '$currentTotal',
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ],
-              ),
-            ),
-            RichText(
-              text: TextSpan(
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.black87,
-                  fontWeight: FontWeight.w600,
-                ),
-                children: [
-                  TextSpan(text: 'Goal: '),
-                  TextSpan(
-                    text: '$weeklyGoal',
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        
         // Bar graph
         SizedBox(
           height: 180,
@@ -1847,112 +1471,681 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
   }
 
   Widget _buildUpcomingOrdersSection() {
-    // Build timeline orders from _nextOrder when available (works with or without a full meal object)
+    if (_isLoadingNextOrder) {
+      return _buildUpcomingOrdersLoadingState();
+    }
+
+    // Build timeline orders from _nextOrder when available
     if (_cachedTimelineOrders.isEmpty && _nextOrder != null) {
-      MealModelV3? mealObj = _nextOrder!['meal'] as MealModelV3?;
+      final MealModelV3? mealObj = _nextOrder!['meal'] as MealModelV3?;
       final mealName = _nextOrder!['mealName'] as String? ?? mealObj?.name ?? 'Meal';
       final mealType = _nextOrder!['mealType'] as String? ?? mealObj?.mealType ?? 'lunch';
       final dayRaw = (_nextOrder!['day'] as String? ?? '').toString();
-      final dayDisp = dayRaw.isEmpty ? 'Today' : _toTitleCase(dayRaw);
-      final time = _nextOrder!['deliveryTime'] as String? ?? '12:30 PM';
-      final imageUrl = _nextOrder!['imageUrl'] ?? mealObj?.imagePath ?? '';
+      final deliveryIso = _nextOrder!['deliveryDateTime'] as String?;
+      final deliveryDateTime = deliveryIso != null ? DateTime.tryParse(deliveryIso) : null;
+      final dayDisp = deliveryDateTime != null ? _formatDeliveryDateLabel(deliveryDateTime) : (dayRaw.isEmpty ? 'Today' : _toTitleCase(dayRaw));
+      final time = _nextOrder!['deliveryTime'] as String?
+          ?? (deliveryDateTime != null ? _formatTimeOnlyFromDate(deliveryDateTime) : '12:30 PM');
+      final imageUrl = (_nextOrder!['imageUrl'] ?? mealObj?.imagePath ?? '').toString();
       final address = _nextOrder!['deliveryAddress'] as String? ?? 'Address not set';
-      final calories = _nextOrder!['calories'] ?? mealObj?.calories ?? 0;
-      final protein = _nextOrder!['protein'] ?? mealObj?.protein ?? 0;
-      final fat = mealObj?.fat ?? 0;
-      final carbs = mealObj?.carbs ?? 0;
+      final calories = (_nextOrder!['calories'] ?? mealObj?.calories ?? 0) as num;
+      final protein = (_nextOrder!['protein'] ?? mealObj?.protein ?? 0) as num;
+      final fat = (_nextOrder!['fat'] ?? mealObj?.fat ?? 0) as num;
+      final carbs = (_nextOrder!['carbs'] ?? mealObj?.carbs ?? 0) as num;
+      final status = (_nextOrder!['status'] ?? 'pending').toString();
+      final userConfirmed = _nextOrder!['userConfirmed'] == true;
+      final dispatchReadyAt = _nextOrder!['dispatchReadyAt'];
 
-      debugPrint('[HomePage] Building upcoming order with imageUrl: $imageUrl');
-
-      _cachedTimelineOrders = [{
-        'id': _nextOrder!['orderId'] ?? 'order-1',
-        'day': dayDisp,
-        'time': time,
-        'mealType': _toTitleCase(mealType),
-        // Start as pending so the UI shows the Confirm button
-        'status': 'pending',
-        'nutrition': {
-          'calories': calories,
-          'protein': protein,
-          'fat': fat,
-          'carbs': carbs,
+      _cachedTimelineOrders = [
+        {
+          'id': _nextOrder!['orderId'] ?? 'order-1',
+          'day': dayDisp,
+          'time': time,
+          'mealType': _toTitleCase(mealType),
+          'status': status,
+          'userConfirmed': userConfirmed,
+          'dispatchReadyAt': dispatchReadyAt,
+          'dispatchWindowMinutes': _nextOrder!['dispatchWindowMinutes'] ?? 60,
+          'deliveryDateTime': deliveryDateTime?.toIso8601String(),
+          'nutrition': {
+            'calories': calories,
+            'protein': protein,
+            'fat': fat,
+            'carbs': carbs,
+          },
+          'address': address,
+          'mealName': mealName,
+          'imageUrl': imageUrl,
         },
-        'address': address,
-        'mealName': mealName,
-        'imageUrl': imageUrl,
-      }];
+      ];
     }
-    
-    // If no orders, show empty state
+
     if (_cachedTimelineOrders.isEmpty) {
-      // Optional details helper under header when we found a next order but didn't build a timeline
-      final detailsText = (_nextOrder != null && _nextOrder!['deliveryTime'] != null && _nextOrder!['day'] != null)
-          ? 'Next: ${_toTitleCase((_nextOrder!['day'] as String?) ?? '')} • ${_nextOrder!['deliveryTime']}'
-          : null;
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Colors.black,
-            width: 2,
-          ),
+      return _buildUpcomingOrdersEmptyState();
+    }
+
+    final isPreview = _showingScheduleFallback && !_nextOrderFromFirestore;
+    final isLive = _nextOrderFromFirestore;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.black,
+          width: 2,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
                     color: Colors.black,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: Colors.black,
-                      width: 2,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.schedule,
-                    color: Colors.white,
-                    size: 20,
+                    width: 2,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Text(
-                  'Upcoming Orders',
-                  style: AppThemeV3.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                  ),
+                child: const Icon(
+                  Icons.schedule,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Upcoming Orders',
+                style: AppThemeV3.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const Spacer(),
+              if (isLive) _buildStatusPill('Live order', AppThemeV3.primaryGreen),
+              if (isPreview) ...[
+                if (isLive) const SizedBox(width: 8),
+                _buildStatusPill('Schedule preview', Colors.amber.shade700),
+              ],
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (isPreview) ...[
+            _buildFallbackBanner(),
+            const SizedBox(height: 16),
+          ],
+          ..._cachedTimelineOrders.asMap().entries.map((entry) {
+            final index = entry.key;
+            final order = entry.value;
+            final isLast = index == _cachedTimelineOrders.length - 1;
+            final isExpanded = _expandedOrderId == order['id'];
+            return _buildTimelineOrderCard(order, isLast, isExpanded);
+          }).toList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimelineOrderCard(Map<String, dynamic> order, bool isLast, bool isExpanded) {
+    return RepaintBoundary(
+      child: Padding(
+        key: ValueKey(order['id']),
+        padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
+        child: InkWell(
+          onTap: () {
+            setState(() {
+              _expandedOrderId = isExpanded ? null : order['id'];
+            });
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isExpanded ? Colors.grey.shade50 : Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.black, width: 2),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    if (order['imageUrl'] != null && order['imageUrl'].toString().isNotEmpty)
+                      Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.black, width: 2),
+                        ),
+                        child: AppImage(
+                          order['imageUrl'],
+                          width: 60,
+                          height: 60,
+                          fit: BoxFit.cover,
+                          borderRadius: BorderRadius.circular(6),
+                          fallbackIcon: Icons.restaurant,
+                        ),
+                      ),
+                    if (order['imageUrl'] != null && order['imageUrl'].toString().isNotEmpty)
+                      const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            order['mealName'] ?? order['mealType'],
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.black,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${order['day']} • ${order['time']}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      isExpanded ? Icons.expand_less : Icons.expand_more,
+                      color: Colors.black,
+                    ),
+                  ],
+                ),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                  child: isExpanded
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 16),
+                            const Divider(color: Colors.black, thickness: 1),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Nutrition Info',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.black,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                _buildNutritionBadge('Calories', order['nutrition']['calories'].toString()),
+                                const SizedBox(width: 8),
+                                _buildNutritionBadge('Protein', '${order['nutrition']['protein']}g'),
+                                const SizedBox(width: 8),
+                                _buildNutritionBadge('Fat', '${order['nutrition']['fat']}g'),
+                                const SizedBox(width: 8),
+                                _buildNutritionBadge('Carbs', '${order['nutrition']['carbs']}g'),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                const Icon(Icons.location_on, size: 16, color: Colors.black87),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    order['address'],
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            ..._buildStatusBlock(order),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () => _cancelOrder(order),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.black,
+                                      side: const BorderSide(color: Colors.black, width: 2),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w700)),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: _canConfirmOrder(order)
+                                        ? () async {
+                                            await _confirmOrder();
+                                          }
+                                        : null,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.black,
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    child: _buildConfirmButtonChild(order),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            GestureDetector(
+                              onTap: () {
+                                // Open live map directly
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const MapPageV3(),
+                                  ),
+                                );
+                              },
+                              child: Container(
+                                height: 100,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade200,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.black, width: 2),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: const [
+                                    Icon(Icons.map_outlined, color: Colors.black87),
+                                    SizedBox(width: 10),
+                                    Text(
+                                      'View on map',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                    SizedBox(width: 6),
+                                    Icon(Icons.arrow_forward, color: Colors.black54, size: 18),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'See delivery location and driver tracking.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          ],
+                        )
+                      : const SizedBox.shrink(),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
-            if (detailsText != null) ...[
-              Text(
-                detailsText,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.black87,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
-            const Text(
-              'No upcoming orders. Create a delivery schedule to get started!',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.black54,
-              ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildStatusBlock(Map<String, dynamic> order) {
+    final status = (order['status'] as String? ?? 'pending').toLowerCase();
+    final userConfirmed = order['userConfirmed'] == true;
+    final awaitingConfirmation = status == 'pending' && !userConfirmed;
+    final queuedForDispatch = status == 'pending' && userConfirmed;
+    final kitchenConfirmed = status == 'confirmed' || status == 'preparing' || status == 'outfordelivery';
+    final isCancelled = status == 'cancelled';
+    final dispatchReadyAt = _parseDateField(order['dispatchReadyAt']);
+
+    double progressValue;
+    if (isCancelled) {
+      progressValue = 0;
+    } else if (awaitingConfirmation) {
+      progressValue = 0.25;
+    } else if (queuedForDispatch) {
+      progressValue = 0.6;
+    } else if (kitchenConfirmed) {
+      progressValue = 0.9;
+    } else {
+      progressValue = 0.4;
+    }
+
+    String progressLabel;
+    if (isCancelled) {
+      progressLabel = 'Order cancelled';
+    } else if (awaitingConfirmation) {
+      progressLabel = 'Confirm soon to guarantee this delivery.';
+    } else if (queuedForDispatch) {
+      progressLabel = dispatchReadyAt != null
+          ? 'Confirmed. Dispatch window opens ${_formatDispatchLabel(dispatchReadyAt)}.'
+          : 'Confirmed. We\'ll queue it for dispatch soon.';
+    } else if (kitchenConfirmed) {
+      progressLabel = 'Kitchen has received your order.';
+    } else {
+      progressLabel = 'Status: ${_toTitleCase(status)}';
+    }
+
+    return [
+      const Text(
+        'Delivery Status',
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w800,
+          color: Colors.black,
+        ),
+      ),
+      const SizedBox(height: 8),
+      LinearProgressIndicator(
+        value: isCancelled ? 0 : progressValue,
+        backgroundColor: Colors.grey.shade300,
+        valueColor: AlwaysStoppedAnimation<Color>(isCancelled ? Colors.red : Colors.black),
+        minHeight: 6,
+      ),
+      const SizedBox(height: 6),
+      Text(
+        progressLabel,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+      ),
+      const SizedBox(height: 16),
+    ];
+  }
+
+  Future<void> _confirmOrder() async {
+    final next = _nextOrder;
+    if (next == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No order to confirm yet.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    final orderId = (next['orderId'] ?? next['id'])?.toString();
+    if (orderId == null || orderId.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Missing order identifier.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!_nextOrderFromFirestore) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('We will confirm once the kitchen syncs this preview.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (_confirmingOrderId != null && _confirmingOrderId != orderId) {
+      return;
+    }
+
+    setState(() {
+      _confirmingOrderId = orderId;
+    });
+
+    try {
+      final result = await OrderGenerationService.confirmNextOrder(orderId: orderId);
+      if (result['success'] == true) {
+        final dispatchIso = result['dispatchReadyAt'] as String? ?? next['dispatchReadyAt'] as String?;
+        final dispatchTime = dispatchIso != null ? DateTime.tryParse(dispatchIso) : null;
+
+        await NotificationServiceV3.instance.cancel(orderId.hashCode & 0x7fffffff);
+
+        if (!mounted) return;
+
+        setState(() {
+          _nextOrder = {
+            ...?_nextOrder,
+            'status': 'confirmed',
+            'userConfirmed': true,
+            'dispatchReadyAt': dispatchIso,
+          };
+          _cachedTimelineOrders = _cachedTimelineOrders.map((order) {
+            if (order['id'] == orderId) {
+              return {
+                ...order,
+                'status': 'confirmed',
+                'userConfirmed': true,
+                'dispatchReadyAt': dispatchIso ?? order['dispatchReadyAt'],
+              };
+            }
+            return order;
+          }).toList();
+        });
+
+        final dispatchLabel = dispatchTime != null ? _formatDispatchLabel(dispatchTime) : null;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              dispatchLabel != null
+                  ? 'Order confirmed. Dispatch window opens $dispatchLabel.'
+                  : 'Order confirmed. We\'ll queue it for dispatch shortly.',
             ),
-          ],
+          ),
+        );
+
+        await _loadNextUpcomingOrder();
+      } else {
+        final message = (result['error'] ?? result['details'] ?? 'Failed to confirm order').toString();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('[HomePage] Error confirming order: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error confirming order: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _confirmingOrderId = null;
+        });
+      } else {
+        _confirmingOrderId = null;
+      }
+    }
+  }
+
+  bool _canConfirmOrder(Map<String, dynamic> order) {
+    final status = (order['status'] as String? ?? 'pending').toLowerCase();
+    final awaitingConfirmation = status == 'pending' && order['userConfirmed'] != true;
+    final isSameOrder = order['id'] == _nextOrder?['orderId'];
+    if (!awaitingConfirmation || !isSameOrder || !_nextOrderFromFirestore) {
+      return false;
+    }
+    if (_confirmingOrderId != null && _confirmingOrderId != order['id']) {
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> _cancelOrder(Map<String, dynamic> order) async {
+    final orderId = (order['orderId'] ?? order['id'])?.toString();
+    
+    // For schedule preview, just clear it
+    if (_showingScheduleFallback || orderId == null || orderId.isEmpty || orderId.startsWith('preview-')) {
+      setState(() {
+        _nextOrder = null;
+        _cachedTimelineOrders = [];
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Preview cleared')),
+        );
+      }
+      return;
+    }
+
+    // Show confirmation dialog for real orders
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancel Order?'),
+        content: const Text('Are you sure you want to cancel this order?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep Order'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Cancel Order'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final success = await OrderFunctionsService.instance.cancelOrder(orderId);
+      
+      if (success) {
+        setState(() {
+          _nextOrder = null;
+          _cachedTimelineOrders = [];
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Order cancelled successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+        await _loadNextUpcomingOrder();
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to cancel order'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[HomePage] Error cancelling order: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildConfirmButtonChild(Map<String, dynamic> order) {
+    final status = (order['status'] as String? ?? 'pending').toLowerCase();
+    final awaitingConfirmation = status == 'pending' && order['userConfirmed'] != true;
+    final bool isConfirming = _confirmingOrderId == order['id'];
+
+    if (!awaitingConfirmation) {
+      return Text(
+        status == 'pending' ? 'Confirmed' : _toTitleCase(status),
+        style: const TextStyle(fontWeight: FontWeight.w700),
+      );
+    }
+
+    if (isConfirming) {
+      return const SizedBox(
+        height: 20,
+        width: 20,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
         ),
       );
     }
+
+    return const Text(
+      'Confirm order',
+      style: TextStyle(fontWeight: FontWeight.w700),
+    );
+  }
+
+  Widget _buildUpcomingOrdersLoadingState() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.black, width: 2),
+      ),
+      child: Row(
+        children: const [
+          SizedBox(
+            height: 28,
+            width: 28,
+            child: CircularProgressIndicator(strokeWidth: 3, valueColor: AlwaysStoppedAnimation<Color>(Colors.black)),
+          ),
+          SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              'Fetching your next delivery…',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUpcomingOrdersEmptyState() {
+    final detailsText = (_nextOrder != null && _nextOrder!['deliveryTime'] != null && _nextOrder!['day'] != null)
+        ? 'Next: ${_toTitleCase((_nextOrder!['day'] as String?) ?? '')} • ${_nextOrder!['deliveryTime']}'
+        : null;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1996,292 +2189,65 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
             ],
           ),
           const SizedBox(height: 20),
-          
-          // Timeline
-          ..._cachedTimelineOrders.asMap().entries.map((entry) {
-            final index = entry.key;
-            final order = entry.value;
-            final isLast = index == _cachedTimelineOrders.length - 1;
-            final isExpanded = _expandedOrderId == order['id'];
-            final isCompleted = order['status'] == 'confirmed';
-            
-            return _buildTimelineOrderCard(order, isLast, isExpanded, isCompleted);
-          }).toList(),
+          if (detailsText != null) ...[
+            Text(
+              detailsText,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colors.black87,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+          const Text(
+            'No upcoming orders. Create a delivery schedule to get started!',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.black54,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildTimelineOrderCard(Map<String, dynamic> order, bool isLast, bool isExpanded, bool isCompleted) {
-    return RepaintBoundary(
-      child: Padding(
-        key: ValueKey(order['id']), // Add key to prevent unnecessary rebuilds
-        padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
-        child: InkWell(
-          onTap: () {
-            setState(() {
-              _expandedOrderId = isExpanded ? null : order['id'];
-            });
-          },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isExpanded ? Colors.grey.shade50 : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.black, width: 2),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  // Meal image
-                  if (order['imageUrl'] != null && order['imageUrl'].toString().isNotEmpty)
-                    Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.black, width: 2),
-                      ),
-                      child: AppImage(
-                        order['imageUrl'],
-                        width: 60,
-                        height: 60,
-                        fit: BoxFit.cover,
-                        borderRadius: BorderRadius.circular(6),
-                        fallbackIcon: Icons.restaurant,
-                      ),
-                    ),
-                  if (order['imageUrl'] != null && order['imageUrl'].toString().isNotEmpty)
-                    const SizedBox(width: 12),
-                  // Meal details
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Show meal name if available, otherwise meal type
-                        Text(
-                          order['mealName'] ?? order['mealType'],
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.black,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        // Show time and day
-                        Text(
-                          '${order['day']} • ${order['time']}',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    isExpanded ? Icons.expand_less : Icons.expand_more,
-                    color: Colors.black,
-                  ),
-                ],
-              ),
-              
-              // Animated expandable content
-              AnimatedSize(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeInOut,
-                child: isExpanded ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 16),
-                    const Divider(color: Colors.black, thickness: 1),
-                    const SizedBox(height: 16),
-                    
-                    // Nutrition grid
-                    const Text(
-                      'Nutrition Info',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.black,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        _buildNutritionBadge('Calories', order['nutrition']['calories'].toString()),
-                        const SizedBox(width: 8),
-                        _buildNutritionBadge('Protein', '${order['nutrition']['protein']}g'),
-                        const SizedBox(width: 8),
-                    _buildNutritionBadge('Fat', '${order['nutrition']['fat']}g'),
-                    const SizedBox(width: 8),
-                    _buildNutritionBadge('Carbs', '${order['nutrition']['carbs']}g'),
-                  ],
-                ),
-                
-                const SizedBox(height: 16),
-                
-                // Address
-                Row(
-                  children: [
-                    const Icon(Icons.location_on, size: 16, color: Colors.black87),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        order['address'],
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                
-                const SizedBox(height: 16),
-                
-                // Status progress (if pending)
-                if (!isCompleted) ...[
-                  const Text(
-                    'Delivery Status',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.black,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  LinearProgressIndicator(
-                    value: 0.3,
-                    backgroundColor: Colors.grey.shade300,
-                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.black),
-                    minHeight: 6,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Preparing your meal...',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-                
-                // Action buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {
-                          // Cancel order
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Order cancelled'),
-                              backgroundColor: Colors.black,
-                            ),
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.black,
-                          side: const BorderSide(color: Colors.black, width: 2),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text(
-                          'Cancel',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          // Show loading state
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Confirming order...'),
-                              duration: Duration(seconds: 1),
-                            ),
-                          );
-                          
-                          // Confirm order
-                          await _confirmOrder();
-                          
-                          // Update UI to show confirmed state
-                          setState(() {
-                            _expandedOrderId = null; // Collapse card
-                            _cachedTimelineOrders = _cachedTimelineOrders.map((order) {
-                              if (order['id'] == _nextOrder?['orderId']) {
-                                return {...order, 'status': 'confirmed'};
-                              }
-                              return order;
-                            }).toList();
-                          });
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text(
-                          'Confirm',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                
-                const SizedBox(height: 12),
-                
-                // Map placeholder
-                Container(
-                  height: 100,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.black, width: 2),
-                  ),
-                  child: const Center(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.map, color: Colors.black54),
-                        SizedBox(width: 8),
-                        Text(
-                          'Delivery Map',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: Colors.black54,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                  ],
-                ) : const SizedBox.shrink(),
-              ),
-            ],
-          ),
-        ),
+  Widget _buildStatusPill(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(0.4)),
       ),
-    ),
+      child: Text(
+        text,
+        style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 11, letterSpacing: 0.4),
+      ),
+    );
+  }
+
+  Widget _buildFallbackBanner() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.amber.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.amber.shade200),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Icon(Icons.info_outline, size: 18, color: Colors.amber),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'This is a preview from your meal schedule. We\'ll finalize it once the kitchen confirms.',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_theme_v3.dart';
 import '../../services/notifications/restaurant_notification_service.dart';
-import '../restaurant_dashboard_simple_v3.dart';
+import 'restaurant_dashboard_page_v3.dart';
 
 class RestaurantRegistrationPageV3 extends StatefulWidget {
   const RestaurantRegistrationPageV3({super.key});
@@ -620,9 +620,8 @@ class _RestaurantRegistrationPageV3State extends State<RestaurantRegistrationPag
               Navigator.of(context).pop();
               Navigator.of(context).pushReplacement(
                 MaterialPageRoute(
-                  builder: (context) => RestaurantDashboardSimpleV3(
+                  builder: (context) => RestaurantDashboardPageV3(
                     restaurantId: restaurantId,
-                    restaurantName: restaurantName,
                   ),
                 ),
               );

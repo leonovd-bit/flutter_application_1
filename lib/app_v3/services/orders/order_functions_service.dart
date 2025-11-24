@@ -1,13 +1,24 @@
 import 'package:cloud_functions/cloud_functions.dart';
 
+import '../../../utils/cloud_functions_helper.dart';
+
 /// Lightweight wrapper around Firebase Callable Cloud Functions
 /// for orders and payments. Safe to import anywhere; no UI coupling.
 class OrderFunctionsService {
   OrderFunctionsService._();
   static final instance = OrderFunctionsService._();
 
-  // Match server region (see setGlobalOptions in Functions):
-  final _functions = FirebaseFunctions.instanceFor(region: 'us-east4');
+  // Match server region (functions deployed to us-central1):
+  static const _region = 'us-central1';
+  final _functions = FirebaseFunctions.instanceFor(region: _region);
+
+  HttpsCallable _callable(String name) {
+    return callableForPlatform(
+      functions: _functions,
+      functionName: name,
+      region: _region,
+    );
+  }
 
   // Orders
   Future<Map<String, dynamic>> placeOrder({
@@ -16,7 +27,7 @@ class OrderFunctionsService {
     String? scheduleName,
     DateTime? deliveryDate,
   }) async {
-    final callable = _functions.httpsCallable('placeOrder');
+  final callable = _callable('placeOrder');
     final res = await callable.call({
       'items': items,
       'addressId': addressId,
@@ -27,7 +38,7 @@ class OrderFunctionsService {
   }
 
   Future<bool> cancelOrder(String orderId) async {
-    final callable = _functions.httpsCallable('cancelOrder');
+  final callable = _callable('cancelOrder');
     final res = await callable.call({'orderId': orderId});
     final data = Map<String, dynamic>.from(res.data as Map);
     return data['success'] == true;
@@ -48,7 +59,7 @@ class OrderFunctionsService {
     if (currency != 'usd') {
       throw Exception('Only USD currency is supported at this time.');
     }
-    final callable = _functions.httpsCallable('createPaymentIntent');
+  final callable = _callable('createPaymentIntent');
     final res = await callable.call({
       'amount': amount,
       'currency': currency,
@@ -64,7 +75,7 @@ class OrderFunctionsService {
     String? customer,
     String? paymentMethod,
   }) async {
-    final callable = _functions.httpsCallable('getBillingOptions');
+  final callable = _callable('getBillingOptions');
     final res = await callable.call({
       'amount': amount,
       'currency': currency,
@@ -78,7 +89,7 @@ class OrderFunctionsService {
     required String email,
     String? name,
   }) async {
-    final callable = _functions.httpsCallable('createCustomer');
+  final callable = _callable('createCustomer');
     final res = await callable.call({'email': email, 'name': name});
     return Map<String, dynamic>.from(res.data as Map);
   }
@@ -86,7 +97,7 @@ class OrderFunctionsService {
   Future<Map<String, dynamic>> createSetupIntent({
     required String customer,
   }) async {
-    final callable = _functions.httpsCallable('createSetupIntent');
+  final callable = _callable('createSetupIntent');
     final res = await callable.call({'customer': customer});
     return Map<String, dynamic>.from(res.data as Map);
   }
@@ -96,7 +107,7 @@ class OrderFunctionsService {
     required String paymentMethod,
     required String priceId,
   }) async {
-    final callable = _functions.httpsCallable('createSubscription');
+  final callable = _callable('createSubscription');
     final res = await callable.call({
       'customer': customer,
       'paymentMethod': paymentMethod,
@@ -109,7 +120,7 @@ class OrderFunctionsService {
     required String subscriptionId,
     required String newPriceId,
   }) async {
-    final callable = _functions.httpsCallable('updateSubscription');
+  final callable = _callable('updateSubscription');
     final res = await callable.call({
       'subscriptionId': subscriptionId,
       'newPriceId': newPriceId,
@@ -118,21 +129,21 @@ class OrderFunctionsService {
   }
 
   Future<bool> cancelSubscription(String subscriptionId) async {
-    final callable = _functions.httpsCallable('cancelSubscription');
+  final callable = _callable('cancelSubscription');
     final res = await callable.call({'subscriptionId': subscriptionId});
     final data = Map<String, dynamic>.from(res.data as Map);
     return data['subscription'] != null;
   }
 
   Future<bool> pauseSubscription(String subscriptionId) async {
-    final callable = _functions.httpsCallable('pauseSubscription');
+  final callable = _callable('pauseSubscription');
     final res = await callable.call({'subscriptionId': subscriptionId});
     final data = Map<String, dynamic>.from(res.data as Map);
     return data['subscription'] != null;
   }
 
   Future<bool> resumeSubscription(String subscriptionId) async {
-    final callable = _functions.httpsCallable('resumeSubscription');
+  final callable = _callable('resumeSubscription');
     final res = await callable.call({'subscriptionId': subscriptionId});
     final data = Map<String, dynamic>.from(res.data as Map);
     return data['subscription'] != null;
@@ -143,7 +154,7 @@ class OrderFunctionsService {
     String? email,
     String? name,
   }) async {
-    final callable = _functions.httpsCallable('listPaymentMethods');
+  final callable = _callable('listPaymentMethods');
     final res = await callable.call({
       'customer': customer,
       'email': email,
@@ -155,7 +166,7 @@ class OrderFunctionsService {
   }
 
   Future<bool> detachPaymentMethod(String paymentMethodId) async {
-    final callable = _functions.httpsCallable('detachPaymentMethod');
+  final callable = _callable('detachPaymentMethod');
     final res = await callable.call({'payment_method': paymentMethodId});
     final data = Map<String, dynamic>.from(res.data as Map);
     return data['success'] == true;
@@ -167,7 +178,7 @@ class OrderFunctionsService {
     String? name,
     required String paymentMethodId,
   }) async {
-    final callable = _functions.httpsCallable('setDefaultPaymentMethod');
+  final callable = _callable('setDefaultPaymentMethod');
     final res = await callable.call({
       'customer': customer,
       'email': email,
@@ -180,7 +191,7 @@ class OrderFunctionsService {
 
   // Connectivity check
   Future<Map<String, dynamic>> ping() async {
-    final callable = _functions.httpsCallable('ping');
+  final callable = _callable('ping');
     final res = await callable.call();
     return Map<String, dynamic>.from(res.data as Map);
   }
@@ -189,7 +200,7 @@ class OrderFunctionsService {
     required String token,
     String? platform,
   }) async {
-    final callable = _functions.httpsCallable('registerFcmToken');
+  final callable = _callable('registerFcmToken');
     final res = await callable.call({'token': token, 'platform': platform});
     final data = Map<String, dynamic>.from(res.data as Map);
     return data['success'] == true;

@@ -656,6 +656,45 @@ class MealServiceV3 {
     return getMeals(limit: limit);
   }
 
+  /// Fetch a single meal by its document id across known restaurant folders.
+  /// Firestore structure: meals/{restaurantId}/items/{mealId}
+  /// Returns null if not found in any restaurant.
+  static Future<MealModelV3?> getMealByIdAcrossRestaurants(String mealId) async {
+    try {
+      // Try common restaurant ids/names used in this app
+      const greenblendCandidates = <String>{'greenblend', 'Greenblend'};
+      const senSaigonCandidates = <String>{'sen_saigon', 'sen saigon', 'Sen Saigon', 'sensaigon'};
+      final List<String> restaurants = [
+        ...greenblendCandidates,
+        ...senSaigonCandidates,
+      ];
+
+      for (final rid in restaurants) {
+        try {
+          final doc = await _db
+              .collection('meals')
+              .doc(rid)
+              .collection('items')
+              .doc(mealId)
+              .get();
+          if (doc.exists) {
+            final data = Map<String, dynamic>.from(doc.data() ?? {});
+            data['id'] = data['id'] ?? doc.id;
+            // Ensure restaurant metadata present
+            data['restaurant'] = data['restaurant'] ?? (rid.toLowerCase().contains('green') ? 'Greenblend' : 'Sen Saigon');
+            return MealModelV3.fromJson(data);
+          }
+        } catch (_) {
+          // Try next candidate
+        }
+      }
+      return null;
+    } catch (e) {
+      debugPrint('[MealServiceV3] getMealByIdAcrossRestaurants error: $e');
+      return null;
+    }
+  }
+
   // Seed a token-based plan metadata document and ensure user profile fields exist
   static Future<void> seedTokenPlanIfNeeded() async {
     try {

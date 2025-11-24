@@ -51,7 +51,7 @@ class FCMServiceV3 {
         debugPrint('[FCMServiceV3] VAPID key is empty');
       }
       
-      // Request permission
+      // Request permission (ignore result; web often grants default or prompts)
       await messaging.requestPermission(
         alert: true,
         badge: true,
@@ -61,6 +61,12 @@ class FCMServiceV3 {
         criticalAlert: false,
         provisional: false,
       );
+
+      // If missing VAPID key, surface actionable guidance
+      if (vapidKey.isEmpty) {
+        debugPrint('[FCMServiceV3] Web push disabled – supply --dart-define=FCM_VAPID_KEY=YOUR_PUBLIC_VAPID_KEY');
+        debugPrint('[FCMServiceV3] Firebase Console > Cloud Messaging > Web Push certificates');
+      }
 
       // Get token for web (only if we have a valid VAPID key)
       String? token;
@@ -74,6 +80,8 @@ class FCMServiceV3 {
 
       if (token != null) {
         await _registerToken(token, 'web');
+      } else if (vapidKey.isNotEmpty) {
+        debugPrint('[FCMServiceV3] Web token acquisition returned null – check service worker scope or browser permission');
       }
 
       // Listen for messages

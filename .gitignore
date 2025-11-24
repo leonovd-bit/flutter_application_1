@@ -66,3 +66,17 @@ android/app/build/
 # Build artifacts and generated files
 **/build/
 build/
+
+# Debug logs
+*-debug.log
+*.log
+
+# Temporary directories
+docs/
+scripts/
+config/
+
+# Temporary documentation files
+MAPS_SETUP_GUIDE.md
+COST_ESTIMATE.md
+APP_ARCHITECTURE.md

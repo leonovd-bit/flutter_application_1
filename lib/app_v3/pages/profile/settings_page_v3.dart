@@ -22,6 +22,7 @@ import '../info/help_support_page_v3.dart';
 import '../delivery/delivery_schedule_page_v5.dart';
 import '../meals/meal_schedule_page_v3_fixed.dart';
 import '../../services/notifications/fcm_service_v3.dart';
+import '../../services/preferences/notification_preferences_service.dart';
 
 class SettingsPageV3 extends StatefulWidget {
   const SettingsPageV3({super.key});
@@ -46,7 +47,78 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
   bool _pushNotifications = true;
   bool _emailNotifications = true;
   bool _orderUpdates = true;
-  bool _promotionalEmails = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotificationPreferences();
+  }
+
+  Future<void> _loadNotificationPreferences() async {
+    try {
+      final prefs = await NotificationPreferencesService.loadPreferences();
+      if (mounted) {
+        setState(() {
+          _pushNotifications = prefs['pushNotifications'] ?? true;
+          _emailNotifications = prefs['emailNotifications'] ?? true;
+          _orderUpdates = prefs['orderUpdates'] ?? true;
+        });
+      }
+    } catch (e) {
+      debugPrint('[Settings] Error loading notification preferences: $e');
+    }
+  }
+
+  Future<void> _togglePushNotifications(bool value) async {
+    setState(() {
+      _pushNotifications = value;
+    });
+    
+    final success = await NotificationPreferencesService.setPushNotifications(value);
+    if (!success) {
+      // Revert on failure
+      setState(() {
+        _pushNotifications = !value;
+      });
+      _showSnackBar('Failed to update push notification preference');
+    } else {
+      _showSnackBar(value ? 'Push notifications enabled' : 'Push notifications disabled');
+    }
+  }
+
+  Future<void> _toggleEmailNotifications(bool value) async {
+    setState(() {
+      _emailNotifications = value;
+    });
+    
+    final success = await NotificationPreferencesService.setEmailNotifications(value);
+    if (!success) {
+      // Revert on failure
+      setState(() {
+        _emailNotifications = !value;
+      });
+      _showSnackBar('Failed to update email notification preference');
+    } else {
+      _showSnackBar(value ? 'Email notifications enabled' : 'Email notifications disabled');
+    }
+  }
+
+  Future<void> _toggleOrderUpdates(bool value) async {
+    setState(() {
+      _orderUpdates = value;
+    });
+    
+    final success = await NotificationPreferencesService.setOrderUpdates(value);
+    if (!success) {
+      // Revert on failure
+      setState(() {
+        _orderUpdates = !value;
+      });
+      _showSnackBar('Failed to update order updates preference');
+    } else {
+      _showSnackBar(value ? 'Order updates enabled' : 'Order updates disabled');
+    }
+  }
 
   Future<void> _toggleBiometric(bool value) async {
     if (value) {
@@ -737,63 +809,27 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
             title: 'Push Notifications',
             subtitle: 'Receive notifications on your device',
             value: _pushNotifications,
-            onChanged: (value) {
-              setState(() {
-                _pushNotifications = value;
-              });
-            },
-          ),
-          // Test Push Notification Button
-          _buildSettingsTile(
-            icon: Icons.notification_add_outlined,
-            title: 'Test Push Notification',
-            subtitle: 'Send a test notification to verify setup',
-            onTap: _testPushNotification,
+            onChanged: _togglePushNotifications,
           ),
           _buildSwitchTile(
             icon: Icons.email_outlined,
             title: 'Email Notifications',
             subtitle: 'Receive notifications via email',
             value: _emailNotifications,
-            onChanged: (value) {
-              setState(() {
-                _emailNotifications = value;
-              });
-            },
+            onChanged: _toggleEmailNotifications,
           ),
           _buildSwitchTile(
             icon: Icons.local_shipping_outlined,
             title: 'Order Updates',
             subtitle: 'Get notified about order status',
             value: _orderUpdates,
-            onChanged: (value) {
-              setState(() {
-                _orderUpdates = value;
-              });
-            },
-          ),
-          _buildSwitchTile(
-            icon: Icons.local_offer_outlined,
-            title: 'Promotional Emails',
-            subtitle: 'Receive offers and promotions',
-            value: _promotionalEmails,
-            onChanged: (value) {
-              setState(() {
-                _promotionalEmails = value;
-              });
-            },
+            onChanged: _toggleOrderUpdates,
           ),
 
           const SizedBox(height: 24),
 
           // Support Section
           _buildSectionHeader('Support'),
-          _buildSettingsTile(
-            icon: Icons.wifi_tethering,
-            title: 'Ping backend',
-            subtitle: 'Connectivity check to Cloud Functions',
-            onTap: _pingBackend,
-          ),
           _buildSettingsTile(
             icon: Icons.help_outline,
             title: 'Help & FAQ',
@@ -1165,35 +1201,6 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
-  }
-
-  Future<void> _pingBackend() async {
-    try {
-      final res = await OrderFunctionsService.instance.ping();
-      _showSnackBar('Ping ok=${res['ok']} time=${res['time']}');
-    } catch (e) {
-      _showSnackBar('Ping failed: $e');
-    }
-  }
-
-  Future<void> _testPushNotification() async {
-    try {
-      // Check if FCM is initialized and has permissions
-      final hasPermission = await FCMServiceV3.instance.hasPermission();
-      if (!hasPermission) {
-        final granted = await FCMServiceV3.instance.requestPermission();
-        if (!granted) {
-          _showSnackBar('Push notification permission denied');
-          return;
-        }
-      }
-
-      // Send test notification
-      await FCMServiceV3.instance.sendTestNotification();
-      _showSnackBar('✅ Test notification sent! Check your device notifications.');
-    } catch (e) {
-      _showSnackBar('❌ Test notification failed: $e');
-    }
   }
 
   void _navigateToChangePassword() {

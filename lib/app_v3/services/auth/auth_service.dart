@@ -1,6 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:google_sign_in_platform_interface/google_sign_in_platform_interface.dart';
+import 'package:flutter/material.dart' show debugPrint; // already imported flutter/foundation above
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../connectivity_service_v3.dart';
 import 'firestore_service_v3.dart';
@@ -15,6 +18,7 @@ class AuthService {
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
+  bool _googleButtonRendered = false; // track web renderButton usage
 
   // ===========================================================================
   // GETTERS & STREAMS
@@ -127,12 +131,29 @@ class AuthService {
       debugPrint('[AuthService] Starting Google sign-in');
 
       // Trigger Google Sign-In flow
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn().timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw Exception('Google sign in timeout. Please check your internet connection.');
-        },
-      );
+      GoogleSignInAccount? googleUser;
+
+      if (kIsWeb) {
+        // Web: Prefer identity services renderButton flow.
+        // If the button has been rendered, signInSilently may return existing user; otherwise fallback to popup once.
+        try {
+          googleUser = await _googleSignIn.signInSilently();
+        } catch (_) {}
+        if (googleUser == null) {
+          // Fallback: legacy popup (still works but deprecated) until renderButton flow triggers callback.
+          googleUser = await _googleSignIn.signIn().timeout(
+            const Duration(seconds: 30),
+            onTimeout: () => throw Exception('Google sign in timeout. Please check your internet connection.'),
+          );
+        }
+      } else {
+        googleUser = await _googleSignIn.signIn().timeout(
+          const Duration(seconds: 30),
+          onTimeout: () {
+            throw Exception('Google sign in timeout. Please check your internet connection.');
+          },
+        );
+      }
 
       // User cancelled the sign-in
       if (googleUser == null) {
@@ -187,6 +208,50 @@ class AuthService {
         return null; // User cancelled
       }
       rethrow;
+    }
+  }
+
+  /// Render Google Sign-In button on web (no-op on other platforms).
+  /// Call once in a widget's initState with a container ID present in the DOM via `HtmlElementView` or a platform view.
+  Future<void> renderGoogleButtonIfWeb({
+    String containerId = 'google-signin-button',
+    bool themeDark = false,
+    String textType = 'continue_with',
+  }) async {
+    if (!kIsWeb) return;
+    if (_googleButtonRendered) return; // prevent duplicate render
+    try {
+      // google_sign_in_web exposes renderButton through the plugin; use method channel via dynamic invocation.
+      final platform = GoogleSignInPlatform.instance;
+      // ignore: invalid_use_of_visible_for_testing_member, invalid_use_of_protected_member
+      // The web implementation defines renderButton; guard with runtime check.
+  final hasMethod = platform.runtimeType.toString().contains('GoogleSignInPlugin');
+      if (!hasMethod) {
+        debugPrint('[AuthService] Google Sign-In web platform implementation not detected; skipping renderButton');
+        return;
+      }
+      // Attempt to call using noSuchMethod proxy.
+      // NOTE: This is future-proof: if API changes, we just skip gracefully.
+      // We can’t strongly type because web implementation is in a separate package.
+      // ignore: unnecessary_cast
+      (platform as dynamic).renderButton(
+        containerId,
+        // Options per GIS: theme, size, text, shape
+        {'theme': themeDark ? 'filled_black' : 'filled_blue', 'text': textType, 'shape': 'rectangular', 'logo_alignment': 'left'},
+        // Callback when user chooses account; triggers standard signInSilently afterwards.
+        (dynamic _) async {
+          debugPrint('[AuthService] Google Identity button tap callback');
+          try {
+            await signInWithGoogle();
+          } catch (e) {
+            debugPrint('[AuthService] Google sign-in via button failed: $e');
+          }
+        },
+      );
+      _googleButtonRendered = true;
+      debugPrint('[AuthService] Google Sign-In button rendered (container: #$containerId)');
+    } catch (e) {
+      debugPrint('[AuthService] Error rendering Google Sign-In button: $e');
     }
   }
 

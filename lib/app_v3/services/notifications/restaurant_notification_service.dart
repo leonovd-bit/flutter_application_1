@@ -2,10 +2,22 @@ import 'dart:convert';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../utils/cloud_functions_helper.dart';
+
 /// Service for managing restaurant notifications and partnerships
 class RestaurantNotificationService {
-  static final FirebaseFunctions _functions = FirebaseFunctions.instance;
+  static const _region = 'us-central1';
+  static final FirebaseFunctions _functions =
+      FirebaseFunctions.instanceFor(region: _region);
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  static HttpsCallable _callable(String name) {
+    return callableForPlatform(
+      functions: _functions,
+      functionName: name,
+      region: _region,
+    );
+  }
 
   // ============================================================================
   // RESTAURANT REGISTRATION
@@ -22,7 +34,7 @@ class RestaurantNotificationService {
     Map<String, bool>? notificationPreferences,
   }) async {
     try {
-      final callable = _functions.httpsCallable('registerRestaurantPartner');
+  final callable = _callable('registerRestaurantPartner');
       final result = await callable.call({
         'restaurantName': restaurantName,
         'contactEmail': contactEmail,
@@ -93,7 +105,7 @@ class RestaurantNotificationService {
     String? restaurantId,
   }) async {
     try {
-      final callable = _functions.httpsCallable('sendRestaurantOrderNotification');
+  final callable = _callable('sendRestaurantOrderNotification');
       final result = await callable.call({
         'orderId': orderId,
         if (restaurantId != null) 'restaurantId': restaurantId,
@@ -118,7 +130,7 @@ class RestaurantNotificationService {
     int limit = 50,
   }) async {
     try {
-      final callable = _functions.httpsCallable('getRestaurantOrders');
+  final callable = _callable('getRestaurantOrders');
       final result = await callable.call({
         'restaurantId': restaurantId,
         'limit': limit,

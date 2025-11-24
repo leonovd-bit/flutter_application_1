@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../../theme/app_theme_v3.dart';
 import '../../services/payment/stripe_service.dart';
 import '../../models/mock_user_model.dart';
@@ -31,7 +32,10 @@ class _PaymentMethodsPageV3State extends State<PaymentMethodsPageV3> {
   Future<void> _loadPaymentMethods() async {
     setState(() => _isLoading = true);
     try {
+      debugPrint('[PaymentMethods] Loading payment methods...');
       final items = await StripeService.instance.listPaymentMethods();
+      debugPrint('[PaymentMethods] Loaded ${items.length} payment methods');
+      debugPrint('[PaymentMethods] Raw data: $items');
       final mapped = items.map((pm) {
         return PaymentMethod(
           id: pm['id'] as String? ?? '',
@@ -47,7 +51,8 @@ class _PaymentMethodsPageV3State extends State<PaymentMethodsPageV3> {
         _paymentMethods = mapped;
         _isLoading = false;
       });
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[PaymentMethods] Error loading payment methods: $e');
       setState(() => _isLoading = false);
     }
   }

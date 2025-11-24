@@ -1,4 +1,12 @@
-/**
+[StripeWeb] Initializing with key: pk_test_51Rly3MAQ9rq...
+main.dart.js:38253 [StripeWeb] Initialized with publishable key
+main.dart.js:38253 [StripeWeb] Confirming setup with client secret
+api.stripe.com/v1/setup_intents/seti_1SWqTOAQ9rq5N6YJ3GUSbiBc/confirm:1  Failed to load resource: the server responded with a status of 400 ()Understand this error
+api.stripe.com/v1/setup_intents/seti_1SWqTOAQ9rq5N6YJ3GUSbiBc/confirm:1  Failed to load resource: the server responded with a status of 400 ()Understand this error
+main.dart.js:38253 [StripeWeb] Error confirming setup: Exception: A payment method of type card was expected to be present, but this SetupIntent does not have a payment method and none was provided. Try again providing either the payment_method or payment_method_data parameters.
+main.dart.js:38253 [Stripe] Error: Exception: A payment method of type card was expected to be present, but this SetupIntent does not have a payment method and none was provided. Try again providing either the payment_method or payment_method_data parameters.
+main.dart.js:38253 [Route] pop <- minified:a95<bool>
+main.dart.js:38253 [Payment] User cancelled or payment method addition failed/**
  * Order Generation and Confirmation Functions
  * These functions handle meal selection to order conversion and notifications
  */
@@ -6,6 +14,11 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {getFirestore, FieldValue, Timestamp} from "firebase-admin/firestore";
+
+// CORS configuration for web app access
+const corsOptions = {
+  cors: ["https://freshpunk-48db1.web.app", "https://freshpunk-48db1.firebaseapp.com"],
+};
 
 // ============================================================================
 // MEAL SELECTION & ORDER GENERATION FUNCTIONS
@@ -15,7 +28,7 @@ import {getFirestore, FieldValue, Timestamp} from "firebase-admin/firestore";
  * Generates actual orders from user meal selections and delivery schedule
  * This replaces the client-side order creation with server-side validation
  */
-export const generateOrderFromMealSelection = onCall(async (request: any) => {
+export const generateOrderFromMealSelection = onCall(corsOptions, async (request: any) => {
   try {
     const {auth, data} = request;
 
@@ -59,12 +72,22 @@ export const generateOrderFromMealSelection = onCall(async (request: any) => {
     const userData = userDoc.data()!;
     const now = new Date();
 
-    // Process delivery schedule to create orders for the next 7 days
+    // Calculate next Monday as the starting point (consistent with app's DateUtilsV3.getNextMonday())
+    // This ensures new subscriptions start from Monday, not today
+    const currentDayOfWeek = now.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+    const daysUntilMonday = currentDayOfWeek === 0 ? 1 : (8 - currentDayOfWeek); // Next Monday
+    const nextMonday = new Date(now);
+    nextMonday.setDate(now.getDate() + daysUntilMonday);
+    nextMonday.setHours(0, 0, 0, 0);
+
+    logger.info(`Order generation starting from next Monday: ${nextMonday.toISOString()} (${daysUntilMonday} days from now)`);
+
+    // Process delivery schedule to create orders for 7 days starting from next Monday
     const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
     for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-      const deliveryDate = new Date(now);
-      deliveryDate.setDate(now.getDate() + dayOffset);
+      const deliveryDate = new Date(nextMonday);
+      deliveryDate.setDate(nextMonday.getDate() + dayOffset);
       deliveryDate.setHours(0, 0, 0, 0);
 
       const dayName = daysOfWeek[deliveryDate.getDay()];
@@ -82,11 +105,16 @@ export const generateOrderFromMealSelection = onCall(async (request: any) => {
         const [hours, minutes] = mealConfig.time.split(":").map(Number);
         if (isNaN(hours) || isNaN(minutes)) continue;
 
+        // Create date in user's timezone (assume EST/EDT, UTC-5/-4)
+        // The schedule times are stored as "HH:mm" in user's local time
+        // We need to convert to UTC for storage
         const deliveryDateTime = new Date(deliveryDate);
-        deliveryDateTime.setHours(hours, minutes, 0, 0);
 
-        // Skip past delivery times for today
-        if (dayOffset === 0 && deliveryDateTime <= now) continue;
+        // Get timezone offset from client (defaults to -5 for EST if not provided)
+        const timezoneOffsetHours = data.timezoneOffsetHours ?? -5;
+
+        // Set local time first
+        deliveryDateTime.setUTCHours(hours - timezoneOffsetHours, minutes, 0, 0);
 
         // Find a meal for this slot (cycle through available meals)
         const mealIndex = (dayOffset * 3 + mealTypes.indexOf(mealType)) % mealSelections.length;
@@ -132,6 +160,11 @@ export const generateOrderFromMealSelection = onCall(async (request: any) => {
 
         // Generate order
         const orderId = `order_${userId}_${dayOffset}_${mealType}_${Date.now()}`;
+        const dispatchLeadMs = 60 * 60 * 1000; // 1 hour before delivery
+        const dispatchReadyDate = new Date(
+          Math.max(deliveryDateTime.getTime() - dispatchLeadMs, now.getTime())
+        );
+
         const orderData = {
           id: orderId,
           userId: userId,
@@ -154,12 +187,17 @@ export const generateOrderFromMealSelection = onCall(async (request: any) => {
           orderDate: FieldValue.serverTimestamp(),
           deliveryDate: Timestamp.fromDate(deliveryDateTime),
           estimatedDeliveryTime: Timestamp.fromDate(deliveryDateTime),
-          status: "confirmed",
+          status: "pending",
           totalAmount: orderPrice,
           mealPlanType: userData.currentMealPlan || "nutritious",
           dayName: dayName,
           mealType: mealType,
           source: "meal_selection",
+          userConfirmed: false,
+          userConfirmedAt: null,
+          dispatchReadyAt: Timestamp.fromDate(dispatchReadyDate),
+          dispatchWindowMinutes: 60,
+          dispatchTriggeredAt: null,
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         };
@@ -168,6 +206,8 @@ export const generateOrderFromMealSelection = onCall(async (request: any) => {
         const orderRef = db.collection("orders").doc(orderId);
         batch.set(orderRef, orderData);
         generatedOrders.push({...orderData, id: orderId});
+
+        logger.info(`[BATCH] Adding order ${orderId}: userId=${userId}, status=${orderData.status}, deliveryDate=${deliveryDateTime.toISOString()}`);
       }
     }
 
@@ -175,6 +215,13 @@ export const generateOrderFromMealSelection = onCall(async (request: any) => {
     await batch.commit();
 
     logger.info(`Generated ${generatedOrders.length} orders for user ${userId}`);
+
+    // Verify orders were written by querying them back
+    const verifyQuery = await db.collection("orders")
+      .where("userId", "==", userId)
+      .where("status", "==", "pending")
+      .get();
+    logger.info(`[VERIFY] Query returned ${verifyQuery.docs.length} pending orders for user ${userId}`);
 
     // Send confirmation for first order
     if (generatedOrders.length > 0) {
@@ -207,10 +254,92 @@ export const generateOrderFromMealSelection = onCall(async (request: any) => {
 });
 
 /**
+ * Allows a user to confirm their next upcoming order.
+ * Ensures only the earliest pending order can be confirmed at a time.
+ */
+export const confirmNextOrder = onCall(corsOptions, async (request: any) => {
+  try {
+    const {auth, data} = request;
+    if (!auth) {
+      throw new HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const userId = auth.uid;
+    const orderId = (data?.orderId as string | undefined)?.trim();
+    if (!orderId) {
+      throw new HttpsError("invalid-argument", "orderId is required");
+    }
+
+    const db = getFirestore();
+    const orderRef = db.collection("orders").doc(orderId);
+    const orderSnap = await orderRef.get();
+    if (!orderSnap.exists) {
+      throw new HttpsError("not-found", "Order not found");
+    }
+
+    const order = orderSnap.data() as any;
+    if (order.userId !== userId) {
+      throw new HttpsError("permission-denied", "You can only confirm your own orders");
+    }
+
+    if (order.status !== "pending") {
+      throw new HttpsError("failed-precondition", "Order is already confirmed or processed");
+    }
+
+    if (order.userConfirmed) {
+      return {success: true, alreadyConfirmed: true};
+    }
+
+    const deliveryTs = order.deliveryDate;
+    if (!deliveryTs) {
+      throw new HttpsError("failed-precondition", "Order missing delivery date");
+    }
+
+    const deliveryDate: Date = deliveryTs.toDate ? deliveryTs.toDate() : new Date(deliveryTs._seconds * 1000);
+
+    // Enforce sequential confirmation: this must be the earliest pending order
+    const earliestPendingSnap = await db.collection("orders")
+      .where("userId", "==", userId)
+      .where("status", "==", "pending")
+      .orderBy("deliveryDate", "asc")
+      .limit(1)
+      .get();
+
+    if (earliestPendingSnap.empty || earliestPendingSnap.docs[0].id !== orderId) {
+      throw new HttpsError("failed-precondition", "Please confirm your next upcoming order first");
+    }
+
+    const dispatchLeadMs = Number(process.env.FP_DISPATCH_LEAD_MINUTES || 60) * 60 * 1000;
+    const dispatchReadyDate = new Date(
+      Math.max(deliveryDate.getTime() - dispatchLeadMs, Date.now())
+    );
+
+    await orderRef.update({
+      userConfirmed: true,
+      userConfirmedAt: FieldValue.serverTimestamp(),
+      dispatchReadyAt: Timestamp.fromDate(dispatchReadyDate),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    return {
+      success: true,
+      orderId,
+      dispatchReadyAt: dispatchReadyDate.toISOString(),
+    };
+  } catch (error: any) {
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+    logger.error("confirmNextOrder error", {error: error?.message});
+    throw new HttpsError("internal", "Failed to confirm order");
+  }
+});
+
+/**
  * Sends order confirmation via email and optionally SMS
  * Supports both single orders and batch confirmations
  */
-export const sendOrderConfirmation = onCall(async (request: any) => {
+export const sendOrderConfirmation = onCall(corsOptions, async (request: any) => {
   try {
     const {auth, data} = request;
 

@@ -41,7 +41,7 @@ class AppThemeV3 {
     double? height,
   }) {
     try {
-      return GoogleFonts.getFont(
+      final style = GoogleFonts.getFont(
         fontFamily,
         fontSize: fontSize,
         fontWeight: fontWeight,
@@ -49,6 +49,12 @@ class AppThemeV3 {
         letterSpacing: letterSpacing,
         height: height,
       );
+      // Add broad Unicode coverage fallback (Noto Sans) then platform sans.
+      return style.copyWith(fontFamilyFallback: const [
+        'Noto Sans', // Wide glyph coverage
+        'Inter',     // Existing system fallback
+        'sans-serif'
+      ]);
     } catch (e) {
       // Fallback to system font if Google Fonts fails
       return TextStyle(
@@ -58,6 +64,7 @@ class AppThemeV3 {
         color: color,
         letterSpacing: letterSpacing,
         height: height,
+        fontFamilyFallback: const ['Noto Sans', 'sans-serif'],
       );
     }
   }

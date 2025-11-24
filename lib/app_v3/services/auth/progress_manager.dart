@@ -6,6 +6,7 @@ enum OnboardingStep {
   welcome,
   signup,
   emailVerification,
+  phoneVerification,
   deliverySchedule,
   paymentSetup,
   completed

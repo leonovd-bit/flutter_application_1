@@ -3,7 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
-import 'dart:io' show Platform;
+
+import '../../../utils/cloud_functions_helper.dart';
+
+// Conditional import for web-only widget
+import '../../widgets/payment/stripe_card_input_web.dart'
+    if (dart.library.io) '../../widgets/payment/stripe_card_input_stub.dart';
+
 
 
 class StripeService {
@@ -15,8 +21,17 @@ class StripeService {
   static const String _publishableKey = 'pk_test_51Rly3MAQ9rq5N6YJ07JcCml88ysYYunZlcUfEacyfjSjY6DZgoM0HOTCkPBOZLVYg40JzUgT9ykwJjjho3hXADuJ00acajs99Q';
 
   bool _initialized = false;
-  // Match Cloud Functions region
-  final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(region: 'us-east4');
+  static const _region = 'us-central1';
+  // Match Cloud Functions region (us-central1 is where functions are deployed)
+  final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(region: _region);
+
+  HttpsCallable _callable(String name) {
+    return callableForPlatform(
+      functions: _functions,
+      functionName: name,
+      region: _region,
+    );
+  }
 
   Future<void> init() async {
     if (_initialized) return;
@@ -26,7 +41,7 @@ class StripeService {
   }
 
   Future<String?> _ensureCustomer({required String email, String? name}) async {
-    final callable = _functions.httpsCallable('createCustomer');
+  final callable = _callable('createCustomer');
     final result = await callable.call({
       'email': email,
       if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
@@ -37,99 +52,66 @@ class StripeService {
   }
 
   Future<String?> _createSetupIntent(String customerId) async {
-    final callable = _functions.httpsCallable('createSetupIntent');
-    final result = await callable.call({
-      'customer': customerId,
-    });
-    final data = result.data as Map?;
-    return data?['client_secret'] as String?;
+    try {
+  final callable = _callable('createSetupIntent');
+      debugPrint('[Stripe] Creating setup intent for customer: $customerId');
+      final result = await callable.call({
+        'customer': customerId,
+      });
+      final data = result.data as Map?;
+      debugPrint('[Stripe] Setup intent response: $data');
+      final clientSecret = data?['client_secret'] as String?;
+      if (clientSecret == null) {
+        debugPrint('[Stripe] ERROR: No client_secret in response');
+      }
+      return clientSecret;
+    } catch (e) {
+      debugPrint('[Stripe] ERROR creating setup intent: $e');
+      rethrow;
+    }
   }
 
   Future<bool> addPaymentMethod(BuildContext context) async {
     try {
-      // Check if running on web first
-      if (kIsWeb) {
-        debugPrint('[Stripe] Web platform - using server-side payment method creation');
-        final user = FirebaseAuth.instance.currentUser;
-        if (user == null) throw Exception('Not signed in');
-        
-        final customerId = await _ensureCustomer(email: user.email ?? '', name: user.displayName);
-        if (customerId == null) throw Exception('Failed to create Stripe customer');
-        
-        // For web, create a test payment method via Cloud Function
-        try {
-          final callable = _functions.httpsCallable('createTestPaymentMethod');
-          final result = await callable.call({'customer': customerId});
-          final data = result.data as Map?;
-          
-          if (data?['success'] == true) {
-            debugPrint('[Stripe] Test payment method created: ${data?['paymentMethodId']}');
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('✓ Test payment method added (Visa ****4242)'),
-                  backgroundColor: Colors.green,
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            }
-            return true;
-          }
-        } catch (e) {
-          debugPrint('[Stripe] Failed to create test payment method: $e');
-          throw Exception('Failed to add payment method: $e');
-        }
-        return false;
-      }
-      
-      // Windows desktop doesn't support flutter_stripe - use server-side for development
-      final isWindows = Platform.isWindows;
-      
-      if (isWindows) {
-        debugPrint('[Stripe] Windows desktop detected - using server-side payment method creation');
-        final user = FirebaseAuth.instance.currentUser;
-        if (user == null) throw Exception('Not signed in');
-        
-        final customerId = await _ensureCustomer(email: user.email ?? '', name: user.displayName);
-        if (customerId == null) throw Exception('Failed to create Stripe customer');
-        
-        // Create a test payment method via Cloud Function
-        try {
-          final callable = _functions.httpsCallable('createTestPaymentMethod');
-          final result = await callable.call({'customer': customerId});
-          final data = result.data as Map?;
-          
-          if (data?['success'] == true) {
-            debugPrint('[Stripe] Test payment method created: ${data?['paymentMethodId']}');
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('✓ Test payment method added (Visa ****4242)'),
-                  backgroundColor: Colors.green,
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            }
-            return true;
-          }
-        } catch (e) {
-          debugPrint('[Stripe] Failed to create test payment method: $e');
-          throw Exception('Failed to add payment method: $e');
-        }
-        return false;
-      }
-      
-      // Mobile: Use native payment sheet
-      await init();
+      debugPrint('[Stripe] addPaymentMethod starting');
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('Not signed in');
+      
+      debugPrint('[Stripe] Ensuring customer exists for user: ${user.email}');
       final customerId = await _ensureCustomer(email: user.email ?? '', name: user.displayName);
       if (customerId == null) throw Exception('Failed to create Stripe customer');
+      debugPrint('[Stripe] Customer ID: $customerId');
 
+      // Web: use Stripe Elements with custom widget
+      if (kIsWeb) {
+        debugPrint('[Stripe] Web platform - creating setup intent');
+        final clientSecret = await _createSetupIntent(customerId);
+        if (clientSecret == null) throw Exception('Failed to create setup intent - no client_secret returned');
+
+        debugPrint('[Stripe] Web platform - using Stripe Elements with secret: ${clientSecret.substring(0, 20)}...');
+        
+        if (!context.mounted) return false;
+        
+        // Import is conditional via if (kIsWeb) check
+        // ignore: undefined_prefixed_name
+        final result = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) {
+            // Dynamic import to avoid compile errors on non-web platforms
+            return _buildStripeElementsDialog(context, clientSecret);
+          },
+        );
+        
+        return result ?? false;
+      }
+
+      // Mobile/Desktop: use SetupIntent + PaymentSheet
+      await init();
       final clientSecret = await _createSetupIntent(customerId);
       if (clientSecret == null) throw Exception('Failed to create setup intent');
 
-      debugPrint('[Stripe] Mobile platform - using native payment sheet');
+      debugPrint('[Stripe] Using Stripe PaymentSheet with SetupIntent');
       await Stripe.instance.initPaymentSheet(
         paymentSheetParameters: SetupPaymentSheetParameters(
           merchantDisplayName: 'FreshPunk',
@@ -159,7 +141,7 @@ class StripeService {
 
   Future<List<Map<String, dynamic>>> listPaymentMethods() async {
     try {
-  final callable = _functions.httpsCallable('listPaymentMethods');
+  final callable = _callable('listPaymentMethods');
   final result = await callable.call();
   final resp = (result.data as Map?) ?? {};
   final list = (resp['data'] as List? ?? []).cast<dynamic>();
@@ -171,7 +153,7 @@ class StripeService {
 
   Future<bool> detachPaymentMethod(String paymentMethodId) async {
     try {
-  final callable = _functions.httpsCallable('detachPaymentMethod');
+  final callable = _callable('detachPaymentMethod');
   final result = await callable.call({'payment_method': paymentMethodId});
   final data = result.data as Map?;
   return (data?['success'] == true);
@@ -182,7 +164,7 @@ class StripeService {
 
   Future<bool> setDefaultPaymentMethod(String paymentMethodId) async {
     try {
-      final callable = _functions.httpsCallable('setDefaultPaymentMethod');
+  final callable = _callable('setDefaultPaymentMethod');
       final result = await callable.call({'payment_method': paymentMethodId});
       final data = result.data as Map?;
       return (data?['success'] == true);
@@ -197,7 +179,7 @@ class StripeService {
     required String priceId,
   }) async {
     try {
-      final callable = _functions.httpsCallable('createSubscription');
+  final callable = _callable('createSubscription');
       final result = await callable.call({
         'customer': customerId,
         'paymentMethod': paymentMethodId,
@@ -210,6 +192,60 @@ class StripeService {
       debugPrint('Failed to create subscription: $e');
       return null;
     }
+  }
+
+  Widget _buildStripeElementsDialog(BuildContext context, String clientSecret) {
+    // Import conditionally to avoid errors on non-web platforms
+    if (kIsWeb) {
+      // Dynamic import that only resolves on web
+      // ignore: undefined_prefixed_name
+      final widget = StripeCardInputWeb(
+        clientSecret: clientSecret,
+        publishableKey: _publishableKey,
+        onSuccess: (paymentMethodId) {
+          debugPrint('[Stripe] Payment method added: $paymentMethodId');
+          Navigator.of(context).pop(true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✓ Payment method added successfully'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        },
+        onError: (error) {
+          debugPrint('[Stripe] Error: $error');
+          Navigator.of(context).pop(false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to add card: $error'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        },
+      );
+
+      return AlertDialog(
+        title: const Text('Add Payment Method'),
+        content: SizedBox(
+          width: 500,
+          child: widget,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+        ],
+      );
+    }
+
+    // Fallback for non-web (should never happen due to kIsWeb check in caller)
+    return const AlertDialog(
+      title: Text('Error'),
+      content: Text('This feature is only available on web'),
+    );
   }
 
 }

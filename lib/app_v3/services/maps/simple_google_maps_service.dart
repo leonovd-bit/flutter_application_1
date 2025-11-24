@@ -2,24 +2,69 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:cloud_functions/cloud_functions.dart';
 
 /// Simple Google Maps API service - easier alternative to Places API
 /// Uses basic geocoding and reverse geocoding for address validation
 class SimpleGoogleMapsService {
   static const String _baseUrl = 'https://maps.googleapis.com/maps/api';
-  
-  // Google Maps API key - Geocoding API enabled
-  // Get it from: https://console.cloud.google.com/apis/credentials
-  // Only need to enable "Geocoding API"
-  static const String _apiKey = 'AIzaSyCi_mKaxg-CRH3UJ5LVHGWTd7TUcl1H4qg';
-  
+
+  // IMPORTANT:
+  // Do NOT hardcode browser-restricted key for Geocoding REST calls.
+  // Provide a dart-define at build/run time:
+  //   --dart-define=GOOGLE_GEOCODE_KEY=YOUR_SERVER_KEY
+  // Optionally restrict key by IP if used from a backend proxy.
+  // Fallback leaves blank and we short-circuit with an explanatory error.
+  static const String _apiKey = String.fromEnvironment('GOOGLE_GEOCODE_KEY', defaultValue: '');
+
   SimpleGoogleMapsService._();
   static final SimpleGoogleMapsService instance = SimpleGoogleMapsService._();
 
   /// Convert address to coordinates (geocoding)
   Future<AddressResult?> validateAddress(String address) async {
     if (address.trim().isEmpty) return null;
-    
+
+    // Dedup cache: avoid hitting API repeatedly for the same normalized address in-session
+    final normalized = address.trim().toLowerCase();
+    final cached = _addressCache[normalized];
+    if (cached != null) {
+      if (kDebugMode) {
+        debugPrint('[SimpleGoogleMaps] Cache hit for "$address"');
+      }
+      return cached;
+    }
+
+    if (_apiKey.isEmpty) {
+      // Attempt secure server-side geocode via callable Cloud Function
+      try {
+        debugPrint('[SimpleGoogleMaps] Using server geocode Cloud Function (no client key).');
+        final functions = FirebaseFunctions.instance;
+        final callable = functions.httpsCallable('geocodeAddress');
+        final resp = await callable.call({'address': address});
+        final data = resp.data as Map<String, dynamic>;
+        if (data['found'] == true) {
+          final result = AddressResult(
+            formattedAddress: data['formattedAddress'] ?? address,
+            latitude: (data['latitude'] as num?)?.toDouble() ?? 0.0,
+            longitude: (data['longitude'] as num?)?.toDouble() ?? 0.0,
+            street: data['street'] ?? '',
+            city: data['city'] ?? '',
+            state: data['state'] ?? '',
+            zipCode: data['zipCode'] ?? '',
+            isValid: data['isValid'] == true,
+          );
+          _addressCache[normalized] = result;
+          return result;
+        } else {
+          debugPrint('[SimpleGoogleMaps] Server geocode no match: ${data['status']}');
+          return null;
+        }
+      } catch (e) {
+        debugPrint('[SimpleGoogleMaps] Server geocode failed: $e');
+        return null;
+      }
+    }
+
     try {
       final url = Uri.parse('$_baseUrl/geocode/json').replace(
         queryParameters: {
@@ -30,29 +75,41 @@ class SimpleGoogleMapsService {
       );
 
       final response = await http.get(url);
-      
-      debugPrint('[SimpleGoogleMaps] API Call to: $url');
+
+  debugPrint('[SimpleGoogleMaps] API Call to: $url');
       debugPrint('[SimpleGoogleMaps] Response status: ${response.statusCode}');
-      debugPrint('[SimpleGoogleMaps] Response body: ${response.body}');
-      
+      if (response.body.length < 2048) { // Avoid giant logs
+        debugPrint('[SimpleGoogleMaps] Response body: ${response.body}');
+      }
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
-        debugPrint('[SimpleGoogleMaps] API Status: ${data['status']}');
-        if (data['error_message'] != null) {
-          debugPrint('[SimpleGoogleMaps] API Error: ${data['error_message']}');
+
+        final status = data['status'];
+        debugPrint('[SimpleGoogleMaps] API Status: $status');
+        final errorMessage = data['error_message'];
+        if (errorMessage != null) {
+          debugPrint('[SimpleGoogleMaps] API Error: $errorMessage');
         }
-        
-        if (data['status'] == 'OK' && data['results'].isNotEmpty) {
-          final result = data['results'][0];
-          return AddressResult.fromGoogleMaps(result);
-        } else if (data['status'] == 'REQUEST_DENIED') {
-          debugPrint('[SimpleGoogleMaps] REQUEST DENIED - API key restrictions issue!');
-          debugPrint('[SimpleGoogleMaps] Error: ${data['error_message']}');
-          throw Exception('API key restricted: ${data['error_message']}');
-        } else {
-          debugPrint('[SimpleGoogleMaps] No results for: $address');
-          return null;
+
+        switch (status) {
+          case 'OK':
+            if (data['results'].isNotEmpty) {
+              final result = AddressResult.fromGoogleMaps(data['results'][0]);
+              _addressCache[normalized] = result;
+              return result;
+            }
+            debugPrint('[SimpleGoogleMaps] No results for: $address');
+            return null;
+          case 'REQUEST_DENIED':
+            debugPrint('[SimpleGoogleMaps] REQUEST DENIED – likely key restriction mismatch.');
+            throw Exception('Geocoding denied: $errorMessage');
+          case 'OVER_QUERY_LIMIT':
+            debugPrint('[SimpleGoogleMaps] Over query limit – consider caching or server proxy.');
+            return null;
+          default:
+            debugPrint('[SimpleGoogleMaps] Unexpected status "$status" for: $address');
+            return null;
         }
       } else {
         debugPrint('[SimpleGoogleMaps] HTTP Error: ${response.statusCode}');
@@ -63,6 +120,10 @@ class SimpleGoogleMapsService {
       return null;
     }
   }
+
+  // In-memory session cache for validated addresses
+  static final Map<String, AddressResult> _addressCache = <String, AddressResult>{};
+  static void clearCache() => _addressCache.clear();
 
   /// Get address suggestions (basic - just validates what user types)
   Future<List<String>> getAddressSuggestions(String query) async {

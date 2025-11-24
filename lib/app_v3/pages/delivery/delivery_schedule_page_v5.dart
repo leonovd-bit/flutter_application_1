@@ -1511,9 +1511,13 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
+                  GridView.count(
+                    crossAxisCount: 2,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 3.5,
                     children: _daysOfWeek.map((day) {
                       final dayLower = day.toLowerCase();
                       final isSelected = _selectedDays.contains(dayLower);
@@ -1529,7 +1533,6 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
                           });
                         },
                         child: Container(
-                          width: (MediaQuery.of(context).size.width - 80) / 2, // Fixed: Better spacing calculation
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           decoration: BoxDecoration(
                             color: isSelected ? Colors.grey.shade50 : Colors.white,

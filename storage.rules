@@ -1,8 +1,8 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    match /meals/{imageId} {
-      // Anyone can read meal images
+    match /meals/{allPaths=**} {
+      // Anyone can read meal images (including nested paths like Meal Images/)
       allow read: if true;
       // Only authenticated users (admins) can write/delete
       allow write, delete: if request.auth != null;

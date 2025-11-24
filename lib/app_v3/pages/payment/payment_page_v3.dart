@@ -8,6 +8,9 @@ import '../../services/auth/firestore_service_v3.dart';
 import '../../services/meals/scheduler_service_v3.dart';
 import '../../services/orders/order_generation_service.dart';
 import '../../services/payment/stripe_service.dart';
+import '../../services/billing/pricing_service.dart';
+import '../../services/billing/invoicing_service.dart';
+import '../../../services/billing_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/mock_user_model.dart';
 import 'package:flutter/foundation.dart';
@@ -34,9 +37,6 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
   MockUser? _mockUser;
   bool _isProcessing = false;
   String _selectedPaymentMethod = 'card';
-  
-  // Monthly price derived from model getter ($13/meal * meals/day * 30)
-  double get _monthlyPrice => widget.mealPlan.monthlyPrice;
 
   @override
   void initState() {
@@ -45,7 +45,9 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
   }
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+  final pricing = _calculatePricing();
+
+  return Scaffold(
       backgroundColor: AppThemeV3.background,
       appBar: AppBar(
         backgroundColor: AppThemeV3.surface,
@@ -132,41 +134,31 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
                   const Divider(color: AppThemeV3.border),
                   const SizedBox(height: 16),
                   
-                  // Pricing
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Weekly Price',
-                        style: AppThemeV3.textTheme.bodyLarge,
-                      ),
-                      Text(
-                        '\$${widget.mealPlan.weeklyPrice.toStringAsFixed(2)}',
-                        style: AppThemeV3.textTheme.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
+                  // Dynamic Pricing Breakdown
+                  _buildPricingBreakdown(pricing),
+                  
+                  const SizedBox(height: 16),
+                  const Divider(color: AppThemeV3.border),
+                  const SizedBox(height: 16),
+                  if (pricing != null)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Subscription Total',
+                          style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Monthly Subscription',
-                        style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
+                        Text(
+                          '\$${pricing.totalAmount.toStringAsFixed(2)}',
+                          style: AppThemeV3.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: AppThemeV3.accent,
+                          ),
                         ),
-                      ),
-                      Text(
-                        '\$${_monthlyPrice.toStringAsFixed(2)}',
-                        style: AppThemeV3.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: AppThemeV3.accent,
-                        ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
                   
                   const SizedBox(height: 16),
                   
@@ -384,7 +376,7 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _isProcessing ? null : _startSubscription,
+                onPressed: _isProcessing || pricing == null ? null : _startSubscription,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppThemeV3.accent,
                   padding: const EdgeInsets.symmetric(vertical: 18),
@@ -402,7 +394,7 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
                         ),
                       )
                     : Text(
-                        'Start Subscription - \$${_monthlyPrice.toStringAsFixed(2)}/month',
+                        'Start Subscription - \$${pricing?.totalAmount.toStringAsFixed(2) ?? '--'}',
                         style: AppThemeV3.textTheme.titleMedium?.copyWith(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
@@ -441,7 +433,24 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
     setState(() => _isProcessing = true);
 
     try {
-      // Add payment method via Stripe (works on Web, iOS, Android)
+      // 1. Calculate upfront pricing based on meal selections
+      debugPrint('[Payment] Calculating upfront pricing...');
+      final selectedMealsList = _getSelectedMeals();
+      final mealCount = _countMeals();
+      
+      if (selectedMealsList.isEmpty) {
+        throw Exception('No meals selected');
+      }
+      
+      final pricing = PricingService.calculateSubscriptionPrice(
+        selectedMeals: selectedMealsList,
+        mealCount: mealCount,
+      );
+      
+      debugPrint('[Payment] Pricing calculated: \$${pricing.totalAmount.toStringAsFixed(2)}');
+      debugPrint('[Payment] ${pricing.toMap()}');
+      
+      // 2. Add payment method via Stripe
       debugPrint('[Payment] Presenting Stripe payment sheet...');
       final StripeService stripe = StripeService.instance;
       final paymentAdded = await stripe.addPaymentMethod(context);
@@ -456,77 +465,83 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
       
       debugPrint('[Payment] Payment method successfully added');
       
-      // Show confirmation message
+      // 3. Get or create Stripe customer and create invoice
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('✓ Creating your subscription...'),
+            content: const Text('✓ Setting up billing...'),
             backgroundColor: AppThemeV3.success,
             duration: const Duration(seconds: 2),
           ),
         );
       }
       
-      // Generate orders from meal selections
+      final userId = _mockUser?.uid ?? FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null) {
+        throw Exception('User not authenticated');
+      }
+      
+      // Get or create Stripe customer using BillingService
+      final billingService = BillingService();
+      final customerId = await billingService.ensureCustomer();
+      if (customerId.isEmpty || customerId.startsWith('cus_temp')) {
+        throw Exception('Failed to get valid Stripe customer ID: $customerId');
+      }
+      debugPrint('[Payment] Using Stripe customer: $customerId');
+      
+      // 4. Create invoice for upfront billing
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('✓ Processing payment...'),
+            backgroundColor: AppThemeV3.success,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      
+      // Create invoice with calculated pricing
+      final invoicingService = InvoicingService();
+      final formattedMealSelections = _formatMealSelections();
+      
+      final invoiceId = await invoicingService.createSubscriptionInvoice(
+        customerId: customerId,
+        pricing: pricing,
+        mealSelections: formattedMealSelections,
+        deliverySchedule: _formatDeliverySchedule(),
+      );
+      
+      debugPrint('[Payment] Invoice created: $invoiceId, Amount: \$${pricing.totalAmount.toStringAsFixed(2)}');
+      
+      // 5. Generate orders from meal selections
       try {
-  final uid = _mockUser?.uid ?? FirebaseAuth.instance.currentUser?.uid;
-        if (uid != null) {
-          debugPrint('[Payment] Starting order generation for user: $uid');
-          
-          // Convert meal selections to the format expected by the service
-          final List<Map<String, dynamic>> formattedMealSelections = [];
-          widget.selectedMeals.forEach((day, mealMap) {
-            mealMap.forEach((mealType, meal) {
-              if (meal != null) {
-                formattedMealSelections.add({
-                  'day': day,
-                  'mealType': mealType,
-                  'id': meal.id, // Changed from 'mealId' to 'id' to match Cloud Function
-                  'name': meal.name, // Changed from 'mealName' to 'name' to match Cloud Function
-                  'description': meal.description,
-                  'calories': meal.calories,
-                  'protein': meal.protein,
-                  'imageUrl': meal.imagePath,
-                  'price': meal.price,
-                });
-              }
-            });
-          });
-          
-          // Use new OrderGenerationService to create orders from meal selections
-          final result = await OrderGenerationService.generateOrdersFromMealSelection(
-            mealSelections: formattedMealSelections,
-            deliverySchedule: widget.weeklySchedule,
-            deliveryAddress: 'default', // TODO: Get actual address from user profile
-          );
-          
-          if (result['success'] == true) {
-            debugPrint('[Payment] Successfully generated ${result['ordersGenerated'] ?? 0} orders');
-          } else {
-            debugPrint('[Payment] Order generation failed: ${result['error'] ?? 'Unknown error'}');
-            // Fall back to legacy order generation if server-side fails
-            await _generateOrdersLegacy(uid);
-          }
+        debugPrint('[Payment] Starting order generation for user: $userId');
+        
+        final result = await OrderGenerationService.generateOrdersFromMealSelection(
+          mealSelections: formattedMealSelections,
+          deliverySchedule: widget.weeklySchedule,
+          deliveryAddress: 'default',
+        );
+        
+        if (result['success'] == true) {
+          debugPrint('[Payment] Successfully generated ${result['ordersGenerated'] ?? 0} orders');
+        } else {
+          debugPrint('[Payment] Order generation failed: ${result['error'] ?? 'Unknown error'}');
+          await _generateOrdersLegacy(userId);
         }
       } catch (e) {
         debugPrint('[Payment] Failed to generate orders: $e');
-        // Fall back to legacy order generation
-  final uid = _mockUser?.uid ?? FirebaseAuth.instance.currentUser?.uid;
-        if (uid != null) {
-          await _generateOrdersLegacy(uid);
-        }
+        await _generateOrdersLegacy(userId);
       }
       
-      // Mark setup as completed and finalize onboarding
+      // 5. Mark setup as completed
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('setup_completed', true);
         await ProgressManager.saveCurrentStep(OnboardingStep.completed);
-        // Keep setup_completed flag but clear other onboarding progress data
         await ProgressManager.clearOnboardingProgress();
       } catch (e) {
-        // ignore: avoid_print
-        print('Error marking setup completed: $e');
+        debugPrint('[Payment] Error marking setup completed: $e');
       }
       
       // Show success message
@@ -564,6 +579,163 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
         setState(() => _isProcessing = false);
       }
     }
+  }
+
+  /// Get list of selected meals
+  List<MealModelV3> _getSelectedMeals() {
+    final meals = <MealModelV3>[];
+    widget.selectedMeals.forEach((day, mealMap) {
+      mealMap.forEach((mealType, meal) {
+        if (meal != null) {
+          meals.add(meal);
+        }
+      });
+    });
+    return meals;
+  }
+
+  /// Count total number of meals selected
+  int _countMeals() {
+    int count = 0;
+    widget.selectedMeals.forEach((day, mealMap) {
+      count += mealMap.values.where((m) => m != null).length;
+    });
+    return count;
+  }
+
+  /// Format meal selections for Cloud Function
+  List<Map<String, dynamic>> _formatMealSelections() {
+    final formattedMealSelections = <Map<String, dynamic>>[];
+    widget.selectedMeals.forEach((day, mealMap) {
+      mealMap.forEach((mealType, meal) {
+        if (meal != null) {
+          formattedMealSelections.add({
+            'day': day,
+            'mealType': mealType,
+            'id': meal.id,
+            'name': meal.name,
+            'description': meal.description,
+            'calories': meal.calories,
+            'protein': meal.protein,
+            'imageUrl': meal.imagePath,
+            'price': meal.price,
+          });
+        }
+      });
+    });
+    return formattedMealSelections;
+  }
+
+  /// Format delivery schedule for Cloud Function
+  List<Map<String, dynamic>> _formatDeliverySchedule() {
+    final schedule = <Map<String, dynamic>>[];
+    widget.weeklySchedule.forEach((day, config) {
+      schedule.add({
+        'day': day,
+        'addressId': config['addressId'] ?? 'default',
+        'enabled': config['enabled'] ?? true,
+      });
+    });
+    return schedule;
+  }
+
+  SubscriptionPrice? _calculatePricing() {
+    final selectedMeals = _getSelectedMeals();
+    final mealCount = _countMeals();
+
+    if (selectedMeals.isEmpty || mealCount == 0) {
+      return null;
+    }
+
+    return PricingService.calculateSubscriptionPrice(
+      selectedMeals: selectedMeals,
+      mealCount: mealCount,
+    );
+  }
+
+  /// Build dynamic pricing breakdown widget
+  Widget _buildPricingBreakdown(SubscriptionPrice? pricing) {
+    if (pricing == null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'No meals selected',
+            style: AppThemeV3.textTheme.bodyLarge?.copyWith(
+              color: Colors.red,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _pricingRow('Meals Subtotal', pricing.mealSubtotal),
+        const SizedBox(height: 8),
+        _pricingRow('Delivery (\$9.75 × ${pricing.mealCount})', pricing.deliveryFees),
+        const SizedBox(height: 8),
+        _pricingRow('FreshPunk Service Fee (10%)', pricing.freshpunkFee),
+        const SizedBox(height: 8),
+        _pricingRow('Payment Processing Fee', pricing.stripeFee, isSmall: true),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(color: AppThemeV3.border),
+              bottom: BorderSide(color: AppThemeV3.border),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Total Due Today',
+                style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: AppThemeV3.accent,
+                ),
+              ),
+              Text(
+                '\$${pricing.totalAmount.toStringAsFixed(2)}',
+                style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: AppThemeV3.accent,
+                  fontSize: 18,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Helper to build a pricing row
+  Widget _pricingRow(String label, double amount, {bool isSmall = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: AppThemeV3.textTheme.bodyMedium?.copyWith(
+            color: isSmall ? AppThemeV3.textSecondary : null,
+            fontSize: isSmall ? 12 : null,
+          ),
+        ),
+        Text(
+          '\$${amount.toStringAsFixed(2)}',
+          style: AppThemeV3.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: isSmall ? AppThemeV3.textSecondary : null,
+            fontSize: isSmall ? 12 : null,
+          ),
+        ),
+      ],
+    );
   }
 
   /// Legacy fallback method for order generation if server-side fails

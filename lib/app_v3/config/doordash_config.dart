@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import '../services/environment_service.dart';
 
 class DoorDashConfig {
-  static const bool _isProduction = false; // Set to true when you get production credentials
+  static const bool _isProduction = true; // Set to true when you get production credentials
   
   // Environment-based configuration using EnvironmentService
   static String get developerId => EnvironmentService.doorDashDeveloperId;

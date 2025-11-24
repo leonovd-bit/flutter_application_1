@@ -11,7 +11,6 @@
 
 import {setGlobalOptions} from "firebase-functions";
 import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
-import {onDocumentUpdated} from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
 import {defineSecret} from "firebase-functions/params";
@@ -24,7 +23,7 @@ import {getAuth} from "firebase-admin/auth";
 initializeApp();
 
 // Export order generation and confirmation functions
-export {generateOrderFromMealSelection, sendOrderConfirmation} from "./order-functions";
+export {generateOrderFromMealSelection, sendOrderConfirmation, confirmNextOrder} from "./order-functions";
 
 // (Removed) meal population function import
 // import {runPopulateMeals} from "./populate-meals";
@@ -36,12 +35,17 @@ export {
   squareOAuthTestPage,
   diagnoseSquareOAuth,
   devListRecentSquareOrders,
+  devFindSquareOrderByReference,
+  devGetSquareOrderDetails,
   squareWhoAmI,
   syncSquareMenu,
   forwardOrderToSquare,
+  forwardOrderOnStatusUpdate,
+  dispatchConfirmedOrders,
   devForceSyncSquareMenu,
   sendWeeklyPrepSchedules,
   getRestaurantNotifications,
+  // squareWebhookHandler, // REMOVED: Only needed if restaurants create orders independently
 } from "./square-integration";
 
 // Export manual OAuth helper (backup for when Square consent UI won't load)
@@ -53,16 +57,6 @@ export {
 export {
   checkMenuSyncStatus,
 } from "./menu-diagnostics";
-
-// Export image proxy function
-export {
-  proxyImage,
-} from "./image-proxy";
-
-// Export meal URL proxy migration function
-export {
-  updateMealUrlsToProxy,
-} from "./meal-url-proxy";
 
 // Export diagnostic tools
 export {
@@ -82,13 +76,32 @@ export {
   getRestaurantOrders,
 } from "./restaurant-notifications";
 
+// Export invoice creation functions
+export {
+  createSubscriptionInvoice,
+  getInvoiceDetails,
+} from "./invoice-functions";
+
 // Define secrets via Firebase Functions Secret Manager
 const STRIPE_SECRET_KEY = defineSecret("STRIPE_SECRET_KEY");
 const STRIPE_WEBHOOK_SECRET = defineSecret("STRIPE_WEBHOOK_SECRET");
-const TWILIO_ACCOUNT_SID = defineSecret("TWILIO_ACCOUNT_SID");
-const TWILIO_AUTH_TOKEN = defineSecret("TWILIO_AUTH_TOKEN");
 const ADMIN_EMAIL_ALLOWLIST = defineSecret("ADMIN_EMAIL_ALLOWLIST");
 const JWT_SECRET = defineSecret("JWT_SECRET"); // For kitchen partner auth
+// Server-side Google Geocoding key (NEVER expose in client)
+const GOOGLE_GEOCODE_KEY = defineSecret("GOOGLE_GEOCODE_KEY");
+
+const callableCorsOrigins = [
+  "https://freshpunk-48db1.web.app",
+  "https://freshpunk-48db1.firebaseapp.com",
+  "http://localhost:5000",
+  "http://localhost:3000",
+  "http://localhost:5173",
+];
+
+const baseCallableOptions = {
+  region: "us-central1",
+  cors: callableCorsOrigins,
+};
 
 // For cost control + latency, set region and max instances
 setGlobalOptions({region: "us-east4", maxInstances: 10});
@@ -137,25 +150,6 @@ function isValidUid(uid: string): boolean {
   return typeof uid === "string" && uid.length > 0 && uid.length <= 128;
 }
 
-// Shared sanitizer for meal metadata (matches client-side logic)
-function sanitizeMealText(text: any): string {
-  if (typeof text !== "string") return "";
-  let out = text;
-  const patterns: RegExp[] = [
-    /(freshpunk|freskpunk)\s+edition/gi, // remove phrase regardless of case/typo
-    /\(\s*(freshpunk|freskpunk)\s*\)/gi, // remove (FreshPunk) or typo variant
-    /\(\s*(freshpunk|freskpunk)\s+edition\s*\)/gi, // remove (FreshPunk Edition)
-    /\s*[-–—]\s*(freshpunk|freskpunk)\s*edition/gi, // remove with leading dash
-  ];
-  for (const p of patterns) out = out.replace(p, " ");
-  // Remove empty parentheses left behind
-  out = out.replace(/\(\s*\)/g, " ");
-  // Normalize whitespace and trailing punctuation
-  out = out.replace(/\s{2,}/g, " ").trim();
-  out = out.replace(/\s*[-–—]\s*$/g, "").trim();
-  return out;
-}
-
 async function rateLimitCheck(identifier: string, limit = 100, windowMs = 60000): Promise<boolean> {
   const now = Date.now();
   const key = identifier;
@@ -199,7 +193,7 @@ async function logAuditEvent(
 const db = getFirestore();
 
 // Enhanced connectivity check with rate limiting
-export const ping = onCall(async (request: any) => {
+export const ping = onCall(baseCallableOptions, async (request: any) => {
   const identifier = request.rawRequest?.ip || "unknown";
 
   if (!await rateLimitCheck(identifier, 60, 60000)) {
@@ -210,7 +204,10 @@ export const ping = onCall(async (request: any) => {
 });
 
 // Enhanced admin granting with comprehensive validation and audit
-export const grantAdminAllowlist = onCall({secrets: [ADMIN_EMAIL_ALLOWLIST]}, async (request: any) => {
+export const grantAdminAllowlist = onCall({
+  ...baseCallableOptions,
+  secrets: [ADMIN_EMAIL_ALLOWLIST],
+}, async (request: any) => {
   const callerUid = request.auth?.uid;
   const callerEmail = request.auth?.token?.email?.toLowerCase();
 
@@ -260,7 +257,10 @@ export const grantAdminAllowlist = onCall({secrets: [ADMIN_EMAIL_ALLOWLIST]}, as
 });
 
 // Kitchen partner authentication system
-export const grantKitchenAccess = onCall({secrets: [JWT_SECRET]}, async (request: any) => {
+export const grantKitchenAccess = onCall({
+  ...baseCallableOptions,
+  secrets: [JWT_SECRET],
+}, async (request: any) => {
   const {accessCode, partnerName, partnerEmail} = sanitizeInput(request.data || {});
   const callerUid = request.auth?.uid;
 
@@ -337,7 +337,10 @@ export const grantKitchenAccess = onCall({secrets: [JWT_SECRET]}, async (request
 });
 
 // Enhanced Payment Intent creation with comprehensive validation
-export const createPaymentIntent = onCall({secrets: [STRIPE_SECRET_KEY]}, async (request: any) => {
+export const createPaymentIntent = onCall({
+  ...baseCallableOptions,
+  secrets: [STRIPE_SECRET_KEY],
+}, async (request: any) => {
   const callerUid = request.auth?.uid;
 
   if (!callerUid) {
@@ -444,87 +447,6 @@ export const createPaymentIntent = onCall({secrets: [STRIPE_SECRET_KEY]}, async 
 });
 
 // Enhanced order management for kitchen partners
-export const updateOrderStatus = onCall(async (request: any) => {
-  const callerUid = request.auth?.uid;
-  const isAdmin = request.auth?.token?.admin === true;
-  const isKitchen = request.auth?.token?.kitchen === true;
-
-  if (!callerUid) {
-    throw new HttpsError("unauthenticated", "Authentication required.");
-  }
-
-  if (!isAdmin && !isKitchen) {
-    throw new HttpsError("permission-denied", "Only kitchen partners and admins can update order status.");
-  }
-
-  if (!await rateLimitCheck(callerUid, 100, 60000)) { // 100 updates per minute
-    throw new HttpsError("resource-exhausted", "Update rate limit exceeded.");
-  }
-
-  const {orderId, status, trackingNumber, estimatedDeliveryTime, notes} = sanitizeInput(request.data || {});
-
-  if (!orderId || typeof orderId !== "string") {
-    throw new HttpsError("invalid-argument", "Valid order ID is required.");
-  }
-
-  const validStatuses = ["pending", "confirmed", "preparing", "ready", "out_for_delivery", "delivered", "cancelled"];
-  if (!status || !validStatuses.includes(status)) {
-    throw new HttpsError("invalid-argument", "Valid status is required.");
-  }
-
-  try {
-    const orderRef = db.collection("orders").doc(orderId);
-    const orderDoc = await orderRef.get();
-
-    if (!orderDoc.exists) {
-      throw new HttpsError("not-found", "Order not found.");
-    }
-
-    const orderData = orderDoc.data()!;
-
-    // Kitchen partners can only update orders for their kitchen
-    if (isKitchen && !isAdmin) {
-      const kitchenId = request.auth.token.kitchenId;
-      if (orderData.kitchenId !== kitchenId) {
-        throw new HttpsError("permission-denied", "You can only update orders for your kitchen.");
-      }
-    }
-
-    const updateData: any = {
-      status,
-      updatedAt: FieldValue.serverTimestamp(),
-      updatedBy: callerUid,
-    };
-
-    if (trackingNumber) updateData.trackingNumber = trackingNumber;
-    if (estimatedDeliveryTime) updateData.estimatedDeliveryTime = new Date(estimatedDeliveryTime);
-    if (notes) updateData.kitchenNotes = notes;
-
-    await orderRef.update(updateData);
-
-    await logAuditEvent("order_status_updated", callerUid, {
-      orderId,
-      oldStatus: orderData.status,
-      newStatus: status,
-      kitchenId: request.auth.token?.kitchenId || "admin",
-    }, true);
-
-    // Send notification to customer
-    if (orderData.userId) {
-      await sendOrderStatusNotification(orderData.userId, orderId, status);
-    }
-
-    return {ok: true, orderId, status};
-  } catch (e: any) {
-    logger.error("updateOrderStatus error", e);
-    await logAuditEvent("order_update_failed", callerUid, {orderId, error: e.message}, false);
-
-    if (e instanceof HttpsError) {
-      throw e;
-    }
-    throw new HttpsError("internal", "Failed to update order status.");
-  }
-});
 
 // Enhanced notification system
 async function sendOrderStatusNotification(userId: string, orderId: string, status: string) {
@@ -578,124 +500,14 @@ async function sendOrderStatusNotification(userId: string, orderId: string, stat
 }
 
 // ============ Maintenance: Sanitize Meals Metadata ============
-export const sanitizeMealsMetadata = onCall(async (request: any) => {
-  // Optional confirmation gate to avoid accidental runs
-  const confirm: string | undefined = (request.data?.confirm as string | undefined)?.toUpperCase();
-  const dryRun = !!request.data?.dryRun;
-
-  if (confirm !== "CLEAN_MEALS" && !dryRun) {
-    throw new HttpsError(
-      "failed-precondition",
-      "Pass { confirm: 'CLEAN_MEALS' } to execute, or { dryRun: true } to preview."
-    );
-  }
-
-  const db = getFirestore();
-  const updatedDocs: string[] = [];
-  let scanned = 0;
-  let modified = 0;
-
-  // Use shared sanitizer
-
-  // Use collection group query for meals at meals/{restaurant}/items/{mealId}
-  const snap = await db.collectionGroup("items").get();
-  const batchLimit = 400;
-  let batch = db.batch();
-  let ops = 0;
-
-  for (const doc of snap.docs) {
-    scanned++;
-    const data = doc.data() as any;
-    const name = typeof data.name === "string" ? data.name : "";
-    const desc = typeof data.description === "string" ? data.description : "";
-    const newName = sanitizeMealText(name);
-    const newDesc = sanitizeMealText(desc);
-    const needsUpdate = newName !== name || newDesc !== desc;
-    if (!needsUpdate) continue;
-
-    modified++;
-    updatedDocs.push(doc.ref.path);
-    if (!dryRun) {
-      batch.set(doc.ref, {name: newName, description: newDesc}, {merge: true});
-      ops++;
-      if (ops >= batchLimit) {
-        await batch.commit();
-        batch = db.batch();
-        ops = 0;
-      }
-    }
-  }
-
-  if (!dryRun && ops > 0) {
-    await batch.commit();
-  }
-
-  return {
-    scanned,
-    modified,
-    dryRun,
-    sample: updatedDocs.slice(0, 10),
-  };
-});
 
 // HTTP variant to trigger from a browser or CLI with explicit confirmation
-export const sanitizeMealsWeb = onRequest(async (req: any, res: any) => {
-  try {
-    const confirm = (req.query.confirm || "").toString().toUpperCase();
-    const dryRun = String(req.query.dryRun || "false").toLowerCase() === "true";
-    // Reuse callable logic by constructing a fake request
-    // Minimal duplication: run the same sanitizer inline
-    if (confirm !== "CLEAN_MEALS" && !dryRun) {
-      res.status(400).json({
-        error: "Pass ?confirm=CLEAN_MEALS to execute, or ?dryRun=true to preview.",
-      });
-      return;
-    }
-
-    const db = getFirestore();
-    const updatedDocs: string[] = [];
-    let scanned = 0;
-    let modified = 0;
-
-    // Use shared sanitizer
-
-    const snap = await db.collectionGroup("items").get();
-    const batchLimit = 400;
-    let batch = db.batch();
-    let ops = 0;
-    for (const doc of snap.docs) {
-      scanned++;
-      const data = doc.data() as any;
-      const name = typeof data.name === "string" ? data.name : "";
-      const desc = typeof data.description === "string" ? data.description : "";
-  const newName = sanitizeMealText(name);
-  const newDesc = sanitizeMealText(desc);
-      const needsUpdate = newName !== name || newDesc !== desc;
-      if (!needsUpdate) continue;
-      modified++;
-      updatedDocs.push(doc.ref.path);
-      if (!dryRun) {
-        batch.set(doc.ref, {name: newName, description: newDesc}, {merge: true});
-        ops++;
-        if (ops >= batchLimit) {
-          await batch.commit();
-          batch = db.batch();
-          ops = 0;
-        }
-      }
-    }
-    if (!dryRun && ops > 0) {
-      await batch.commit();
-    }
-
-    res.json({scanned, modified, dryRun, sample: updatedDocs.slice(0, 10)});
-  } catch (e: any) {
-    res.status(500).json({error: e?.message || String(e)});
-  }
-});
 
 // Create Customer
-export const createCustomer = onCall({secrets: [STRIPE_SECRET_KEY]}, async (request: any) => {
+export const createCustomer = onCall({
+  ...baseCallableOptions,
+  secrets: [STRIPE_SECRET_KEY],
+}, async (request: any) => {
   try {
     const stripe = getStripe();
     const {email, name} = request.data;
@@ -715,7 +527,10 @@ export const createCustomer = onCall({secrets: [STRIPE_SECRET_KEY]}, async (requ
 });
 
 // Create Subscription
-export const createSubscription = onCall({secrets: [STRIPE_SECRET_KEY]}, async (request: any) => {
+export const createSubscription = onCall({
+  ...baseCallableOptions,
+  secrets: [STRIPE_SECRET_KEY],
+}, async (request: any) => {
   try {
   const stripe = getStripe();
     const {customer, paymentMethod, priceId} = request.data;
@@ -751,7 +566,10 @@ export const createSubscription = onCall({secrets: [STRIPE_SECRET_KEY]}, async (
 });
 
 // Create Setup Intent
-export const createSetupIntent = onCall({secrets: [STRIPE_SECRET_KEY]}, async (request: any) => {
+export const createSetupIntent = onCall({
+  ...baseCallableOptions,
+  secrets: [STRIPE_SECRET_KEY],
+}, async (request: any) => {
   try {
   const stripe = getStripe();
     const {customer} = request.data;
@@ -769,7 +587,10 @@ export const createSetupIntent = onCall({secrets: [STRIPE_SECRET_KEY]}, async (r
 });
 
 // Create Test Payment Method for Web (Development)
-export const createTestPaymentMethod = onCall({secrets: [STRIPE_SECRET_KEY]}, async (request: any) => {
+export const createTestPaymentMethod = onCall({
+  ...baseCallableOptions,
+  secrets: [STRIPE_SECRET_KEY],
+}, async (request: any) => {
   try {
     const stripe = getStripe();
     const {customer} = request.data;
@@ -803,7 +624,10 @@ export const createTestPaymentMethod = onCall({secrets: [STRIPE_SECRET_KEY]}, as
 });
 
 // Cancel Subscription
-export const cancelSubscription = onCall({secrets: [STRIPE_SECRET_KEY]}, async (request: any) => {
+export const cancelSubscription = onCall({
+  ...baseCallableOptions,
+  secrets: [STRIPE_SECRET_KEY],
+}, async (request: any) => {
   try {
   const stripe = getStripe();
     const {subscriptionId} = request.data;
@@ -835,7 +659,10 @@ export const cancelSubscription = onCall({secrets: [STRIPE_SECRET_KEY]}, async (
 });
 
 // Update Subscription
-export const updateSubscription = onCall({secrets: [STRIPE_SECRET_KEY]}, async (request: any) => {
+export const updateSubscription = onCall({
+  ...baseCallableOptions,
+  secrets: [STRIPE_SECRET_KEY],
+}, async (request: any) => {
   try {
   const stripe = getStripe();
     const {subscriptionId, newPriceId} = request.data;
@@ -882,7 +709,10 @@ export const updateSubscription = onCall({secrets: [STRIPE_SECRET_KEY]}, async (
 });
 
 // Pause Subscription (stop invoicing until resumed)
-export const pauseSubscription = onCall({secrets: [STRIPE_SECRET_KEY]}, async (request: any) => {
+export const pauseSubscription = onCall({
+  ...baseCallableOptions,
+  secrets: [STRIPE_SECRET_KEY],
+}, async (request: any) => {
   try {
     const stripe = getStripe();
     const {subscriptionId} = request.data;
@@ -893,19 +723,23 @@ export const pauseSubscription = onCall({secrets: [STRIPE_SECRET_KEY]}, async (r
     const uid = request.auth?.uid as string | undefined;
     try {
       if (uid && updated?.id) {
+        const subPayload = {
+          id: updated.id,
+          stripeSubscriptionId: updated.id,
+          status: "paused",
+          pauseBehavior: "mark_uncollectible",
+          updatedAt: FieldValue.serverTimestamp(),
+        };
+        // Legacy nested location
         await db.collection("users").doc(uid)
           .collection("subscriptions").doc(updated.id)
-          .set({
-            id: updated.id,
-            stripeSubscriptionId: updated.id,
-            status: "paused",
-            pauseBehavior: "mark_uncollectible",
-            updatedAt: FieldValue.serverTimestamp(),
-          }, {merge: true});
+          .set(subPayload, {merge: true});
+        // Top-level canonical subscription doc (doc id is userId)
+        await db.collection("subscriptions").doc(uid).set(subPayload, {merge: true});
       }
     } catch (e) {
- logger.warn("pauseSubscription Firestore mirror failed", e as any);
-}
+      logger.warn("pauseSubscription Firestore mirror failed", e as any);
+    }
     return {subscription: updated};
   } catch (error) {
     logger.error("Error pausing subscription:", error);
@@ -914,7 +748,10 @@ export const pauseSubscription = onCall({secrets: [STRIPE_SECRET_KEY]}, async (r
 });
 
 // Resume Subscription
-export const resumeSubscription = onCall({secrets: [STRIPE_SECRET_KEY]}, async (request: any) => {
+export const resumeSubscription = onCall({
+  ...baseCallableOptions,
+  secrets: [STRIPE_SECRET_KEY],
+}, async (request: any) => {
   try {
     const stripe = getStripe();
     const {subscriptionId} = request.data;
@@ -926,19 +763,21 @@ export const resumeSubscription = onCall({secrets: [STRIPE_SECRET_KEY]}, async (
     try {
       if (uid && updated?.id) {
         const nextTs = ((updated as any).current_period_end as number | undefined);
+        const subPayload = {
+          id: updated.id,
+          stripeSubscriptionId: updated.id,
+          status: updated.status ?? "active",
+          nextBillingDate: nextTs ? new Date(nextTs * 1000) : null,
+          updatedAt: FieldValue.serverTimestamp(),
+        };
         await db.collection("users").doc(uid)
           .collection("subscriptions").doc(updated.id)
-          .set({
-            id: updated.id,
-            stripeSubscriptionId: updated.id,
-            status: updated.status ?? "active",
-            nextBillingDate: nextTs ? new Date(nextTs * 1000) : null,
-            updatedAt: FieldValue.serverTimestamp(),
-          }, {merge: true});
+          .set(subPayload, {merge: true});
+        await db.collection("subscriptions").doc(uid).set(subPayload, {merge: true});
       }
     } catch (e) {
- logger.warn("resumeSubscription Firestore mirror failed", e as any);
-}
+      logger.warn("resumeSubscription Firestore mirror failed", e as any);
+    }
     return {subscription: updated};
   } catch (error) {
     logger.error("Error resuming subscription:", error);
@@ -947,7 +786,10 @@ export const resumeSubscription = onCall({secrets: [STRIPE_SECRET_KEY]}, async (
 });
 
 // Probe available installments and payment method types for a given amount/currency
-export const getBillingOptions = onCall({secrets: [STRIPE_SECRET_KEY]}, async (request: any) => {
+export const getBillingOptions = onCall({
+  ...baseCallableOptions,
+  secrets: [STRIPE_SECRET_KEY],
+}, async (request: any) => {
   try {
     const stripe = getStripe();
     const {amount, currency = "usd", customer, paymentMethod} = request.data ?? {};
@@ -1071,7 +913,10 @@ async function getOrCreateCustomer(stripe: Stripe, email?: string, name?: string
 }
 
 // List Payment Methods (cards) for the authenticated user's customer
-export const listPaymentMethods = onCall({secrets: [STRIPE_SECRET_KEY]}, async (request: any) => {
+export const listPaymentMethods = onCall({
+  ...baseCallableOptions,
+  secrets: [STRIPE_SECRET_KEY],
+}, async (request: any) => {
   try {
     const stripe = getStripe();
     const email: string | undefined = (request.data?.email as string) ||
@@ -1114,7 +959,10 @@ export const listPaymentMethods = onCall({secrets: [STRIPE_SECRET_KEY]}, async (
 });
 
 // Detach a payment method from the authenticated user's customer
-export const detachPaymentMethod = onCall({secrets: [STRIPE_SECRET_KEY]}, async (request: any) => {
+export const detachPaymentMethod = onCall({
+  ...baseCallableOptions,
+  secrets: [STRIPE_SECRET_KEY],
+}, async (request: any) => {
   try {
     const stripe = getStripe();
     const {payment_method} = request.data ?? {};
@@ -1128,7 +976,10 @@ export const detachPaymentMethod = onCall({secrets: [STRIPE_SECRET_KEY]}, async 
 });
 
 // Set default payment method for the authenticated user's customer
-export const setDefaultPaymentMethod = onCall({secrets: [STRIPE_SECRET_KEY]}, async (request: any) => {
+export const setDefaultPaymentMethod = onCall({
+  ...baseCallableOptions,
+  secrets: [STRIPE_SECRET_KEY],
+}, async (request: any) => {
   try {
     const stripe = getStripe();
     const email: string | undefined = (request.data?.email as string) ||
@@ -1164,7 +1015,7 @@ export const setDefaultPaymentMethod = onCall({secrets: [STRIPE_SECRET_KEY]}, as
 // ============ Minimal Order APIs ============
 
 // Place an order (server-authored write to Firestore)
-export const placeOrder = onCall(async (request: any) => {
+export const placeOrder = onCall(baseCallableOptions, async (request: any) => {
   try {
     const uid = request.auth?.uid as string | undefined;
     if (!uid) throw new Error("Unauthenticated");
@@ -1204,7 +1055,7 @@ export const placeOrder = onCall(async (request: any) => {
 });
 
 // Cancel an order (owner-only; rules enforce constraints; we set server timestamps)
-export const cancelOrder = onCall(async (request: any) => {
+export const cancelOrder = onCall(baseCallableOptions, async (request: any) => {
   try {
     const uid = request.auth?.uid as string | undefined;
     if (!uid) throw new Error("Unauthenticated");
@@ -1217,8 +1068,8 @@ export const cancelOrder = onCall(async (request: any) => {
     if (data.userId !== uid) throw new Error("Forbidden");
 
     await snap.ref.update({
-      status: "canceled",
-      canceledAt: FieldValue.serverTimestamp(),
+      status: "cancelled",
+      cancelledAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
     return {success: true};
@@ -1229,7 +1080,7 @@ export const cancelOrder = onCall(async (request: any) => {
 });
 
 // ============ FCM Registration ============
-export const registerFcmToken = onCall(async (request: any) => {
+export const registerFcmToken = onCall(baseCallableOptions, async (request: any) => {
   const uid = request.auth?.uid as string | undefined;
   if (!uid) throw new Error("Unauthenticated");
   const token = (request.data?.token as string | undefined)?.trim();
@@ -1246,93 +1097,10 @@ export const registerFcmToken = onCall(async (request: any) => {
 });
 
 // Notify user on order status changes
-export const onOrderUpdated = onDocumentUpdated("orders/{orderId}", async (event: any) => {
-  try {
-    const before = event.data?.before.data() as any;
-    const after = event.data?.after.data() as any;
-    if (!before || !after) return;
-    if (before.status === after.status) return;
-
-    const userId = after.userId as string | undefined;
-    if (!userId) return;
-
-    const tokensSnap = await db.collection("users").doc(userId).collection("fcmTokens").get();
-    if (tokensSnap.empty) return;
-  const tokens = tokensSnap.docs.map((d: any) => d.id).filter(Boolean);
-    if (tokens.length === 0) return;
-
-    const messaging = getMessaging();
-    const title = "Order update";
-    const body = `Your order is now ${after.status}`;
-    await messaging.sendEachForMulticast({
-      tokens,
-      notification: {title, body},
-      data: {
-        orderId: event.params.orderId as string,
-        status: String(after.status ?? "unknown"),
-      },
-    });
-  } catch (e) {
-    logger.error("onOrderUpdated error", e);
-  }
-});
 
 // ============ Admin Claims ============
-export const grantAdmin = onCall(async (request: any) => {
-  const callerAdmin = (request.auth?.token as any)?.admin === true;
-  // TEMP bootstrap: allow grant when 'bootstrap' is true. Remove after owner is admin.
-  const {uid, email, bootstrap} = request.data ?? {} as {uid?: string; email?: string; bootstrap?: boolean};
-  const auth = getAuth();
-
-  // Permission check: allow if caller is admin, or if bootstrap flag is set (temporary).
-  const bootstrapAllowed = bootstrap === true;
-  if (!(callerAdmin || bootstrapAllowed)) {
-    throw new HttpsError("permission-denied", "Only admins can grant admin (or pass bootstrap for the owner email).");
-  }
-
-  let targetUid: string | undefined = uid;
-  if (!targetUid && email) {
-    try {
-      const user = await auth.getUserByEmail(email);
-      targetUid = user.uid;
-    } catch (err) {
-      throw new HttpsError("not-found", "No Firebase user found for the provided email. Please sign up/sign in first and try again.");
-    }
-  }
-  if (!targetUid) {
-    throw new HttpsError("invalid-argument", "uid or email is required");
-  }
-  await auth.setCustomUserClaims(targetUid, {admin: true});
-  return {success: true, uid: targetUid};
-});
 
 // Clear existing meals to trigger reseed with local images
-export const clearMealsAndReseed = onCall(async (request) => {
-  try {
-    logger.info("Clearing existing meals...");
-
-    // Get all meals
-    const mealsSnapshot = await db.collection("meals").get();
-
-    // Delete all existing meals in batches
-    const batch = db.batch();
-    mealsSnapshot.docs.forEach((doc) => {
-      batch.delete(doc.ref);
-    });
-
-    await batch.commit();
-    logger.info(`Deleted ${mealsSnapshot.docs.length} existing meals`);
-
-    return {
-      success: true,
-      message: `Cleared ${mealsSnapshot.docs.length} meals. App will reseed with local images on next meal load.`,
-      clearedCount: mealsSnapshot.docs.length,
-    };
-  } catch (error) {
-    logger.error("Error clearing meals:", error);
-    throw new HttpsError("internal", "Failed to clear meals");
-  }
-});
 
 // Enhanced Stripe webhook handler with security and audit
 export const stripeWebhook = onRequest({secrets: [STRIPE_WEBHOOK_SECRET]}, async (req: any, res: any) => {
@@ -1536,18 +1304,18 @@ async function handleSubscriptionCreated(event: any) {
     if (!usersSnapshot.empty) {
       const userId = usersSnapshot.docs[0].id;
 
-      // Create subscription record
-      await db.collection("users").doc(userId)
-        .collection("subscriptions").doc(subscription.id).set({
-          id: subscription.id,
-          stripeSubscriptionId: subscription.id,
-          status: subscription.status,
-          stripePriceId: subscription.items.data[0]?.price?.id,
-          currentPeriodStart: new Date(subscription.current_period_start * 1000),
-          currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-          cancelAtPeriodEnd: subscription.cancel_at_period_end,
-          createdAt: FieldValue.serverTimestamp(),
-        });
+      // Create subscription record in top-level /subscriptions collection
+      await db.collection("subscriptions").doc(userId).set({
+        id: subscription.id,
+        userId: userId,
+        stripeSubscriptionId: subscription.id,
+        status: subscription.status,
+        stripePriceId: subscription.items.data[0]?.price?.id,
+        currentPeriodStart: new Date(subscription.current_period_start * 1000),
+        currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+        cancelAtPeriodEnd: subscription.cancel_at_period_end,
+        createdAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
 
       return {handled: true, userId, subscriptionId: subscription.id};
     }
@@ -1573,13 +1341,12 @@ async function handleSubscriptionUpdated(event: any) {
     if (!usersSnapshot.empty) {
       const userId = usersSnapshot.docs[0].id;
 
-      await db.collection("users").doc(userId)
-        .collection("subscriptions").doc(subscription.id).update({
-          status: subscription.status,
-          currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-          cancelAtPeriodEnd: subscription.cancel_at_period_end,
-          updatedAt: FieldValue.serverTimestamp(),
-        });
+      await db.collection("subscriptions").doc(userId).update({
+        status: subscription.status,
+        currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+        cancelAtPeriodEnd: subscription.cancel_at_period_end,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
 
       return {handled: true, userId, subscriptionId: subscription.id};
     }
@@ -1604,12 +1371,11 @@ async function handleSubscriptionDeleted(event: any) {
     if (!usersSnapshot.empty) {
       const userId = usersSnapshot.docs[0].id;
 
-      await db.collection("users").doc(userId)
-        .collection("subscriptions").doc(subscription.id).update({
-          status: "cancelled",
-          cancelledAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
+      await db.collection("subscriptions").doc(userId).update({
+        status: "cancelled",
+        cancelledAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
 
       return {handled: true, userId, subscriptionId: subscription.id};
     }
@@ -1660,734 +1426,30 @@ async function handleInvoicePaymentFailed(event: any) {
 }
 
 // Security monitoring functions
-export const getSecurityMetrics = onCall(async (request: any) => {
-  const isAdmin = request.auth?.token?.admin === true;
-
-  if (!isAdmin) {
-    throw new HttpsError("permission-denied", "Admin access required.");
-  }
-
-  try {
-    const now = new Date();
-    const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-
-    // Get recent audit logs
-    const auditSnapshot = await db.collection("audit_logs")
-      .where("timestamp", ">=", dayAgo)
-      .orderBy("timestamp", "desc")
-      .limit(100)
-      .get();
-
-    const auditLogs = auditSnapshot.docs.map((doc) => doc.data());
-
-    // Calculate metrics
-    const totalEvents = auditLogs.length;
-    const failedEvents = auditLogs.filter((log) => !log.isSuccess).length;
-    const successRate = totalEvents > 0 ? ((totalEvents - failedEvents) / totalEvents * 100).toFixed(1) : "100";
-
-    const eventTypes = auditLogs.reduce((acc: any, log) => {
-      acc[log.action] = (acc[log.action] || 0) + 1;
-      return acc;
-    }, {});
-
-    return {
-      period: "24h",
-      totalEvents,
-      failedEvents,
-      successRate: `${successRate}%`,
-      eventTypes,
-      recentLogs: auditLogs.slice(0, 20), // Last 20 events
-    };
-  } catch (error: any) {
-    logger.error("Error getting security metrics", error);
-    throw new HttpsError("internal", "Failed to retrieve security metrics");
-  }
-});
 
 // Kitchen operations Cloud Functions
-export const getKitchenOrders = onCall(async (request: any) => {
-  const callerUid = request.auth?.uid;
-  const isKitchen = request.auth?.token?.kitchen === true;
-  const isAdmin = request.auth?.token?.admin === true;
-  const kitchenId = request.auth?.token?.kitchenId;
-
-  if (!callerUid) {
-    throw new HttpsError("unauthenticated", "Authentication required.");
-  }
-
-  if (!isKitchen && !isAdmin) {
-    throw new HttpsError("permission-denied", "Kitchen partner access required.");
-  }
-
-  if (!await rateLimitCheck(callerUid, 60, 60000)) { // 60 requests per minute
-    throw new HttpsError("resource-exhausted", "Request rate limit exceeded.");
-  }
-
-  try {
-    const {status = "all", limit = 50} = sanitizeInput(request.data || {});
-
-    let ordersQuery = db.collection("orders")
-      .orderBy("createdAt", "desc")
-      .limit(Math.min(limit, 100)); // Max 100 orders
-
-    // Filter by status if specified
-    if (status !== "all") {
-      const validStatuses = ["pending", "confirmed", "preparing", "ready", "out_for_delivery", "delivered", "cancelled"];
-      if (validStatuses.includes(status)) {
-        ordersQuery = ordersQuery.where("status", "==", status);
-      }
-    }
-
-    // Kitchen partners see only their kitchen's orders (if kitchenId is set)
-    if (isKitchen && !isAdmin && kitchenId) {
-      ordersQuery = ordersQuery.where("kitchenId", "==", kitchenId);
-    }
-
-    const ordersSnapshot = await ordersQuery.get();
-    const orders = ordersSnapshot.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ...data,
-        // Remove sensitive customer information for kitchen partners
-        customerEmail: isAdmin ? data.customerEmail : undefined,
-        customerPhone: isAdmin ? data.customerPhone : undefined,
-      };
-    });
-
-    await logAuditEvent("kitchen_orders_retrieved", callerUid, {
-      kitchenId,
-      ordersCount: orders.length,
-      status,
-    }, true);
-
-    return {
-      orders,
-      count: orders.length,
-      kitchenId,
-    };
-  } catch (error: any) {
-    logger.error("Error getting kitchen orders", error);
-    await logAuditEvent("kitchen_orders_failed", callerUid, {error: error.message}, false);
-    throw new HttpsError("internal", "Failed to retrieve kitchen orders");
-  }
-});
 
 // Bulk order status update for kitchen efficiency
-export const bulkUpdateOrderStatus = onCall(async (request: any) => {
-  const callerUid = request.auth?.uid;
-  const isKitchen = request.auth?.token?.kitchen === true;
-  const isAdmin = request.auth?.token?.admin === true;
-  const kitchenId = request.auth?.token?.kitchenId;
-
-  if (!callerUid) {
-    throw new HttpsError("unauthenticated", "Authentication required.");
-  }
-
-  if (!isKitchen && !isAdmin) {
-    throw new HttpsError("permission-denied", "Kitchen partner access required.");
-  }
-
-  if (!await rateLimitCheck(callerUid, 10, 60000)) { // 10 bulk updates per minute
-    throw new HttpsError("resource-exhausted", "Bulk update rate limit exceeded.");
-  }
-
-  const {orderIds, status} = sanitizeInput(request.data || {});
-
-  if (!Array.isArray(orderIds) || orderIds.length === 0 || orderIds.length > 20) {
-    throw new HttpsError("invalid-argument", "Must provide 1-20 order IDs");
-  }
-
-  const validStatuses = ["preparing", "ready", "out_for_delivery", "delivered"];
-  if (!validStatuses.includes(status)) {
-    throw new HttpsError("invalid-argument", "Invalid status for bulk update");
-  }
-
-  try {
-    const batch = db.batch();
-    const updatedOrders = [];
-
-    for (const orderId of orderIds) {
-      const orderRef = db.collection("orders").doc(orderId);
-      const orderDoc = await orderRef.get();
-
-      if (!orderDoc.exists) {
-        continue; // Skip non-existent orders
-      }
-
-      const orderData = orderDoc.data()!;
-
-      // Verify kitchen access for this order
-      if (isKitchen && !isAdmin && orderData.kitchenId !== kitchenId) {
-        continue; // Skip orders not belonging to this kitchen
-      }
-
-      batch.update(orderRef, {
-        status,
-        updatedAt: FieldValue.serverTimestamp(),
-        updatedBy: callerUid,
-        kitchenUpdatedAt: FieldValue.serverTimestamp(),
-      });
-
-      updatedOrders.push(orderId);
-    }
-
-    await batch.commit();
-
-    // Send notifications for updated orders
-    for (const orderId of updatedOrders) {
-      try {
-        const orderDoc = await db.collection("orders").doc(orderId).get();
-        const orderData = orderDoc.data();
-        if (orderData?.userId) {
-          await sendOrderStatusNotification(orderData.userId, orderId, status);
-        }
-      } catch (notificationError) {
-        logger.warn(`Failed to send notification for order ${orderId}`, notificationError);
-      }
-    }
-
-    await logAuditEvent("bulk_order_update", callerUid, {
-      orderIds: updatedOrders,
-      status,
-      kitchenId,
-      count: updatedOrders.length,
-    }, true);
-
-    return {
-      updatedOrders,
-      count: updatedOrders.length,
-      status,
-    };
-  } catch (error: any) {
-    logger.error("Error in bulk order update", error);
-    await logAuditEvent("bulk_order_update_failed", callerUid, {error: error.message}, false);
-    throw new HttpsError("internal", "Failed to update orders");
-  }
-});
 
 // Get kitchen performance metrics
-export const getKitchenMetrics = onCall(async (request: any) => {
-  const callerUid = request.auth?.uid;
-  const isKitchen = request.auth?.token?.kitchen === true;
-  const isAdmin = request.auth?.token?.admin === true;
-  const kitchenId = request.auth?.token?.kitchenId;
-
-  if (!callerUid) {
-    throw new HttpsError("unauthenticated", "Authentication required.");
-  }
-
-  if (!isKitchen && !isAdmin) {
-    throw new HttpsError("permission-denied", "Kitchen partner access required.");
-  }
-
-  try {
-    const now = new Date();
-    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const weekStart = new Date(dayStart.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-    let ordersQuery: any = db.collection("orders");
-
-    // Filter by kitchen if not admin
-    if (isKitchen && !isAdmin && kitchenId) {
-      ordersQuery = ordersQuery.where("kitchenId", "==", kitchenId);
-    }
-
-    // Get today's orders
-    const todayOrdersSnapshot = await ordersQuery
-      .where("createdAt", ">=", dayStart)
-      .get();
-
-    // Get this week's orders
-    const weekOrdersSnapshot = await ordersQuery
-      .where("createdAt", ">=", weekStart)
-      .get();
-
-    const todayOrders = todayOrdersSnapshot.docs.map((doc: any) => doc.data());
-    const weekOrders = weekOrdersSnapshot.docs.map((doc: any) => doc.data());
-
-    // Calculate metrics
-    const todayStats = calculateOrderStats(todayOrders);
-    const weekStats = calculateOrderStats(weekOrders);
-
-    return {
-      today: {
-        date: dayStart.toISOString().split("T")[0],
-        ...todayStats,
-      },
-      week: {
-        startDate: weekStart.toISOString().split("T")[0],
-        endDate: now.toISOString().split("T")[0],
-        ...weekStats,
-      },
-      kitchenId: isAdmin ? null : kitchenId,
-    };
-  } catch (error: any) {
-    logger.error("Error getting kitchen metrics", error);
-    throw new HttpsError("internal", "Failed to retrieve kitchen metrics");
-  }
-});
-
-function calculateOrderStats(orders: any[]) {
-  const total = orders.length;
-  const byStatus = orders.reduce((acc: any, order) => {
-    acc[order.status] = (acc[order.status] || 0) + 1;
-    return acc;
-  }, {});
-
-  const completed = (byStatus.delivered || 0);
-  const pending = (byStatus.pending || 0) + (byStatus.confirmed || 0);
-  const inProgress = (byStatus.preparing || 0) + (byStatus.ready || 0) + (byStatus.out_for_delivery || 0);
-  const cancelled = (byStatus.cancelled || 0);
-
-  const totalRevenue = orders
-    .filter((order) => order.status === "delivered")
-    .reduce((sum, order) => sum + (order.totalAmount || 0), 0);
-
-  return {
-    total,
-    completed,
-    pending,
-    inProgress,
-    cancelled,
-    revenue: totalRevenue,
-    statusBreakdown: byStatus,
-  };
-}
 
 // Temporary function to grant kitchen access (remove after setup)
-export const tempGrantKitchenAccess = onRequest(async (req: any, res: any) => {
-  const email = req.query.email || "davvitala@gmail.com";
-
-  try {
-    // Get user by email
-    const userRecord = await getAuth().getUserByEmail(email);
-
-    // Set custom claims
-    await getAuth().setCustomUserClaims(userRecord.uid, {
-      kitchen: true,
-      kitchenId: "freshpunk_main",
-      kitchenName: "FreshPunk Main Kitchen",
-      partnerName: "Test Kitchen Partner",
-      partnerEmail: email,
-      kitchenGrantedAt: Date.now(),
-    });
-
-    res.json({
-      success: true,
-      message: `Kitchen access granted to ${email}`,
-      uid: userRecord.uid,
-      claims: {
-        kitchen: true,
-        kitchenId: "freshpunk_main",
-        kitchenName: "FreshPunk Main Kitchen",
-      },
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: (error as Error).message,
-    });
-  }
-});
 
 // ============ SMS Notification Functions ============
 
 // Send SMS notification via Twilio
-export const sendSMS = onCall({secrets: [TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN]}, async (request: any) => {
-  try {
-    const {toNumber, message, orderNumber} = request.data ?? {};
-
-    if (!toNumber || !message) {
-      throw new Error("toNumber and message are required");
-    }
-
-    const accountSid = TWILIO_ACCOUNT_SID.value();
-    const authToken = TWILIO_AUTH_TOKEN.value();
-
-    if (!accountSid || !authToken) {
-      logger.error("Twilio credentials not configured");
-      return {success: false, error: "SMS service not configured"};
-    }
-
-    // Clean phone number
-    const cleanNumber = cleanPhoneNumber(toNumber);
-    if (!cleanNumber) {
-      throw new Error("Invalid phone number format");
-    }
-
-    // Send SMS via Twilio API
-    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-    const credentials = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
-
-    const response = await fetch(twilioUrl, {
-      method: "POST",
-      headers: {
-        "Authorization": `Basic ${credentials}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        "From": "+18336470630", // Replace with your Twilio number
-        "To": cleanNumber,
-        "Body": message,
-      }),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      logger.info(`SMS sent successfully. SID: ${data.sid}`);
-
-      // Log notification
-      await db.collection("notifications").add({
-        type: "sms",
-        toNumber: cleanNumber,
-        message: message.substring(0, 100) + "...", // Truncate for storage
-        orderNumber: orderNumber || null,
-        status: "sent",
-        twilioSid: data.sid,
-        timestamp: FieldValue.serverTimestamp(),
-      });
-
-      return {success: true, sid: data.sid};
-    } else {
-      const errorData = await response.text();
-      logger.error(`Twilio API error: ${response.status} - ${errorData}`);
-      return {success: false, error: `SMS sending failed: ${response.status}`};
-    }
-  } catch (error) {
-    logger.error("SMS sending error:", error);
-    return {success: false, error: (error as Error).message};
-  }
-});
 
 // Send order confirmation SMS
-export const sendOrderConfirmationSMS = onCall({secrets: [TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN]}, async (request: any) => {
-  try {
-    const {orderNumber, customerName, customerPhone, items, estimatedDelivery} = request.data ?? {};
-
-    if (!orderNumber || !customerPhone) {
-      throw new Error("orderNumber and customerPhone are required");
-    }
-
-    // Format items list
-    const itemsList = Array.isArray(items) ? items.slice(0, 3).join(", ") : "Your meals";
-    const moreItems = Array.isArray(items) && items.length > 3 ? ` +${items.length - 3} more` : "";
-
-    const message = `🍽️ Order Confirmed! #${orderNumber}
-
-Hi ${customerName || "there"}! Your FreshPunk order is being prepared:
-${itemsList}${moreItems}
-
-📦 Estimated delivery: ${estimatedDelivery || "30-45 minutes"}
-📱 Track your order in the app!
-
-Thanks for choosing FreshPunk! 🌟`;
-
-    // Send SMS using internal function
-    const result = await sendSMSInternal(customerPhone, message, orderNumber);
-
-    return result;
-  } catch (error) {
-    logger.error("Order confirmation SMS error:", error);
-    return {success: false, error: (error as Error).message};
-  }
-});
 
 // Send order status update SMS
-export const sendOrderStatusSMS = onCall({secrets: [TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN]}, async (request: any) => {
-  try {
-    const {orderNumber, customerPhone, status, eta, driverName} = request.data ?? {};
-
-    if (!orderNumber || !customerPhone || !status) {
-      throw new Error("orderNumber, customerPhone, and status are required");
-    }
-
-    let message = `📦 Order Update #${orderNumber}\n\n`;
-
-    switch (status.toLowerCase()) {
-      case "preparing":
-        message += `👨‍🍳 Your meal is being prepared!\nETA: ${eta || "30-45 minutes"}`;
-        break;
-      case "ready":
-        message += "✅ Your order is ready for pickup!";
-        break;
-      case "out_for_delivery":
-        message += "🚗 Out for delivery!";
-        if (driverName) {
-          message += `\nDriver: ${driverName}`;
-        }
-        if (eta) {
-          message += `\nETA: ${eta}`;
-        }
-        break;
-      case "nearby":
-        message += "📍 Driver is nearby!\nETA: 2-5 minutes";
-        break;
-      case "delivered":
-        message += "🎉 Order delivered!\nEnjoy your FreshPunk meal!";
-        break;
-      default:
-        message += `Status: ${status}`;
-        if (eta) {
-          message += `\nETA: ${eta}`;
-        }
-    }
-
-    message += "\n\n📱 Open the app for real-time tracking";
-
-    // Send SMS using internal function
-    const result = await sendSMSInternal(customerPhone, message, orderNumber);
-
-    return result;
-  } catch (error) {
-    logger.error("Order status SMS error:", error);
-    return {success: false, error: (error as Error).message};
-  }
-});
-
-// Helper function to clean phone numbers
-function cleanPhoneNumber(phoneNumber: string): string | null {
-  // Remove all non-digit characters
-  const digits = phoneNumber.replace(/[^\d]/g, "");
-
-  // US phone number validation
-  if (digits.length === 10) {
-    return `+1${digits}`; // Add US country code
-  } else if (digits.length === 11 && digits.startsWith("1")) {
-    return `+${digits}`; // Already has country code
-  }
-
-  return null; // Invalid
-}
-
-// Internal SMS sending function
-async function sendSMSInternal(toNumber: string, message: string, orderNumber?: string): Promise<{success: boolean; error?: string; sid?: string}> {
-  try {
-    const accountSid = TWILIO_ACCOUNT_SID.value();
-    const authToken = TWILIO_AUTH_TOKEN.value();
-
-    if (!accountSid || !authToken) {
-      logger.error("Twilio credentials not configured");
-      return {success: false, error: "SMS service not configured"};
-    }
-
-    // Clean phone number
-    const cleanNumber = cleanPhoneNumber(toNumber);
-    if (!cleanNumber) {
-      return {success: false, error: "Invalid phone number format"};
-    }
-
-    // Send SMS via Twilio API
-    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-    const credentials = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
-
-    const response = await fetch(twilioUrl, {
-      method: "POST",
-      headers: {
-        "Authorization": `Basic ${credentials}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        "From": "+18336470630", // Replace with your Twilio number
-        "To": cleanNumber,
-        "Body": message,
-      }),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      logger.info(`SMS sent successfully. SID: ${data.sid}`);
-
-      // Log notification
-      await db.collection("notifications").add({
-        type: "sms",
-        toNumber: cleanNumber,
-        message: message.substring(0, 100) + "...", // Truncate for storage
-        orderNumber: orderNumber || null,
-        status: "sent",
-        twilioSid: data.sid,
-        timestamp: FieldValue.serverTimestamp(),
-      });
-
-      return {success: true, sid: data.sid};
-    } else {
-      const errorData = await response.text();
-      logger.error(`Twilio API error: ${response.status} - ${errorData}`);
-      return {success: false, error: `SMS sending failed: ${response.status}`};
-    }
-  } catch (error) {
-    logger.error("SMS sending error:", error);
-    return {success: false, error: (error as Error).message};
-  }
-}
 
 /**
  * List all meal IDs for image naming reference
  */
-export const listMealIds = onRequest({cors: true}, async (req, res) => {
-  try {
-    const db = getFirestore();
-
-    const output: string[] = [];
-    output.push("========================================");
-    output.push("     MEAL IMAGE NAMING REFERENCE");
-    output.push("========================================\n");
-
-    // Get all restaurants
-    const restaurantsSnapshot = await db.collection("meals").get();
-
-    let totalCount = 0;
-
-    for (const restaurantDoc of restaurantsSnapshot.docs) {
-      const restaurant = restaurantDoc.id;
-      output.push(`\n📍 Restaurant: ${restaurant.toUpperCase()}`);
-      output.push("─".repeat(60));
-
-      // Get all meals for this restaurant
-      const mealsSnapshot = await db
-        .collection("meals")
-        .doc(restaurant)
-        .collection("items")
-        .orderBy("name")
-        .get();
-
-      const meals: Array<{
-        id: string;
-        name: string;
-        type: string;
-        category: string;
-      }> = [];
-
-      mealsSnapshot.forEach((doc) => {
-        const meal = doc.data();
-        meals.push({
-          id: doc.id,
-          name: meal.name || "Unknown",
-          type: meal.mealType || "unknown",
-          category: meal.menuCategory || "premade",
-        });
-      });
-
-      // Group by meal type
-      const byType: Record<string, typeof meals> = {};
-      meals.forEach((meal) => {
-        if (!byType[meal.type]) byType[meal.type] = [];
-        byType[meal.type].push(meal);
-      });
-
-      // Output grouped by type
-      Object.keys(byType).sort().forEach((mealType) => {
-        output.push(`\n  ${mealType.toUpperCase()}:`);
-        byType[mealType].forEach((meal) => {
-          output.push(`    ✓ ${meal.id}.jpg`);
-          output.push(`      → "${meal.name}" (${meal.category})`);
-        });
-      });
-
-      output.push(`\n  Total meals: ${meals.length}`);
-      totalCount += meals.length;
-    }
-
-    output.push("\n========================================");
-    output.push(`  TOTAL MEALS: ${totalCount}`);
-    output.push("========================================\n");
-
-    output.push("📝 INSTRUCTIONS:");
-    output.push("  1. Rename your images to match the IDs above");
-    output.push("     Example: chicken_caesar_wrap.jpg");
-    output.push("  2. Extensions: .jpg, .jpeg, .webp, .jfif, .png");
-    output.push("  3. Put all images in one folder");
-    output.push("  4. Run: .\\upload_meal_images.ps1 -SourceFolder \"C:\\path\\to\\folder\"\n");
-
-    res.setHeader("Content-Type", "text/plain");
-    res.status(200).send(output.join("\n"));
-  } catch (error) {
-    logger.error("Error listing meal IDs:", error);
-    res.status(500).send("Error fetching meal IDs");
-  }
-});
 
 /**
  * Update meal image URLs in Firestore
  */
-export const updateMealImageUrls = onRequest({cors: true}, async (req, res) => {
-  try {
-    const db = getFirestore();
-
-    // Base URL for Firebase Storage
-    const STORAGE_BASE = "https://firebasestorage.googleapis.com/v0/b/freshpunk-48db1.appspot.com/o/meals%2FMeal%20Images%2F";
-
-    // Map of meal IDs to image extensions
-    const mealImages: Record<string, string> = {
-      "bun_cha_gio": "jpg",
-      "bun_heo_quay": "webp",
-      "bun_nuoc_tuong": "jfif",
-      "bun_thit_nuong": "jpg",
-      "california_cobb_salad": "jpeg",
-      "chicken_caesar_salad": "jpeg",
-      "chicken_caesar_wrap": "jpeg",
-      "chicken_chipotle_quesadilla": "jpeg",
-      "com_tam_suron_bi_cha": "jpg",
-      "custom_acai_bowl_base": "jpeg",
-      "custom_bagel_base": "jpeg",
-      "custom_grain_bowl_base": "jpeg",
-      "custom_greek_yogurt_bowl_base": "jpeg",
-      "custom_pasta_base": "jpeg",
-      "custom_quesadilla_base": "jpeg",
-      "custom_salad_base": "jpeg",
-      "custom_wrap_base": "jpeg",
-      "notos_greek_yogurt_bowl": "jpeg",
-      "pho_sen": "jpg",
-      "salmon_quinoa_crush_bowl": "jpeg",
-      "spicy_turkey_wrap": "jpeg",
-      "turkey_egg_avocado_bowl": "jpeg",
-      "turkey_sandwich": "jpg",
-    };
-
-    const output: string[] = [];
-    output.push("=== Updating Meal Image URLs ===\n");
-
-    const restaurantsSnapshot = await db.collection("meals").get();
-
-    let updated = 0;
-    let notFound = 0;
-
-    for (const restaurantDoc of restaurantsSnapshot.docs) {
-      const restaurant = restaurantDoc.id;
-      output.push(`\nRestaurant: ${restaurant}`);
-
-      const mealsSnapshot = await db
-        .collection("meals")
-        .doc(restaurant)
-        .collection("items")
-        .get();
-
-      for (const mealDoc of mealsSnapshot.docs) {
-        const mealId = mealDoc.id;
-        const ext = mealImages[mealId];
-
-        if (ext) {
-          const imageUrl = `${STORAGE_BASE}${mealId}.${ext}?alt=media`;
-          await mealDoc.ref.update({imageUrl});
-          output.push(`  ✓ Updated: ${mealId}`);
-          updated++;
-        } else {
-          output.push(`  ⚠ No image: ${mealId}`);
-          notFound++;
-        }
-      }
-    }
-
-    output.push("\n=== Complete ===");
-    output.push(`Updated: ${updated} | No image: ${notFound}`);
-
-    res.setHeader("Content-Type", "text/plain");
-    res.status(200).send(output.join("\n"));
-  } catch (error) {
-    logger.error("updateMealImageUrls error:", error);
-    res.status(500).send(`Error: ${error}`);
-  }
-});
 
 // (Removed) HTTP endpoint to populate Firestore with real meal data
 // export const populateMealsHttp = onRequest(async (req, res) => {
@@ -2403,203 +1465,14 @@ export const updateMealImageUrls = onRequest({cors: true}, async (req, res) => {
 /**
  * List all files in Firebase Storage meals folder for debugging
  */
-export const listStorageImages = onRequest(async (req, res) => {
-  try {
-    const {getStorage} = await import("firebase-admin/storage");
-    // Use the default configured bucket for the project (respects FIREBASE_CONFIG)
-    const bucket = getStorage().bucket();
-    const [files] = await bucket.getFiles({prefix: "meals/"});
-
-    const output = [
-      "=== Firebase Storage: meals/ ===\n",
-      `Total files: ${files.length}\n`,
-    ];
-
-    files.forEach((file) => {
-      const size = file.metadata?.size ? (Number(file.metadata.size) / 1024).toFixed(1) : "?";
-      output.push(`  📁 ${file.name} (${size} KB)`);
-    });
-
-    res.setHeader("Content-Type", "text/plain");
-    res.status(200).send(output.join("\n"));
-  } catch (error) {
-    logger.error("Error listing storage:", error);
-    res.status(500).send(`Error: ${error}`);
-  }
-});
 
 /**
  * Update meal image URLs with persistent download tokens so they work publicly
  */
-export const updateMealImageUrlsWithTokens = onRequest(async (req, res) => {
-  try {
-    const db = getFirestore();
-    const {getStorage} = await import("firebase-admin/storage");
-    const {randomUUID} = await import("crypto");
-
-    // Map of meal IDs to image extensions
-    const mealImages: Record<string, string> = {
-      "bun_cha_gio": "jpg",
-      "bun_heo_quay": "webp",
-      "bun_nuoc_tuong": "jfif",
-      "bun_thit_nuong": "jpg",
-      "california_cobb_salad": "jpeg",
-      "chicken_caesar_salad": "jpeg",
-      "chicken_caesar_wrap": "jpeg",
-      "chicken_chipotle_quesadilla": "jpeg",
-      "com_tam_suron_bi_cha": "jpg",
-      "custom_acai_bowl_base": "jpeg",
-      "custom_bagel_base": "jpeg",
-      "custom_grain_bowl_base": "jpeg",
-      "custom_greek_yogurt_bowl_base": "jpeg",
-      "custom_pasta_base": "jpeg",
-      "custom_quesadilla_base": "jpeg",
-      "custom_salad_base": "jpeg",
-      "custom_wrap_base": "jpeg",
-      "notos_greek_yogurt_bowl": "jpeg",
-      "pho_sen": "jpg",
-      "salmon_quinoa_crush_bowl": "jpeg",
-      "spicy_turkey_wrap": "jpeg",
-      "turkey_egg_avocado_bowl": "jpeg",
-      "turkey_sandwich": "jpg",
-    };
-
-    const out: string[] = [];
-    out.push("=== Updating Meal Image URLs with tokens ===\n");
-
-    // Query all meals via collection group
-    const mealsGroup = await db.collectionGroup("items").get();
-
-    let updated = 0;
-    let skipped = 0;
-    let missingFiles = 0;
-
-    // Use the canonical appspot.com bucket for Firebase Storage
-    const bucket = getStorage().bucket("freshpunk-48db1.appspot.com");
-
-    for (const mealDoc of mealsGroup.docs) {
-      const mealId = mealDoc.id;
-      const ext = mealImages[mealId];
-      if (!ext) {
-        out.push(`  ⚠ No extension mapping for: ${mealId}`);
-        skipped++;
-        continue;
-      }
-
-      const storagePath = `meals/Meal Images/${mealId}.${ext}`;
-      const file = bucket.file(storagePath);
-      const [exists] = await file.exists();
-      if (!exists) {
-        out.push(`  ❌ Missing in Storage: ${storagePath}`);
-        missingFiles++;
-        continue;
-      }
-
-      // Ensure a download token exists on the object
-      const [metadata] = await file.getMetadata();
-      let token = metadata.metadata?.firebaseStorageDownloadTokens as string | undefined;
-      if (!token || token.trim().length === 0) {
-        token = randomUUID();
-        await file.setMetadata({
-          metadata: {
-            ...(metadata.metadata || {}),
-            firebaseStorageDownloadTokens: token,
-          },
-        });
-      }
-
-      const encoded = encodeURIComponent(storagePath);
-      const publicUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encoded}?alt=media&token=${token}`;
-      await mealDoc.ref.update({imageUrl: publicUrl});
-      out.push(`  ✓ Updated: ${mealId}`);
-      updated++;
-    }
-
-    out.push("\n=== Complete ===");
-    out.push(`Updated: ${updated} | Skipped(no ext): ${skipped} | Missing files: ${missingFiles}`);
-
-    res.setHeader("Content-Type", "text/plain");
-    res.status(200).send(out.join("\n"));
-  } catch (error) {
-    logger.error("updateMealImageUrlsWithTokens error:", error);
-    res.status(500).send(`Error: ${error}`);
-  }
-});
 
 /**
  * Update meal image URLs using .firebasestorage.app domain (simple version - no file checks)
  */
-export const updateMealImageUrlsSimple = onRequest(async (req, res) => {
-  try {
-    const db = getFirestore();
-
-    // Use your working token for all images
-    const token = "c9a65481-a3f7-4bdd-8703-02ff623e084f";
-    const bucketName = "freshpunk-48db1.firebasestorage.app";
-
-    const mealImages: Record<string, string> = {
-      "bun_cha_gio": "jpg",
-      "bun_heo_quay": "webp",
-      "bun_nuoc_tuong": "jfif",
-      "bun_thit_nuong": "jpg",
-      "california_cobb_salad": "jpeg",
-      "chicken_caesar_salad": "jpeg",
-      "chicken_caesar_wrap": "jpeg",
-      "chicken_chipotle_quesadilla": "jpeg",
-      "com_tam_suron_bi_cha": "jpg",
-      "custom_acai_bowl_base": "jpeg",
-      "custom_bagel_base": "jpeg",
-      "custom_grain_bowl_base": "jpeg",
-      "custom_greek_yogurt_bowl_base": "jpeg",
-      "custom_pasta_base": "jpeg",
-      "custom_quesadilla_base": "jpeg",
-      "custom_salad_base": "jpeg",
-      "custom_wrap_base": "jpeg",
-      "notos_greek_yogurt_bowl": "jpeg",
-      "pho_sen": "jpg",
-      "salmon_quinoa_crush_bowl": "jpeg",
-      "spicy_turkey_wrap": "jpeg",
-      "turkey_egg_avocado_bowl": "jpeg",
-      "turkey_sandwich": "jpg",
-    };
-
-    const out: string[] = [];
-    out.push("=== Updating Meal Image URLs (Simple) ===\n");
-    out.push(`Using bucket: ${bucketName}\n`);
-    out.push(`Using token: ${token}\n\n`);
-
-    const mealsGroup = await db.collectionGroup("items").get();
-    let updated = 0;
-    let skipped = 0;
-
-    for (const mealDoc of mealsGroup.docs) {
-      const mealId = mealDoc.id;
-      const ext = mealImages[mealId];
-      if (!ext) {
-        out.push(`  ⚠ No extension mapping for: ${mealId}`);
-        skipped++;
-        continue;
-      }
-
-      const storagePath = `meals/Meal Images/${mealId}.${ext}`;
-      const encoded = encodeURIComponent(storagePath);
-      const publicUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encoded}?alt=media&token=${token}`;
-
-      await mealDoc.ref.update({imageUrl: publicUrl});
-      out.push(`  ✓ Updated: ${mealId} -> ${publicUrl.substring(0, 80)}...`);
-      updated++;
-    }
-
-    out.push("\n=== Complete ===");
-    out.push(`Updated: ${updated} | Skipped(no ext): ${skipped}`);
-
-    res.setHeader("Content-Type", "text/plain");
-    res.status(200).send(out.join("\n"));
-  } catch (error) {
-    logger.error("updateMealImageUrlsSimple error:", error);
-    res.status(500).send(`Error: ${error}`);
-  }
-});
 
 /**
  * Update meal image URLs by listing Storage first (robust against false negatives)
@@ -2607,137 +1480,201 @@ export const updateMealImageUrlsSimple = onRequest(async (req, res) => {
  * - Ensures each file has a firebaseStorageDownloadTokens metadata
  * - Builds public download URLs and updates Firestore collectionGroup('items')
  */
-export const updateMealImageUrlsFromListing = onRequest(async (req, res) => {
-  try {
-    const db = getFirestore();
-    const {getStorage} = await import("firebase-admin/storage");
-    const {randomUUID} = await import("crypto");
-
-    const bucket = getStorage().bucket(); // use default configured bucket
-    const prefix = "meals/Meal Images/";
-
-    const out: string[] = [];
-    out.push("=== Updating Meal Image URLs (from listing) ===\n");
-
-    // 1) List files in Storage under the prefix
-    const [files] = await bucket.getFiles({prefix});
-    out.push(`Found ${files.length} files under ${prefix}\n`);
-
-    // Build map: mealId -> { path, token, publicUrl }
-    const fileMap = new Map<string, {path: string; token: string; url: string}>();
-    for (const file of files) {
-      const name = file.name; // full path like 'meals/Meal Images/foo.jpeg'
-      if (!name || name.endsWith("/")) continue; // skip directories
-
-      // Extract basename and mealId (without extension)
-      const base = name.substring(name.lastIndexOf("/") + 1); // foo.jpeg
-      const dot = base.lastIndexOf(".");
-      if (dot <= 0) continue;
-      const mealId = base.substring(0, dot);
-
-      // Ensure token exists
-      const [metadata] = await file.getMetadata();
-      let token = metadata.metadata?.firebaseStorageDownloadTokens as string | undefined;
-      if (!token || token.trim().length === 0) {
-        token = randomUUID();
-        await file.setMetadata({
-          metadata: {
-            ...(metadata.metadata || {}),
-            firebaseStorageDownloadTokens: token,
-          },
-        });
-      }
-
-      const encoded = encodeURIComponent(name);
-      const url = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encoded}?alt=media&token=${token}`;
-      fileMap.set(mealId, {path: name, token, url});
-    }
-
-    // 2) Update Firestore docs in collectionGroup('items') if a matching file exists
-    const mealsSnap = await db.collectionGroup("items").get();
-    let updated = 0;
-    let missing = 0;
-    for (const doc of mealsSnap.docs) {
-      const mealId = doc.id;
-      const info = fileMap.get(mealId);
-      if (!info) {
-        out.push(`  ❌ No file found for ${mealId}`);
-        missing++;
-        continue;
-      }
-      await doc.ref.update({imageUrl: info.url});
-      out.push(`  ✓ Updated ${mealId} -> ${info.url.substring(0, 80)}...`);
-      updated++;
-    }
-
-    out.push("\n=== Complete ===");
-    out.push(`Updated: ${updated} | Missing file for doc: ${missing}`);
-
-    res.setHeader("Content-Type", "text/plain");
-    res.status(200).send(out.join("\n"));
-  } catch (error) {
-    logger.error("updateMealImageUrlsFromListing error:", error);
-    res.status(500).send(`Error: ${error}`);
-  }
-});
 
 /**
  * Configure Cloud Storage CORS to allow images to load on Flutter Web (CanvasKit/HTML).
  * Allows GET/HEAD from hosting origins so Image.network works without XHR/CORS failures.
  */
-export const configureStorageCors = onRequest(async (req, res) => {
-  try {
-    const {getStorage} = await import("firebase-admin/storage");
-    const bucket = getStorage().bucket();
-
-    // Allowed web origins
-    const origins = [
-      "https://freshpunk-48db1.web.app",
-      "https://freshpunk-48db1.firebaseapp.com",
-      "http://localhost:5000",
-      "http://localhost:5173",
-      "http://localhost:8080",
-    ];
-
-    const corsConfig = [
-      {
-        origin: origins,
-        method: ["GET", "HEAD"],
-        responseHeader: [
-          "Content-Type",
-          "x-goog-meta-*",
-          "x-goog-stored-content-length",
-          "x-goog-stored-content-encoding",
-        ],
-        maxAgeSeconds: 3600,
-      },
-    ];
-
-    // Apply CORS configuration via bucket metadata
-    await bucket.setMetadata({cors: corsConfig as any});
-
-    // Read back to verify
-    const [metadata] = await bucket.getMetadata();
-    res.json({
-      bucket: bucket.name,
-      cors: metadata.cors || null,
-    });
-  } catch (e: any) {
-    logger.error("configureStorageCors error", e);
-    res.status(500).json({error: e?.message || String(e)});
-  }
-});
 
 /**
  * Count meals across collection group 'items' for diagnostics
  */
-export const countMeals = onRequest(async (req, res) => {
+
+/**
+ * Admin-only callable to backfill missing stripeSubscriptionId fields in top-level /subscriptions docs.
+ * Iterates documents missing stripeSubscriptionId, looks up the user's stripeCustomerId, queries Stripe
+ * for subscriptions, picks the highest-priority status (active > incomplete > trialing > past_due > unpaid > canceled),
+ * and writes back normalized fields.
+ */
+export const backfillStripeSubscriptions = onCall({
+  ...baseCallableOptions,
+  secrets: [STRIPE_SECRET_KEY],
+}, async (request: any) => {
+  const callerUid = request.auth?.uid as string | undefined;
+  const isAdmin = !!request.auth?.token?.admin;
+  if (!callerUid || !isAdmin) {
+    throw new HttpsError("permission-denied", "Admin privileges required");
+  }
+
+  const stripe = getStripe();
+  const started = Date.now();
+  const updated: Array<{docId: string; subId: string; status: string}> = [];
+  const skipped: Array<{docId: string; reason: string}> = [];
+  const missing: Array<{docId: string; reason: string}> = [];
+
   try {
-    const db = getFirestore();
-    const snap = await db.collectionGroup("items").count().get();
-    const total = (snap as any).data().count as number | undefined;
-    res.json({count: total ?? null});
+    const snap = await db.collection("subscriptions").get();
+    for (const doc of snap.docs) {
+      const data = doc.data() as any;
+      if (data.stripeSubscriptionId) {
+        skipped.push({docId: doc.id, reason: "has_id"});
+        continue;
+      }
+
+      // Fetch user for stripeCustomerId
+      const userDoc = await db.collection("users").doc(doc.id).get();
+      const userData = userDoc.data() as any;
+      const stripeCustomerId = userData?.stripeCustomerId;
+      if (!stripeCustomerId) {
+        missing.push({docId: doc.id, reason: "no_stripeCustomerId"});
+        continue;
+      }
+
+      try {
+        const subs = await stripe.subscriptions.list({customer: stripeCustomerId, status: "all", limit: 20});
+        if (!subs.data.length) {
+          missing.push({docId: doc.id, reason: "no_subs"});
+          continue;
+        }
+        const priority = ["active", "incomplete", "trialing", "past_due", "unpaid", "canceled"];
+        const chosen = subs.data.slice().sort((a, b) => {
+          const ai = priority.indexOf(a.status);
+          const bi = priority.indexOf(b.status);
+          return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+        })[0];
+        if (!chosen) {
+          missing.push({docId: doc.id, reason: "sort_empty"});
+          continue;
+        }
+
+        // Use any type casting to access epoch seconds safely without TS complaints
+        const rawChosen: any = chosen as any;
+        await doc.ref.set({
+          stripeSubscriptionId: chosen.id,
+          status: chosen.status,
+          stripePriceId: chosen.items.data[0]?.price?.id || data.stripePriceId || null,
+          currentPeriodStart: rawChosen.current_period_start ? new Date(rawChosen.current_period_start * 1000) : null,
+          currentPeriodEnd: rawChosen.current_period_end ? new Date(rawChosen.current_period_end * 1000) : null,
+          cancelAtPeriodEnd: !!rawChosen.cancel_at_period_end,
+          updatedAt: FieldValue.serverTimestamp(),
+        }, {merge: true});
+        updated.push({docId: doc.id, subId: chosen.id, status: chosen.status});
+      } catch (e: any) {
+        missing.push({docId: doc.id, reason: `stripe_error:${e.message || e.code || "unknown"}`});
+      }
+    }
   } catch (e: any) {
-    res.status(500).json({error: e?.message || String(e)});
+    logger.error("backfillStripeSubscriptions error", e);
+    throw new HttpsError("internal", "Backfill failed: " + (e.message || "unknown"));
+  }
+
+  const result = {
+    ok: true,
+    processed: updated.length + skipped.length + missing.length,
+    updated,
+    skipped,
+    missing,
+    ms: Date.now() - started,
+  };
+  await logAuditEvent("backfill_subscriptions", callerUid, result, true);
+  return result;
+});
+
+/**
+ * Secure server-side geocode callable. Use this instead of calling Google Geocoding
+ * directly from the client when the key is IP restricted or not allowed for browser use.
+ * Returns structured address data similar to client AddressResult.
+ */
+export const geocodeAddress = onCall({
+  ...baseCallableOptions,
+  secrets: [GOOGLE_GEOCODE_KEY],
+}, async (request: any) => {
+  const raw = (request.data?.address as string | undefined)?.trim();
+  if (!raw) {
+    throw new HttpsError("invalid-argument", "address is required");
+  }
+
+  // Basic rate limiting per caller
+  const caller = request.auth?.uid || request.rawRequest?.ip || "anon";
+  if (!await rateLimitCheck(`geocode_${caller}`, 30, 60000)) {
+    throw new HttpsError("resource-exhausted", "Too many geocode requests. Slow down.");
+  }
+
+  const key = GOOGLE_GEOCODE_KEY.value();
+  if (!key) {
+    throw new HttpsError("failed-precondition", "Server geocode key not configured");
+  }
+
+  const address = raw.substring(0, 256); // guard length
+  const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
+  url.searchParams.set("address", address);
+  url.searchParams.set("key", key);
+  url.searchParams.set("components", "country:US");
+
+  try {
+    const fetchRes = await fetch(url.toString(), {method: "GET"});
+    const statusCode = fetchRes.status;
+    const body = await fetchRes.json();
+    const status = body?.status || "UNKNOWN";
+
+    if (statusCode !== 200) {
+      throw new HttpsError("unavailable", `HTTP ${statusCode}`);
+    }
+
+    if (status === "REQUEST_DENIED") {
+      throw new HttpsError("permission-denied", body?.error_message || "Geocoding denied");
+    }
+    if (status === "OVER_QUERY_LIMIT") {
+      throw new HttpsError("resource-exhausted", "Geocoding quota exceeded");
+    }
+    if (status !== "OK") {
+      return {found: false, status, reason: body?.error_message || "No match"};
+    }
+
+    const first = (body?.results || [])[0];
+    if (!first) {
+      return {found: false, status: "ZERO_RESULTS"};
+    }
+    const components: Record<string, string> = {};
+    for (const comp of first.address_components || []) {
+      const types: string[] = comp.types || [];
+      for (const t of types) {
+        switch (t) {
+          case "street_number":
+            components.street_number = comp.long_name; break;
+          case "route":
+            components.route = comp.long_name; break;
+          case "locality":
+            components.city = comp.long_name; break;
+          case "administrative_area_level_1":
+            components.state = comp.short_name; break;
+          case "postal_code":
+            components.zipCode = comp.long_name; break;
+        }
+      }
+    }
+    const loc = first.geometry?.location || {lat: 0, lng: 0};
+    const streetNumber = components.street_number || "";
+    const route = components.route || "";
+    const street = `${streetNumber} ${route}`.trim();
+
+    const result = {
+      found: true,
+      status: "OK",
+      formattedAddress: first.formatted_address,
+      latitude: loc.lat,
+      longitude: loc.lng,
+      street,
+      city: components.city || "",
+      state: components.state || "",
+      zipCode: components.zipCode || "",
+      isValid: true,
+    };
+    await logAuditEvent("geocode_address", request.auth?.uid || null, {address, status: "OK"}, true);
+    return result;
+  } catch (e: any) {
+    await logAuditEvent("geocode_address_failed", request.auth?.uid || null, {address, error: e.message}, false);
+    if (e instanceof HttpsError) throw e;
+    throw new HttpsError("internal", "Geocode failed: " + (e.message || "unknown"));
   }
 });

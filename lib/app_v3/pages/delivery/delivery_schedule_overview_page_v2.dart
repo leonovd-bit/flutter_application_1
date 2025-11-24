@@ -17,6 +17,7 @@ class _DeliveryScheduleOverviewPageV2State extends State<DeliveryScheduleOvervie
   List<String> _schedules = [];
   String? _selected;
   Map<String, dynamic>? _summary;
+  Map<String, dynamic>? _mealSelections;
   String? _uid;
 
   @override
@@ -44,14 +45,51 @@ class _DeliveryScheduleOverviewPageV2State extends State<DeliveryScheduleOvervie
         : 'delivery_schedule_${_uid}_$name';
     final raw = prefs.getString(key);
     if (raw == null) {
-      setState(() => _summary = null);
+      debugPrint('[ScheduleOverview] No schedule found for key: $key');
+      setState(() {
+        _summary = null;
+        _mealSelections = null;
+      });
       return;
     }
     try {
       final data = json.decode(raw) as Map<String, dynamic>;
-      setState(() => _summary = data);
-    } catch (_) {
-      setState(() => _summary = null);
+      debugPrint('[ScheduleOverview] Loaded schedule with ${(data['weeklySchedule'] as Map?)?.keys.length ?? 0} days');
+      
+      // Also load meal selections
+      final mealKey = _uid == null
+          ? 'meal_selections_$name'
+          : 'meal_selections_${_uid}_$name';
+      final mealRaw = prefs.getString(mealKey);
+      Map<String, dynamic>? meals;
+      if (mealRaw != null) {
+        try {
+          meals = json.decode(mealRaw) as Map<String, dynamic>;
+          debugPrint('[ScheduleOverview] Loaded meal selections for ${meals.keys.length} days: ${meals.keys.join(', ')}');
+          // Debug: print first meal to see structure
+          if (meals.isNotEmpty) {
+            final firstDay = meals.keys.first;
+            final firstDayMeals = meals[firstDay];
+            debugPrint('[ScheduleOverview] Sample day "$firstDay" meals: $firstDayMeals');
+          }
+        } catch (e) {
+          debugPrint('[ScheduleOverview] Error parsing meal selections: $e');
+          meals = null;
+        }
+      } else {
+        debugPrint('[ScheduleOverview] No meal selections found for key: $mealKey');
+      }
+      
+      setState(() {
+        _summary = data;
+        _mealSelections = meals;
+      });
+    } catch (e) {
+      debugPrint('[ScheduleOverview] Error parsing schedule: $e');
+      setState(() {
+        _summary = null;
+        _mealSelections = null;
+      });
     }
   }
 
@@ -161,6 +199,15 @@ class _DeliveryScheduleOverviewPageV2State extends State<DeliveryScheduleOvervie
           const SizedBox(height: 12),
           ...days.map((day) {
             final mtMap = Map<String, dynamic>.from(weekly[day] as Map<String, dynamic>? ?? {});
+            
+            // Only get meal types that are actually scheduled for this day
+            final scheduledMeals = mtMap.keys.where((key) => mtMap[key] != null).toList();
+            
+            // Skip days with no meals scheduled
+            if (scheduledMeals.isEmpty) {
+              return const SizedBox.shrink();
+            }
+            
             return Container(
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.all(12),
@@ -174,10 +221,43 @@ class _DeliveryScheduleOverviewPageV2State extends State<DeliveryScheduleOvervie
                 children: [
                   Text(day, style: const TextStyle(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 6),
-                  ...mealTypes.map((mt) {
+                  ...scheduledMeals.map((mt) {
                     final info = Map<String, dynamic>.from(mtMap[mt] as Map<String, dynamic>? ?? {});
                     final time = _formatTime(info['time']?.toString() ?? '-');
                     final addr = (info['address'] ?? '-').toString();
+                    
+                    // Get meal name from meal selections
+                    String mealName = '—';
+                    if (_mealSelections != null) {
+                      // Try to find the day in meal selections (case-insensitive)
+                      String? matchingDay;
+                      for (final selectionDay in _mealSelections!.keys) {
+                        if (selectionDay.toString().toLowerCase() == day.toLowerCase()) {
+                          matchingDay = selectionDay;
+                          break;
+                        }
+                      }
+                      
+                      if (matchingDay != null && _mealSelections![matchingDay] != null) {
+                        final dayMeals = _mealSelections![matchingDay] as Map<String, dynamic>?;
+                        if (dayMeals != null) {
+                          // Try to find the meal type (case-insensitive)
+                          String? matchingMealType;
+                          for (final mealTypeKey in dayMeals.keys) {
+                            if (mealTypeKey.toString().toLowerCase() == mt.toLowerCase()) {
+                              matchingMealType = mealTypeKey;
+                              break;
+                            }
+                          }
+                          
+                          if (matchingMealType != null && dayMeals[matchingMealType] != null) {
+                            final mealData = dayMeals[matchingMealType] as Map<String, dynamic>?;
+                            mealName = mealData?['name'] ?? '—';
+                          }
+                        }
+                      }
+                    }
+                    
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Column(
@@ -206,6 +286,31 @@ class _DeliveryScheduleOverviewPageV2State extends State<DeliveryScheduleOvervie
                               ),
                               const SizedBox(width: 6),
                               Text(time, style: const TextStyle(fontSize: 13)),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          // Meal name row
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.restaurant, size: 14, color: AppThemeV3.textSecondary),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Meal:',
+                                style: TextStyle(
+                                  color: AppThemeV3.textSecondary,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  mealName,
+                                  style: const TextStyle(fontSize: 13),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
                             ],
                           ),
                           const SizedBox(height: 4),

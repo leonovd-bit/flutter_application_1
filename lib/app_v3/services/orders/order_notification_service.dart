@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../sms_service.dart';
-import '../auth/firestore_service_v3.dart';
 import '../../models/meal_model_v3.dart';
 
 /// Order Notification Service

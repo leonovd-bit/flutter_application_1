@@ -20,6 +20,7 @@ module.exports = {
   ignorePatterns: [
     "/lib/**/*", // Ignore built files.
     "/generated/**/*", // Ignore generated files.
+    "get_square_order_details.ts", // Legacy duplicate dev tool file (excluded from lint & build)
   ],
   plugins: [
     "@typescript-eslint",

@@ -7,9 +7,9 @@ class ProductionConfig {
   
   // Production API Keys (REPLACE WITH YOUR PRODUCTION KEYS)
   static const String stripePublishableKey = 'pk_live_YOUR_PRODUCTION_STRIPE_KEY';
-  static const String googleMapsApiKey = 'AIzaSyCi_mKaxg-CRH3UJ5LVHGWTd7TUcl1H4qg';
-  static const String googleMapsAndroidKey = 'YOUR_PRODUCTION_GOOGLE_MAPS_ANDROID_KEY';
-  static const String googleMapsIosKey = 'YOUR_PRODUCTION_GOOGLE_MAPS_IOS_KEY';
+  static const String googleMapsApiKey = 'AIzaSyCFeughLAfJ3THhLWVnxLqvvf2mjomkGxg';
+  static const String googleMapsAndroidKey = 'AIzaSyBimaxeeZSfAl5Rp1bqP3x9G6dcQWJ8thE';
+  static const String googleMapsIosKey = 'AIzaSyD9cpvMjyWUXcXfiqNv0ZpavDBgxmLV9x4';
   
   // Firebase Configuration
   static const String firebaseProjectId = 'your-production-firebase-project';
@@ -41,9 +41,9 @@ class DevelopmentConfig {
   
   // Development/Test API Keys
   static const String stripePublishableKey = 'pk_test_YOUR_TEST_STRIPE_KEY';
-  static const String googleMapsApiKey = 'AIzaSyCi_mKaxg-CRH3UJ5LVHGWTd7TUcl1H4qg';
-  static const String googleMapsAndroidKey = 'YOUR_DEVELOPMENT_GOOGLE_MAPS_ANDROID_KEY';
-  static const String googleMapsIosKey = 'YOUR_DEVELOPMENT_GOOGLE_MAPS_IOS_KEY';
+  static const String googleMapsApiKey = 'AIzaSyCFeughLAfJ3THhLWVnxLqvvf2mjomkGxg';
+  static const String googleMapsAndroidKey = 'AIzaSyBimaxeeZSfAl5Rp1bqP3x9G6dcQWJ8thE';
+  static const String googleMapsIosKey = 'AIzaSyD9cpvMjyWUXcXfiqNv0ZpavDBgxmLV9x4';
   
   static const String firebaseProjectId = 'your-development-firebase-project';
   

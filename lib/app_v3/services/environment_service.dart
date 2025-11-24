@@ -17,10 +17,14 @@ class EnvironmentService {
       if (kDebugMode) {
         debugPrint('[Environment] Configuration loaded successfully');
         debugPrint('[Environment] Mode: ${dotenv.env['ENVIRONMENT'] ?? 'development'}');
+        _logDoorDashCredentialPresence();
       }
     } catch (e) {
       debugPrint('[Environment] Failed to load .env file: $e');
       debugPrint('[Environment] Using default/hardcoded values');
+      if (kDebugMode) {
+        _logDoorDashCredentialPresence();
+      }
     }
   }
 
@@ -42,6 +46,15 @@ class EnvironmentService {
         break;
       case 'STRIPE_PUBLISHABLE_KEY':
         fromDefine = const String.fromEnvironment('STRIPE_PUBLISHABLE_KEY');
+        break;
+      case 'DOORDASH_DEVELOPER_ID':
+        fromDefine = const String.fromEnvironment('DOORDASH_DEVELOPER_ID');
+        break;
+      case 'DOORDASH_KEY_ID':
+        fromDefine = const String.fromEnvironment('DOORDASH_KEY_ID');
+        break;
+      case 'DOORDASH_SIGNING_SECRET':
+        fromDefine = const String.fromEnvironment('DOORDASH_SIGNING_SECRET');
         break;
       // Add other keys here if you want them to be overrideable via --dart-define
       default:
@@ -182,6 +195,21 @@ class EnvironmentService {
       final icon = configured ? '✅' : '❌';
       debugPrint('$icon $api: ${configured ? 'Configured' : 'Missing'}');
     });
+    _logDoorDashCredentialPresence();
     debugPrint('================================');
+  }
+
+  /// Internal helper: log masked DoorDash credential presence for debugging
+  static void _logDoorDashCredentialPresence() {
+    // Mask values: show prefix + length only
+    String mask(String value) {
+      if (value.isEmpty) return '[empty]';
+      final prefix = value.length >= 6 ? value.substring(0, 6) : value;
+      return '$prefix… (len=${value.length})';
+    }
+    debugPrint('[DoorDashEnv] DeveloperId: ${mask(doorDashDeveloperId)}');
+    debugPrint('[DoorDashEnv] KeyId: ${mask(doorDashKeyId)}');
+    debugPrint('[DoorDashEnv] SigningSecret: ${doorDashSigningSecret.isNotEmpty ? '*** (len=${doorDashSigningSecret.length})' : '[empty]'}');
+    debugPrint('[DoorDashEnv] isDoorDashConfigured=${isDoorDashConfigured}');
   }
 }

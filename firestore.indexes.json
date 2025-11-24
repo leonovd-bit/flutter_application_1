@@ -15,6 +15,16 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "userId", "mode": "ASCENDING" },
+        { "fieldPath": "status", "mode": "ASCENDING" },
+        { "fieldPath": "deliveryDate", "mode": "ASCENDING" },
+        { "fieldPath": "__name__", "mode": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "mode": "ASCENDING" },
         { "fieldPath": "deliveryDate", "mode": "ASCENDING" },
         { "fieldPath": "__name__", "mode": "ASCENDING" }
       ]
@@ -26,6 +36,16 @@
         { "fieldPath": "userId", "mode": "ASCENDING" },
         { "fieldPath": "createdAt", "mode": "DESCENDING" },
         { "fieldPath": "__name__", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "mode": "ASCENDING" },
+        { "fieldPath": "userConfirmed", "mode": "ASCENDING" },
+        { "fieldPath": "dispatchReadyAt", "mode": "ASCENDING" },
+        { "fieldPath": "__name__", "mode": "ASCENDING" }
       ]
     }
   ],

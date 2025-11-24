@@ -4,10 +4,22 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../../utils/cloud_functions_helper.dart';
+
 class AccountDeletionService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
-  static final FirebaseFunctions _functions = FirebaseFunctions.instance;
+  static const _region = 'us-central1';
+  static final FirebaseFunctions _functions =
+      FirebaseFunctions.instanceFor(region: _region);
+
+  static HttpsCallable _callable(String name) {
+    return callableForPlatform(
+      functions: _functions,
+      functionName: name,
+      region: _region,
+    );
+  }
 
   /// Completely deletes user account and all associated data
   static Future<void> deleteUserAccount() async {
@@ -60,7 +72,7 @@ class AccountDeletionService {
         if (stripeSubscriptionId != null && stripeSubscriptionId != 'local') {
           try {
             // Call Cloud Function to cancel subscription
-            final callable = _functions.httpsCallable('cancelSubscription');
+            final callable = _callable('cancelSubscription');
             await callable.call({
               'subscriptionId': stripeSubscriptionId,
             });

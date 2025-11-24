@@ -74,7 +74,7 @@ class MealModelV3 {
     if (ext != null && id.isNotEmpty) {
       final encodedFile = '${Uri.encodeComponent(id)}.$ext';
       // Using firebasestorage endpoint with alt=media for direct serving
-      return 'https://firebasestorage.googleapis.com/v0/b/freshpunk-48db1.appspot.com/o/meals%2FMeal%20Images%2F$encodedFile?alt=media';
+      return 'https://firebasestorage.googleapis.com/v0/b/freshpunk-48db1.firebasestorage.app/o/meals%2FMeal%20Images%2F$encodedFile?alt=media';
     }
 
     // No image available
@@ -169,11 +169,11 @@ class MealModelV3 {
     String imageUrl = (json['imageUrl'] ?? '').toString().trim();
 
     String _fixStorageDomain(String url) {
-      // Some documents use an incorrect bucket segment `freshpunk-48db1.firebasestorage.app`.
-      // The correct bucket (per firebase_options.dart) is `freshpunk-48db1.appspot.com`.
+      // Some documents use an incorrect bucket segment `freshpunk-48db1.appspot.com`.
+      // The correct bucket is `freshpunk-48db1.firebasestorage.app`.
       // Normalize if we detect the wrong segment.
-      const wrongBucket = 'freshpunk-48db1.firebasestorage.app';
-      const correctBucket = 'freshpunk-48db1.appspot.com';
+      const wrongBucket = 'freshpunk-48db1.appspot.com';
+      const correctBucket = 'freshpunk-48db1.firebasestorage.app';
       if (url.contains('/b/$wrongBucket/')) {
         return url.replaceAll('/b/$wrongBucket/', '/b/$correctBucket/');
       }
@@ -202,9 +202,8 @@ class MealModelV3 {
 
     imageUrl = _normalizeImageUrl(imageUrl);
 
-    // Debug what we're getting from Firestore (after normalization)
-    print('🔄 Loading meal from JSON: $name');
-    print('   📦 Raw imageUrl from Firestore (normalized): "$imageUrl"');
+  // Debug (throttled): heavy repetition causes noisy logs; only print once per id per session.
+  _MealLoadLogger.logOnce(name, imageUrl);
     
     final meal = MealModelV3(
       id: json['id'] ?? '',
@@ -227,7 +226,7 @@ class MealModelV3 {
       restaurantId: json['restaurantId'],
     );
     
-  print('   📁 Final imagePath: "${meal.imagePath}"');
+    _MealLoadLogger.logFinalPathOnce(name, meal.imagePath);
     return meal;
   }
 
@@ -374,6 +373,30 @@ class MealModelV3 {
         price: 15.99,
       ),
     ];
+  }
+}
+
+/// Internal static logger to reduce duplicate meal JSON load spam.
+/// Moved to top-level to avoid invalid nested class declarations.
+class _MealLoadLogger {
+  static final Set<String> _loggedNames = <String>{};
+  static final Set<String> _loggedFinal = <String>{};
+
+  static void logOnce(String name, String imageUrl) {
+    if (_loggedNames.contains(name)) return;
+    _loggedNames.add(name);
+    // Preserve original formatting for first occurrence only.
+    // ignore: avoid_print
+    print('🔄 Loading meal from JSON: $name');
+    // ignore: avoid_print
+    print('   📦 Raw imageUrl from Firestore (normalized): "$imageUrl"');
+  }
+
+  static void logFinalPathOnce(String name, String finalPath) {
+    if (_loggedFinal.contains(name)) return;
+    _loggedFinal.add(name);
+    // ignore: avoid_print
+    print('   📁 Final imagePath: "$finalPath"');
   }
 }
 
@@ -706,6 +729,11 @@ class OrderModelV3 {
   final DateTime? estimatedDeliveryTime;
   final String? notes;
   final String? trackingNumber;
+  final bool userConfirmed;
+  final DateTime? userConfirmedAt;
+  final DateTime? dispatchReadyAt;
+  final int dispatchWindowMinutes;
+  final DateTime? dispatchTriggeredAt;
 
   OrderModelV3({
     required this.id,
@@ -720,6 +748,11 @@ class OrderModelV3 {
     this.estimatedDeliveryTime,
     this.notes,
     this.trackingNumber,
+    this.userConfirmed = false,
+    this.userConfirmedAt,
+    this.dispatchReadyAt,
+    this.dispatchWindowMinutes = 60,
+    this.dispatchTriggeredAt,
   });
 
   Map<String, dynamic> toFirestore() {
@@ -731,11 +764,16 @@ class OrderModelV3 {
       'deliveryAddress': deliveryAddress,
       'orderDate': orderDate.millisecondsSinceEpoch,
       'deliveryDate': deliveryDate.millisecondsSinceEpoch,
-      'status': status.toString().split('.').last,
+  'status': status.name,
       'totalAmount': totalAmount,
       'estimatedDeliveryTime': estimatedDeliveryTime?.millisecondsSinceEpoch,
       'notes': notes,
       'trackingNumber': trackingNumber,
+      'userConfirmed': userConfirmed,
+      'userConfirmedAt': userConfirmedAt?.millisecondsSinceEpoch,
+      'dispatchReadyAt': dispatchReadyAt?.millisecondsSinceEpoch,
+      'dispatchWindowMinutes': dispatchWindowMinutes,
+      'dispatchTriggeredAt': dispatchTriggeredAt?.millisecondsSinceEpoch,
     };
   }
 
@@ -800,15 +838,20 @@ class OrderModelV3 {
       mealPlanType: _parseMealPlanType(data['mealPlanType']),
       meals: mealsList,
       deliveryAddress: data['deliveryAddress'] ?? '',
-      orderDate: DateTime.fromMillisecondsSinceEpoch(data['orderDate'] ?? 0),
-      deliveryDate: DateTime.fromMillisecondsSinceEpoch(data['deliveryDate'] ?? 0),
-      status: _parseOrderStatus(data['status']),
+      orderDate: _asDateTime(data['orderDate']) ?? DateTime.fromMillisecondsSinceEpoch(0),
+      deliveryDate: _asDateTime(data['deliveryDate']) ?? DateTime.fromMillisecondsSinceEpoch(0),
+      status: _parseOrderStatus(data['status']?.toString()),
       totalAmount: (data['totalAmount'] ?? 0.0).toDouble(),
-      estimatedDeliveryTime: data['estimatedDeliveryTime'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(data['estimatedDeliveryTime'])
-          : null,
+      estimatedDeliveryTime: _asDateTime(data['estimatedDeliveryTime']),
       notes: data['notes'],
       trackingNumber: data['trackingNumber'],
+      userConfirmed: data['userConfirmed'] == true,
+      userConfirmedAt: _asDateTime(data['userConfirmedAt']),
+      dispatchReadyAt: _asDateTime(data['dispatchReadyAt']),
+      dispatchWindowMinutes: (data['dispatchWindowMinutes'] is num)
+          ? (data['dispatchWindowMinutes'] as num).toInt()
+          : 60,
+      dispatchTriggeredAt: _asDateTime(data['dispatchTriggeredAt']),
     );
   }
 
@@ -875,20 +918,26 @@ class OrderModelV3 {
       mealPlanType: _parseMealPlanType(data['mealPlanType']),
       meals: mealsList,
       deliveryAddress: data['deliveryAddress'] ?? '',
-      orderDate: DateTime.fromMillisecondsSinceEpoch(data['orderDate'] ?? 0),
-      deliveryDate: DateTime.fromMillisecondsSinceEpoch(data['deliveryDate'] ?? 0),
-      status: _parseOrderStatus(data['status']),
+      orderDate: _asDateTime(data['orderDate']) ?? DateTime.fromMillisecondsSinceEpoch(0),
+      deliveryDate: _asDateTime(data['deliveryDate']) ?? DateTime.fromMillisecondsSinceEpoch(0),
+      status: _parseOrderStatus(data['status']?.toString()),
       totalAmount: (data['totalAmount'] ?? 0.0).toDouble(),
-      estimatedDeliveryTime: data['estimatedDeliveryTime'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(data['estimatedDeliveryTime'])
-          : null,
+      estimatedDeliveryTime: _asDateTime(data['estimatedDeliveryTime']),
       notes: data['notes'],
       trackingNumber: data['trackingNumber'],
+      userConfirmed: data['userConfirmed'] == true,
+      userConfirmedAt: _asDateTime(data['userConfirmedAt']),
+      dispatchReadyAt: _asDateTime(data['dispatchReadyAt']),
+      dispatchWindowMinutes: (data['dispatchWindowMinutes'] is num)
+          ? (data['dispatchWindowMinutes'] as num).toInt()
+          : 60,
+      dispatchTriggeredAt: _asDateTime(data['dispatchTriggeredAt']),
     );
   }
 
   static OrderStatus _parseOrderStatus(String? status) {
-    switch (status?.toLowerCase()) {
+    final normalized = status?.toLowerCase().replaceAll('orderstatus.', '');
+    switch (normalized) {
       case 'pending':
         return OrderStatus.pending;
       case 'confirmed':
@@ -921,5 +970,30 @@ class OrderModelV3 {
       default:
         return MealPlanType.standard;
     }
+  }
+
+  static DateTime? _asDateTime(dynamic value) {
+    if (value == null) return null;
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+    if (value is DateTime) {
+      return value;
+    }
+    if (value is int) {
+      if (value == 0) return null;
+      return DateTime.fromMillisecondsSinceEpoch(value);
+    }
+    if (value is double) {
+      return DateTime.fromMillisecondsSinceEpoch(value.toInt());
+    }
+    if (value is String) {
+      final asInt = int.tryParse(value);
+      if (asInt != null) {
+        return DateTime.fromMillisecondsSinceEpoch(asInt);
+      }
+      return DateTime.tryParse(value);
+    }
+    return null;
   }
 }

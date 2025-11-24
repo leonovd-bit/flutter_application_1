@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import '../services/images/image_cache_service_v3.dart';
 
 /// Runtime normalization helpers for legacy / misconfigured Firebase Storage URLs.
-/// We observed 412 errors for URLs containing the bucket segment
-/// `freshpunk-48db1.firebasestorage.app` which should be `freshpunk-48db1.appspot.com`.
+/// We observed 404 errors for URLs containing the bucket segment
+/// `freshpunk-48db1.appspot.com` which should be `freshpunk-48db1.firebasestorage.app`.
 /// These helpers transparently rewrite and retry without requiring an immediate
 /// Firestore data migration.
 String _normalizeStorageUrl(String url) {
   if (url.isEmpty) return url;
-  const wrongBucket = 'freshpunk-48db1.firebasestorage.app';
-  const correctBucket = 'freshpunk-48db1.appspot.com';
+  const wrongBucket = 'freshpunk-48db1.appspot.com';
   // Replace bucket segment inside /b/<bucket>/ occurrences
+  // Disable legacy bucket auto-rewrite (per user request to stop appspot.com usage)
   if (url.contains('/b/$wrongBucket/')) {
-    url = url.replaceAll('/b/$wrongBucket/', '/b/$correctBucket/');
+    // Intentionally do NOT rewrite; just log once for potential cleanup tooling
+    debugPrint('AppImage: Leaving legacy bucket URL unchanged (rewrite disabled) -> $url');
   }
   // Ensure alt=media for direct serving
   if (url.startsWith('https://firebasestorage.googleapis.com') &&
@@ -82,6 +84,7 @@ class _AppImageState extends State<AppImage> {
     // If it's a Firebase Storage public endpoint but missing token, try to generate a proper download URL
     final isGcsHttp = p.contains('firebasestorage.googleapis.com');
     final hasToken = p.contains('token=');
+    final hasAltMedia = p.contains('alt=media');
 
     // Also support direct storage path via a custom prefix
     final isStoragePrefix = p.startsWith('storage://');
@@ -89,7 +92,7 @@ class _AppImageState extends State<AppImage> {
     String? storagePath;
     if (isStoragePrefix) {
       storagePath = p.substring('storage://'.length);
-    } else if (isGcsHttp && !hasToken) {
+    } else if (isGcsHttp && !hasToken && !hasAltMedia) {
       storagePath = _extractStoragePathFromUrl(p);
     }
 
@@ -196,6 +199,33 @@ class _AppImageState extends State<AppImage> {
             final candidateUrl = await FirebaseStorage.instance.ref().child(candidatePath).getDownloadURL();
             print('🔎 AppImage: Retry resolved "$candidatePath"');
             url = candidateUrl;
+
+          // Also consider alternative directory variants if path contains 'Meal Images'
+          final dirVariants = <String>{dir};
+          if (dir.contains('Meal Images')) {
+            dirVariants.add(dir.replaceAll('Meal Images/', '')); // collapse folder (store directly under meals/)
+            dirVariants.add(dir.replaceAll('Meal Images', 'meal images')); // lowercase folder
+            dirVariants.add(dir.replaceAll('Meal Images', 'Meal%20Images')); // encoded space variant (unlikely here)
+            dirVariants.add(dir.replaceAll('Meal Images', 'Meal_Images')); // underscore variant
+          }
+
+          for (final dVariant in dirVariants) {
+            for (final ext in candidates) {
+              final candidatePath = (dVariant.isEmpty)
+                  ? '$base.$ext'
+                  : dVariant.endsWith('/') ? '$dVariant$base.$ext' : '$dVariant/$base.$ext';
+              try {
+                final candidateUrl = await FirebaseStorage.instance.ref().child(candidatePath).getDownloadURL();
+                print('🔎 AppImage: Retry resolved "$candidatePath"');
+                url = candidateUrl;
+                break;
+              } catch (e) {
+                print('   ↪︎ Candidate miss: $candidatePath ($e)');
+                continue;
+              }
+            }
+            if (url != null) break;
+          }
             break;
           } catch (_) {
             continue;
@@ -227,58 +257,21 @@ class _AppImageState extends State<AppImage> {
 
     Widget child;
     if (chosen.isNotEmpty) {
-      if (isNet) {
-        child = Image.network(
-          chosen,
+      if (isNet || isAsset) {
+        final provider = ImageCacheServiceV3.instance.providerFor(chosen);
+        child = Image(
+          image: provider,
           width: widget.width,
           height: widget.height,
           fit: widget.fit,
           errorBuilder: (context, error, stack) {
-            print('❌ AppImage Network Error for "$chosen": $error');
-            // One-time recovery path:
-            // 1) If original URL had a wrong bucket/params, normalize and retry
-            // 2) Otherwise, attempt to resolve via Storage SDK and probe common extensions
-            if (_resolvedUrl == null && (widget.path?.contains('firebasestorage.googleapis.com') ?? false)) {
+            print('❌ AppImage Error for "$chosen": $error');
+            if (isNet && _resolvedUrl == null && (widget.path?.contains('firebasestorage.googleapis.com') ?? false)) {
               final original = widget.path ?? '';
-              final normalizedOriginal = _normalizeStorageUrl(original);
-              if (normalizedOriginal != original) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  setState(() {
-                    _resolvedUrl = normalizedOriginal;
-                  });
-                });
-              } else {
-                // Attempt SDK-based resolve/probe regardless of existing token
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _resolveFromUrlAndRetry(original);
-                });
-              }
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _resolveFromUrlAndRetry(original);
+              });
             }
-            return _fallback(context);
-          },
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) {
-              print('✅ AppImage Network Success for "$chosen"');
-              return child;
-            }
-            return Center(child: CircularProgressIndicator(strokeWidth: 2));
-          },
-        );
-      } else if (isAsset) {
-        print('📁 AppImage: Attempting to load asset "$chosen"');
-        child = Image.asset(
-          chosen,
-          width: widget.width,
-          height: widget.height,
-          fit: widget.fit,
-          frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-            if (frame != null) {
-              print('✅ AppImage Asset Success for "$chosen"');
-            }
-            return child;
-          },
-          errorBuilder: (context, error, stack) {
-            print('❌ AppImage Asset Error for "$chosen": $error');
             return _fallback(context);
           },
         );

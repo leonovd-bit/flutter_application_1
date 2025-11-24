@@ -71,6 +71,49 @@ class FirestoreServiceV3 {
     }
   }
 
+  /// Update phone number verification status
+  static Future<void> updatePhoneVerification(
+    String userId,
+    String phoneNumber,
+  ) async {
+    try {
+      await _firestore.collection(_usersCollection).doc(userId).set({
+        'phoneNumber': phoneNumber,
+        'phoneNumberVerified': true,
+        'phoneNumberVerifiedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      throw Exception('Failed to update phone verification: $e');
+    }
+  }
+
+  /// Get user's verified phone number
+  static Future<String?> getUserPhoneNumber(String userId) async {
+    try {
+      final doc = await _firestore.collection(_usersCollection).doc(userId).get();
+      if (doc.exists) {
+        return doc.data()?['phoneNumber'] as String?;
+      }
+      return null;
+    } catch (e) {
+      throw Exception('Failed to get phone number: $e');
+    }
+  }
+
+  /// Check if user's phone number is verified
+  static Future<bool> isPhoneNumberVerified(String userId) async {
+    try {
+      final doc = await _firestore.collection(_usersCollection).doc(userId).get();
+      if (doc.exists) {
+        return doc.data()?['phoneNumberVerified'] == true;
+      }
+      return false;
+    } catch (e) {
+      throw Exception('Failed to check phone verification: $e');
+    }
+  }
+
   // ===== MEAL PLAN MANAGEMENT =====
 
   static Future<MealPlanModelV3?> getCurrentMealPlan(String userId) async {
@@ -156,7 +199,10 @@ class FirestoreServiceV3 {
 
   static Future<Map<String, dynamic>?> getNextUpcomingOrder(String userId) async {
     try {
-      final snapshot = await _firestore
+      debugPrint('[Firestore] Querying next upcoming order for user: $userId');
+      
+      // Try pending orders first
+      var snapshot = await _firestore
           .collection(_ordersCollection)
           .where('userId', isEqualTo: userId)
           .where('status', isEqualTo: 'pending')
@@ -164,20 +210,49 @@ class FirestoreServiceV3 {
           .limit(1)
           .get();
       
-      if (snapshot.docs.isNotEmpty) {
-        return snapshot.docs.first.data();
+      debugPrint('[Firestore] Query returned ${snapshot.docs.length} pending orders');
+      
+      // If no pending orders, try confirmed orders (fallback for auto-confirmed orders)
+      if (snapshot.docs.isEmpty) {
+        debugPrint('[Firestore] No pending orders, trying confirmed orders...');
+        snapshot = await _firestore
+            .collection(_ordersCollection)
+            .where('userId', isEqualTo: userId)
+            .where('status', isEqualTo: 'confirmed')
+            .orderBy('deliveryDate')
+            .limit(1)
+            .get();
+        debugPrint('[Firestore] Query returned ${snapshot.docs.length} confirmed orders');
       }
+      
+      if (snapshot.docs.isNotEmpty) {
+        final doc = snapshot.docs.first;
+        final data = {
+          ...doc.data(),
+          'id': doc.id,
+        };
+        debugPrint('[Firestore] Found order: ${doc.id}, status: ${data['status']}, deliveryDate: ${data['deliveryDate']}');
+        return data;
+      }
+      debugPrint('[Firestore] No upcoming orders found');
       return null;
     } catch (e) {
-      debugPrint('Error getting next upcoming order: $e');
+      debugPrint('[Firestore] Error getting next upcoming order: $e');
       return null;
     }
   }
 
   static Future<void> updateOrderStatus({required String orderId, required dynamic status}) async {
     try {
+      String statusValue;
+      if (status is OrderStatus) {
+        statusValue = status.name;
+      } else {
+        final text = status?.toString() ?? '';
+        statusValue = text.contains('OrderStatus.') ? text.split('.').last : text;
+      }
       await _firestore.collection(_ordersCollection).doc(orderId).update({
-        'status': status.toString(),
+        'status': statusValue,
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
@@ -206,7 +281,10 @@ class FirestoreServiceV3 {
           .limit(20)
           .get();
       
-      return snapshot.docs.map((doc) => doc.data()).toList();
+  return snapshot.docs.map((doc) => {
+    ...doc.data(),
+    'id': doc.id,
+      }).toList();
     } catch (e) {
       debugPrint('Error getting past orders: $e');
       return [];
@@ -316,7 +394,10 @@ class FirestoreServiceV3 {
           .orderBy('deliveryDate')
           .get();
       
-      return snapshot.docs.map((doc) => doc.data()).toList();
+  return snapshot.docs.map((doc) => {
+    ...doc.data(),
+    'id': doc.id,
+      }).toList();
     } catch (e) {
       debugPrint('Error getting upcoming orders: $e');
       return [];
@@ -340,6 +421,10 @@ class FirestoreServiceV3 {
       if (snapshot.docs.isNotEmpty) {
         final orderDoc = snapshot.docs.first;
         final orderData = orderDoc.data();
+        if (orderData['userConfirmed'] == true) {
+          debugPrint('Order already user-confirmed; skipping meal replacement');
+          return false;
+        }
         final meals = List<Map<String, dynamic>>.from(orderData['meals'] ?? []);
         
         // Find and replace meal of the specified type
@@ -372,8 +457,21 @@ class FirestoreServiceV3 {
   }
 
   static Stream<dynamic> trackOrderDriverLocation(String orderId) {
-    // Simple stub - return empty stream
-    return Stream.empty();
+    // Stream driver location and status from order_tracking collection.
+    // Returns a Map with {lat, lng, status, updatedAt} or null if not available.
+    return _firestore.collection('order_tracking').doc(orderId).snapshots().map((doc) {
+      if (!doc.exists) return null;
+      final data = doc.data();
+      if (data == null) return null;
+      final lat = data['driverLat'];
+      final lng = data['driverLng'];
+      return {
+        'lat': (lat is num) ? lat.toDouble() : null,
+        'lng': (lng is num) ? lng.toDouble() : null,
+        'status': data['status'] as String? ?? 'pending',
+        'updatedAt': data['updatedAt'],
+      };
+    });
   }
 
   static Future<Map<String, dynamic>?> getHealthDataForDate(String userId, DateTime date) async {

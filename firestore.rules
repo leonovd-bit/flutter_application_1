@@ -113,7 +113,7 @@ service cloud.firestore {
          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'trackingNumber', 'estimatedDeliveryTime', 'updatedAt'])) ||
         // Users (owners) may:
         //  - update meals before confirmation (keep status the same and only touch meals/updatedAt)
-        //  - set status to confirmed or cancelled and update updatedAt
+        //  - set status to cancelled and update updatedAt
         (isOwner(resource.data.userId) && (
           (
             resource.data.status == request.resource.data.status &&
@@ -121,7 +121,7 @@ service cloud.firestore {
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['meals', 'updatedAt'])
           ) || (
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']) &&
-            (request.resource.data.status == 'confirmed' || request.resource.data.status == 'cancelled')
+            request.resource.data.status == 'cancelled'
           )
         ))
       );
@@ -132,16 +132,25 @@ service cloud.firestore {
 
   // Global subscriptions collection (Stripe subscriptions)
     match /subscriptions/{subscriptionId} {
-      // Users can read/write their own subscriptions
-      allow read, write: if isAuthenticated() && isValidEmail() && 
-                          resource.data.userId == request.auth.uid;
-      // Allow creation of subscriptions for authenticated users
-      allow create: if isAuthenticated() && isValidEmail() && 
-                     request.resource.data.userId == request.auth.uid;
-      // Admins can read all subscriptions
-      allow read: if isAdmin();
-      // Stripe webhooks need to update subscription status
-      allow update: if true; // For webhook updates
+      // Authenticated users can read documents where they are the owner
+      allow read: if isAuthenticated() && (
+        subscriptionId == request.auth.uid ||
+        resource.data.userId == request.auth.uid
+      ) || isAdmin();
+
+      // Users can create their own subscription docs
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid;
+
+      // Updates must preserve ownership; admins can override
+      allow update: if (
+        isAuthenticated() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.userId == request.auth.uid
+      ) || isAdmin();
+
+      // Owners or admins may delete their subscription doc
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
     }
 
     // Addresses collection (top-level)

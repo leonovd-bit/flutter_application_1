@@ -246,22 +246,6 @@ class _WelcomePageV3State extends State<WelcomePageV3> {
               ),
               
               const SizedBox(height: 24),
-              // Fallback explicit debug button
-              Align(
-                alignment: Alignment.center,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    print('[Welcome] Debug open map button pressed');
-                    _openMap(context);
-                  },
-                  icon: const Icon(Icons.map_outlined),
-                  label: const Text('Open map (debug)'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppThemeV3.textPrimary,
-                    side: const BorderSide(color: AppThemeV3.border),
-                  ),
-                ),
-              ),
             ],
           ),
         ),

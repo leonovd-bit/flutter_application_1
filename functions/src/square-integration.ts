@@ -4,10 +4,12 @@
  */
 
 import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
-import {onDocumentCreated} from "firebase-functions/v2/firestore";
+import {onSchedule} from "firebase-functions/v2/scheduler";
+import {onDocumentCreated, onDocumentUpdated} from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
-import {getFirestore, FieldValue} from "firebase-admin/firestore";
+import {getFirestore, FieldValue, Timestamp} from "firebase-admin/firestore";
 import {defineSecret} from "firebase-functions/params";
+import * as crypto from "crypto";
 
 // Firebase is initialized in index.ts - no need to initialize here
 
@@ -15,6 +17,10 @@ import {defineSecret} from "firebase-functions/params";
 const SQUARE_APPLICATION_ID = defineSecret("SQUARE_APPLICATION_ID");
 const SQUARE_APPLICATION_SECRET = defineSecret("SQUARE_APPLICATION_SECRET");
 const SQUARE_ENV = defineSecret("SQUARE_ENV");
+// DoorDash API credentials via Firebase Secret Manager
+const DOORDASH_DEVELOPER_ID = defineSecret("DOORDASH_DEVELOPER_ID");
+const DOORDASH_KEY_ID = defineSecret("DOORDASH_KEY_ID");
+const DOORDASH_SIGNING_SECRET = defineSecret("DOORDASH_SIGNING_SECRET");
 
 function getSquareConfig() {
   const rawEnv = SQUARE_ENV.value();
@@ -100,18 +106,20 @@ export const initiateSquareOAuthHttp = onRequest(
     // Generate Square OAuth URL (properly encoded)
     const state = applicationRef.id; // Use application ID as state parameter
 
-    // Request the minimal scopes we actually use:
+    // Request the scopes we use. Important: include PAYMENTS_WRITE to allow
+    // recording EXTERNAL payments against orders so they appear as paid.
     // - MERCHANT_PROFILE_READ: read merchant details
-    // - PAYMENTS_READ: optional for reconciling payments
-  // - ITEMS_READ: required to read Catalog items (/v2/catalog/*)
-    // - INVENTORY_READ: required to read inventory counts
-    // - ORDERS_READ: required to query/search orders
-    // - ORDERS_WRITE: required to create orders when forwarding
-    // Note: Request only documented Square scopes; avoid non-documented ones to prevent
-    // "Invalid value for parameter `scope`" errors on the consent page.
+    // - PAYMENTS_READ: reconciling payments
+    // - PAYMENTS_WRITE: create EXTERNAL payments (required for visibility)
+    // - ITEMS_READ: read Catalog items (/v2/catalog/*)
+    // - INVENTORY_READ: read inventory counts
+    // - ORDERS_READ: query/search orders
+    // - ORDERS_WRITE: create/update orders when forwarding
+    // Note: Request only documented Square scopes to avoid consent errors.
     const scopes = [
       "MERCHANT_PROFILE_READ",
       "PAYMENTS_READ",
+      "PAYMENTS_WRITE",
       "ITEMS_READ",
       // Inventory + Orders
       "INVENTORY_READ",
@@ -121,7 +129,9 @@ export const initiateSquareOAuthHttp = onRequest(
 
     // Build URL with explicit encoding
     const scopeStr = scopes.join(" ");
-    const redirectUri = "https://completesquareoauthhttp-zp46qvhbwa-uk.a.run.app";
+    // Use stable functions.net domain for redirect in all environments.
+    // Avoid hashed Cloud Run service URL which can change on redeploy.
+    const redirectUri = "https://us-east4-freshpunk-48db1.cloudfunctions.net/completeSquareOAuthHttp";
 
     const oauthUrl = `${baseUrl}/oauth2/authorize` +
       `?client_id=${encodeURIComponent(cleanAppId)}` +
@@ -219,30 +229,15 @@ export const squareOAuthTestPage = onRequest(
 
     <script>
       console.log('Square OAuth Test Page loaded at', new Date().toISOString());
-      // Derive initiateSquareOAuthHttp endpoint dynamically so we don't hard-code
-      // the deployment hash or region. Each HTTPS function is a separate Cloud Run
-      // service named <function>-<hash>.run.app. We can take the current origin
-      // (for squareOAuthTestPage) and replace the function name prefix with the
-      // initiate function's name. If the replacement fails (unexpected name), we
-      // fall back to a manually provided host via ?initHost=<url> for debugging.
+      // initiateSquareOAuthHttp is deployed to us-central1, while this test page is in us-east4.
+      // Use the stable .cloudfunctions.net URL for cross-region invocation.
+      // Allow override via ?initHost=<url> for testing alternate deployments.
       const OAUTH_ENDPOINT = (() => {
-        try {
-          const origin = window.location.origin;
-          const paramOverride = new URLSearchParams(window.location.search).get('initHost');
-          if (paramOverride) return paramOverride; // allow explicit override
-          // Build from current URL, swapping only the function prefix in the host
-          // e.g. squareoauthtestpage-<hash>-ue.a.run.app -> initiatesquareoauthhttp-<hash>-ue.a.run.app
-          const u = new URL(origin);
-          if (u.host.startsWith('squareoauthtestpage-')) {
-            const host = u.host.replace(/^squareoauthtestpage-/, 'initiatesquareoauthhttp-');
-            return u.protocol + '//' + host;
-          }
-          // Fallback: generic string replace (works even if service name moved)
-          return origin.replace('squareoauthtestpage', 'initiatesquareoauthhttp');
-        } catch (e) {
-          console.warn('Dynamic OAUTH_ENDPOINT derivation failed, please supply ?initHost=<url>', e);
-          return 'https://initiatesquareoauthhttp-zp46qvhbwa-uc.a.run.app'; // fallback to last known
-        }
+        const paramOverride = new URLSearchParams(window.location.search).get('initHost');
+        if (paramOverride) return paramOverride;
+        
+        // Use the known stable URL for initiateSquareOAuthHttp (us-central1)
+        return 'https://us-central1-freshpunk-48db1.cloudfunctions.net/initiateSquareOAuthHttp';
       })();
 
       document.getElementById('connect').addEventListener('click', async () => {
@@ -400,7 +395,8 @@ export const completeSquareOAuthHttp = onRequest(
       secretLength: cleanAppSecret.length,
     });
 
-    const redirectUri = "https://completesquareoauthhttp-zp46qvhbwa-uk.a.run.app";
+    // Must exactly match the redirect URI used during authorization.
+    const redirectUri = "https://us-east4-freshpunk-48db1.cloudfunctions.net/completeSquareOAuthHttp";
 
     // Exchange code for access token
     const tokenResponse = await fetch(`${baseUrl}/oauth2/token`, {
@@ -598,7 +594,8 @@ export const diagnoseSquareOAuth = onRequest(
     try {
       const {applicationId, baseUrl, env} = getSquareConfig();
       const cleanAppId = (applicationId || "").replace(/[\r\n]+/g, "").trim();
-      const redirectUri = "https://completesquareoauthhttp-zp46qvhbwa-uk.a.run.app";
+  // Use same stable redirect URI for diagnostics (value itself not invoked here, but kept consistent).
+  const redirectUri = "https://us-east4-freshpunk-48db1.cloudfunctions.net/completeSquareOAuthHttp";
       const urlWithParams = `${baseUrl}/oauth2/authorize?client_id=${encodeURIComponent(cleanAppId)}&response_type=code&scope=${encodeURIComponent("MERCHANT_PROFILE_READ")}&redirect_uri=${encodeURIComponent(redirectUri)}&state=diag`;
 
       // Try a GET without following redirects to capture the first response
@@ -691,6 +688,189 @@ export const devListRecentSquareOrders = onRequest(
       }));
 
       res.json({success: true, restaurantId, locationId, count: orders.length, orders});
+    } catch (e: any) {
+      res.status(500).json({success: false, message: e?.message || String(e)});
+    }
+  }
+);
+
+/**
+ * Dev-only: Find a Square order by FreshPunk reference or orderId.
+ * Query/body: restaurantId (required), reference OR orderId (one required)
+ * reference format we use: "freshpunk_order_<orderId>" truncated to 40 chars
+ */
+export const devFindSquareOrderByReference = onRequest(
+  {
+    region: "us-east4",
+    secrets: [SQUARE_ENV],
+  },
+  async (req, res) => {
+    try {
+      const db = getFirestore();
+      const restaurantId = (req.method === "POST" ? req.body?.restaurantId : req.query.restaurantId) as string;
+      const providedReference = (req.method === "POST" ? req.body?.reference : req.query.reference) as string | undefined;
+      const providedOrderId = (req.method === "POST" ? req.body?.orderId : req.query.orderId) as string | undefined;
+
+      if (!restaurantId) {
+        res.status(400).json({success: false, message: "restaurantId required"});
+        return;
+      }
+
+      let reference = providedReference?.toString().trim();
+      if (!reference) {
+        if (!providedOrderId) {
+          res.status(400).json({success: false, message: "Provide reference or orderId"});
+          return;
+        }
+        const base = `freshpunk_order_${providedOrderId}`;
+        reference = base.length > 40 ? base.substring(0, 40) : base;
+      }
+
+      const doc = await db.collection("restaurant_partners").doc(restaurantId).get();
+      if (!doc.exists) {
+        res.status(404).json({success: false, message: "Restaurant partner not found"});
+        return;
+      }
+      const restaurant = doc.data()!;
+      const accessToken = restaurant.squareAccessToken;
+      const locationId = restaurant.squareLocationId || restaurant.squareMerchantId;
+      if (!accessToken || !locationId) {
+        res.status(400).json({success: false, message: "Missing Square access token or locationId on restaurant"});
+        return;
+      }
+
+      const {baseUrl} = getSquareConfig();
+      const payload: any = {
+        location_ids: [locationId],
+        limit: 20,
+        query: {
+          filter: {
+            reference_filter: {
+              reference_ids: [reference],
+            },
+          },
+        },
+      };
+
+      const resp = await fetch(`${baseUrl}/v2/orders/search`, {
+        method: "POST",
+        headers: {
+          "Square-Version": "2023-10-18",
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => "<no-body>");
+        res.status(500).json({success: false, message: `Square search failed ${resp.status}: ${text.slice(0, 500)}`});
+        return;
+      }
+
+      const data = await resp.json();
+      const orders = (data.orders || []);
+
+      // Return a concise view plus the first order raw (if any)
+      const summary = orders.map((o: any) => ({
+        id: o.id,
+        state: o.state,
+        created_at: o.created_at,
+        location_id: o.location_id,
+        reference_id: o.reference_id,
+        lineItems: (o.line_items || []).length,
+        fulfillments: (o.fulfillments || []).map((f: any) => ({type: f.type, state: f.state})),
+        hasTenders: Array.isArray(o.tenders) && o.tenders.length > 0,
+      }));
+
+      res.json({success: true, restaurantId, locationId, reference, count: orders.length, summary, order: orders[0] || null});
+    } catch (e: any) {
+      res.status(500).json({success: false, message: e?.message || String(e)});
+    }
+  }
+);
+
+/**
+ * Dev-only: Get full Square order details by Square order ID.
+ * Query/body: restaurantId, squareOrderId
+ * Returns raw order plus a visibilityAnalysis section explaining likely dashboard behavior.
+ */
+export const devGetSquareOrderDetails = onRequest(
+  {
+    region: "us-east4",
+    secrets: [SQUARE_ENV],
+  },
+  async (req, res) => {
+    try {
+      const db = getFirestore();
+      const restaurantId = (req.method === "POST" ? req.body?.restaurantId : req.query.restaurantId) as string;
+      const squareOrderId = (req.method === "POST" ? req.body?.squareOrderId : req.query.squareOrderId) as string;
+
+      if (!restaurantId || !squareOrderId) {
+        res.status(400).json({success: false, message: "restaurantId and squareOrderId required"});
+        return;
+      }
+
+      const doc = await db.collection("restaurant_partners").doc(restaurantId).get();
+      if (!doc.exists) {
+        res.status(404).json({success: false, message: "Restaurant partner not found"});
+        return;
+      }
+      const restaurant = doc.data()!;
+      const accessToken = restaurant.squareAccessToken;
+      const locationId = restaurant.squareLocationId || restaurant.squareMerchantId;
+      if (!accessToken || !locationId) {
+        res.status(400).json({success: false, message: "Missing Square access token or locationId on restaurant"});
+        return;
+      }
+
+      const {baseUrl} = getSquareConfig();
+      const resp = await fetch(`${baseUrl}/v2/orders/${squareOrderId}`, {
+        method: "GET",
+        headers: {
+          "Square-Version": "2023-10-18",
+          "Authorization": `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => "<no-body>");
+        res.status(resp.status).json({success: false, message: `Square get order failed ${resp.status}`, details: text.slice(0, 600)});
+        return;
+      }
+      const data = await resp.json();
+      const order = data.order || {};
+
+      // Heuristic visibility analysis
+      const visibility: any = {};
+      visibility.state = order.state;
+      visibility.fulfillmentCount = (order.fulfillments || []).length;
+      visibility.hasMultipleFulfillments = visibility.fulfillmentCount > 1;
+      visibility.lineItemCount = (order.line_items || []).length;
+      visibility.hasTenders = (order.tenders || []).length > 0;
+      visibility.deliveryScheduling = (order.fulfillments || [])
+        .map((f: any) => ({type: f.type, state: f.state, deliver_at: f.delivery_details?.deliver_at, pickup_at: f.pickup_details?.pickup_at}))
+        .slice(0, 5);
+      visibility.reference_id = order.reference_id;
+      visibility.location_id = order.location_id;
+      visibility.created_at = order.created_at;
+      visibility.filterNotes = [] as string[];
+
+      if (visibility.state === "OPEN") {
+        visibility.filterNotes.push("Order is OPEN (expected to appear under Active / All). Square may delay indexing briefly.");
+      }
+      if (!visibility.hasTenders) {
+        visibility.filterNotes.push("No tender recorded; some dashboard views emphasize paid orders.");
+      }
+      if (visibility.fulfillmentCount === 0) {
+        visibility.filterNotes.push("No fulfillment; some views hide orders lacking a fulfillment.");
+      }
+      const futureDeliveries = visibility.deliveryScheduling.filter((s: any) => s.deliver_at && new Date(s.deliver_at) > new Date());
+      if (futureDeliveries.length > 0) {
+        visibility.filterNotes.push("Fulfillment deliver_at in future; may appear under Scheduled rather than All depending on filters.");
+      }
+
+      res.json({success: true, restaurantId, squareOrderId, order, visibilityAnalysis: visibility});
     } catch (e: any) {
       res.status(500).json({success: false, message: e?.message || String(e)});
     }
@@ -1174,8 +1354,15 @@ export const forwardOrderToSquare = onDocumentCreated(
     memory: "1GiB",
     timeoutSeconds: 300,
     region: "us-east4",
-    // Include secrets so getSquareConfig() can access them without warnings
-    secrets: [SQUARE_APPLICATION_ID, SQUARE_APPLICATION_SECRET, SQUARE_ENV],
+    // Include secrets so getSquareConfig() and DoorDash integration can access them without warnings
+    secrets: [
+      SQUARE_APPLICATION_ID,
+      SQUARE_APPLICATION_SECRET,
+      SQUARE_ENV,
+      DOORDASH_DEVELOPER_ID,
+      DOORDASH_KEY_ID,
+      DOORDASH_SIGNING_SECRET,
+    ],
   },
   async (event: any) => {
   try {
@@ -1183,12 +1370,24 @@ export const forwardOrderToSquare = onDocumentCreated(
     if (!orderData) return;
 
     // Only forward confirmed orders with Square restaurant items
-    if (orderData.status !== "confirmed") return;
+    if (orderData.status !== "confirmed") {
+      logger.info("forwardOrderToSquare skip: status not confirmed", {
+        orderId: event.params.orderId,
+        status: orderData.status,
+      });
+      return;
+    }
 
     const meals = orderData.meals || [];
     const squareMeals = meals.filter((meal: any) => meal.restaurantId && meal.squareItemId);
 
-    if (squareMeals.length === 0) return;
+    if (squareMeals.length === 0) {
+      logger.info("forwardOrderToSquare skip: no square-qualified meals", {
+        orderId: event.params.orderId,
+        mealCount: (meals || []).length,
+      });
+      return;
+    }
 
     // Group by restaurant
     const ordersByRestaurant = squareMeals.reduce((acc: any, meal: any) => {
@@ -1221,6 +1420,471 @@ export const forwardOrderToSquare = onDocumentCreated(
 });
 
 /**
+ * Forward order to Square when status changes to confirmed
+ * Handles cases where order is created first, then confirmed later
+ */
+export const forwardOrderOnStatusUpdate = onDocumentUpdated(
+  {
+    document: "orders/{orderId}",
+    memory: "1GiB",
+    timeoutSeconds: 300,
+    region: "us-east4",
+    secrets: [
+      SQUARE_APPLICATION_ID,
+      SQUARE_APPLICATION_SECRET,
+      SQUARE_ENV,
+      DOORDASH_DEVELOPER_ID,
+      DOORDASH_KEY_ID,
+      DOORDASH_SIGNING_SECRET,
+    ],
+  },
+  async (event: any) => {
+    try {
+      const beforeData = event.data?.before.data();
+      const afterData = event.data?.after.data();
+
+      if (!beforeData || !afterData) return;
+
+      // Handle status changes: confirmed (forward) or cancelled (cancel in Square)
+      const statusChanged = beforeData.status !== afterData.status;
+      const nowConfirmed = afterData.status === "confirmed" && beforeData.status !== "confirmed";
+      const nowCancelled = afterData.status === "cancelled" && beforeData.status !== "cancelled";
+
+      if (!statusChanged || (!nowConfirmed && !nowCancelled)) {
+        logger.info("forwardOrderOnStatusUpdate skip: no relevant status change", {
+          orderId: event.params.orderId,
+          beforeStatus: beforeData.status,
+          afterStatus: afterData.status,
+        });
+        return;
+      }
+
+      // Handle cancellation
+      if (nowCancelled) {
+        logger.info("Order cancelled, cancelling in Square", {
+          orderId: event.params.orderId,
+          previousStatus: beforeData.status,
+        });
+
+        const squareOrders = afterData.squareOrders || {};
+
+        // Cancel each Square order that was forwarded
+        for (const [restaurantId, squareOrderData] of Object.entries(squareOrders)) {
+          const squareOrderId = (squareOrderData as any)?.squareOrderId;
+          if (!squareOrderId) continue;
+
+          try {
+            await cancelSquareOrder(event.params.orderId, restaurantId, squareOrderId);
+            logger.info("Square order cancelled", {
+              orderId: event.params.orderId,
+              restaurantId,
+              squareOrderId,
+            });
+          } catch (error: any) {
+            logger.error("Failed to cancel Square order", {
+              orderId: event.params.orderId,
+              restaurantId,
+              squareOrderId,
+              error: error.message,
+            });
+          }
+        }
+
+        return; // Done handling cancellation
+      }
+
+      // Handle confirmation (existing logic)
+      if (!nowConfirmed) {
+        return;
+      }
+
+      logger.info("Order status changed to confirmed, forwarding to Square", {
+        orderId: event.params.orderId,
+        previousStatus: beforeData.status,
+      });
+
+      const meals = afterData.meals || [];
+      const squareMeals = meals.filter((meal: any) => meal.restaurantId && meal.squareItemId);
+
+      if (squareMeals.length === 0) {
+        logger.info("forwardOrderOnStatusUpdate skip: no square-qualified meals", {
+          orderId: event.params.orderId,
+          mealCount: (meals || []).length,
+        });
+        return;
+      }
+
+      // Group by restaurant
+      const ordersByRestaurant = squareMeals.reduce((acc: any, meal: any) => {
+        const restaurantId = meal.restaurantId;
+        if (!acc[restaurantId]) {
+          acc[restaurantId] = [];
+        }
+        acc[restaurantId].push(meal);
+        return acc;
+      }, {});
+
+      // Forward to each restaurant
+      for (const [restaurantId, restaurantMeals] of Object.entries(ordersByRestaurant)) {
+        await forwardToSquareRestaurant(
+          event.params.orderId,
+          restaurantId,
+          restaurantMeals as any[],
+          afterData,
+          "confirmed_order"
+        );
+      }
+
+      logger.info("Order forwarded to Square on status update", {
+        orderId: event.params.orderId,
+        restaurantCount: Object.keys(ordersByRestaurant).length,
+      });
+    } catch (error: any) {
+      logger.error("Order forwarding on update failed", {
+        orderId: event.params.orderId,
+        error: error.message,
+      });
+    }
+  }
+);
+
+const DISPATCH_BATCH_SIZE = Number(process.env.FP_DISPATCH_BATCH_SIZE || 20);
+
+/**
+ * Promote user-confirmed orders to confirmed status when dispatch window opens.
+ * This defers Square/Doordash handoff until roughly an hour before delivery.
+ */
+export const dispatchConfirmedOrders = onSchedule({
+  schedule: "every 5 minutes",
+  timeZone: "Etc/UTC",
+}, async () => {
+  const db = getFirestore();
+  const now = Timestamp.now();
+
+  try {
+    const snapshot = await db.collection("orders")
+      .where("status", "==", "pending")
+      .where("userConfirmed", "==", true)
+      .where("dispatchReadyAt", "<=", now)
+      .orderBy("dispatchReadyAt", "asc")
+      .limit(DISPATCH_BATCH_SIZE)
+      .get();
+
+    if (snapshot.empty) {
+      logger.debug("dispatchConfirmedOrders: no orders ready", {checkedAt: now.toDate().toISOString()});
+      return;
+    }
+
+    const updates = snapshot.docs.map(async (doc) => {
+      try {
+        await doc.ref.update({
+          status: "confirmed",
+          dispatchTriggeredAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        logger.info("dispatchConfirmedOrders: promoted order", {
+          orderId: doc.id,
+          userId: doc.data().userId,
+          dispatchReadyAt: doc.data().dispatchReadyAt,
+        });
+      } catch (error: any) {
+        logger.error("dispatchConfirmedOrders: update failed", {
+          orderId: doc.id,
+          error: error?.message,
+        });
+      }
+    });
+
+    await Promise.all(updates);
+  } catch (error: any) {
+    logger.error("dispatchConfirmedOrders: query failed", {error: error?.message});
+  }
+});
+
+/**
+ * Cancel a Square order
+ * @param {string} orderId - FreshPunk order ID
+ * @param {string} restaurantId - Restaurant ID
+ * @param {string} squareOrderId - Square order ID to cancel
+ */
+async function cancelSquareOrder(
+  orderId: string,
+  restaurantId: string,
+  squareOrderId: string
+): Promise<void> {
+  const db = getFirestore();
+
+  try {
+    // Get restaurant access token
+    const restaurantDoc = await db.collection("restaurant_partners").doc(restaurantId).get();
+    if (!restaurantDoc.exists) {
+      throw new Error(`Restaurant ${restaurantId} not found`);
+    }
+
+    const restaurantData = restaurantDoc.data()!;
+    const accessToken = restaurantData.squareAccessToken;
+
+    if (!accessToken) {
+      throw new Error(`No Square access token for restaurant ${restaurantId}`);
+    }
+
+    const {baseUrl} = getSquareConfig();
+
+    // First, retrieve current order to get version
+    const getResp = await fetch(`${baseUrl}/v2/orders/${squareOrderId}`, {
+      method: "GET",
+      headers: {
+        "Square-Version": "2023-10-18",
+        "Authorization": `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!getResp.ok) {
+      const errorText = await getResp.text();
+      throw new Error(`Failed to retrieve order: ${errorText}`);
+    }
+
+    const orderData = await getResp.json();
+    const currentVersion = orderData.order?.version;
+
+    if (!currentVersion) {
+      throw new Error("Could not determine order version");
+    }
+
+    // Update order state to CANCELED
+    const updateResp = await fetch(`${baseUrl}/v2/orders/${squareOrderId}`, {
+      method: "PUT",
+      headers: {
+        "Square-Version": "2023-10-18",
+        "Authorization": `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        order: {
+          version: currentVersion,
+          state: "CANCELED",
+        },
+      }),
+    });
+
+    if (!updateResp.ok) {
+      const errorText = await updateResp.text();
+      throw new Error(`Failed to cancel order: ${errorText}`);
+    }
+
+    // Update FreshPunk order to reflect cancellation
+    await db.collection("orders").doc(orderId).update({
+      [`squareOrders.${restaurantId}.status`]: "cancelled_in_square",
+      [`squareOrders.${restaurantId}.cancelledAt`]: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    logger.info("Square order cancelled successfully", {
+      orderId,
+      restaurantId,
+      squareOrderId,
+    });
+  } catch (error: any) {
+    logger.error("Square order cancellation failed", {
+      orderId,
+      restaurantId,
+      squareOrderId,
+      error: error.message,
+    });
+
+    // Mark cancellation failure in Firestore
+    await db.collection("orders").doc(orderId).update({
+      [`squareOrders.${restaurantId}.cancellationFailed`]: true,
+      [`squareOrders.${restaurantId}.cancellationError`]: error.message,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    throw error;
+  }
+}
+
+// ============================================================================
+// DOORDASH DELIVERY INTEGRATION
+// ============================================================================
+
+/**
+ * Create a DoorDash delivery request after order payment succeeds
+ * @param {string} orderId - FreshPunk order ID
+ * @param {string} restaurantId - Restaurant ID
+ * @param {any[]} meals - Array of meal items
+ * @param {any} orderData - Complete order data with delivery address
+ * @param {string} squareOrderId - Square order ID (for reference)
+ * @return {Promise<any>} Promise with delivery result
+ */
+async function createDoorDashDelivery(
+  orderId: string,
+  restaurantId: string,
+  meals: any[],
+  orderData: any,
+  squareOrderId: string
+): Promise<{success: boolean; deliveryId?: string; trackingUrl?: string; status?: string; error?: string}> {
+  try {
+    // Get DoorDash credentials from Firebase Secrets
+    const doorDashDevId = DOORDASH_DEVELOPER_ID.value();
+    const doorDashKeyId = DOORDASH_KEY_ID.value();
+    const doorDashSecret = DOORDASH_SIGNING_SECRET.value();
+
+    if (!doorDashDevId || !doorDashKeyId || !doorDashSecret) {
+      logger.warn("DoorDash credentials not configured", {orderId, restaurantId});
+      return {
+        success: false,
+        error: "DoorDash credentials not configured",
+      };
+    }
+
+    // Extract delivery address from orderData
+    const deliveryAddress = orderData.deliveryAddress || orderData.address || {};
+    const pickupAddress = {
+      street: "Kitchen",
+      city: "San Francisco",
+      state: "CA",
+      zip: "94102",
+      country: "US",
+    };
+
+    // Calculate order total
+    const totalPrice = meals.reduce((sum: number, meal: any) => {
+      return sum + (Number(meal.price) * 100 || 0); // Convert to cents
+    }, 0);
+
+    const deliveryPayload = {
+      external_delivery_id: squareOrderId,
+      locale: "en-US",
+      order_fulfillment_method: "delivery",
+      origin_facility_id: "freshpunk_kitchen_001",
+      pickup_address: pickupAddress,
+      pickup_business_name: "FreshPunk Kitchen",
+      pickup_phone_number: "+1-415-555-0100",
+      pickup_instructions: "Ready for pickup at kitchen entrance",
+      pickup_time: new Date(Date.now() + 10 * 60000).toISOString(),
+      dropoff_address: {
+        street: deliveryAddress.streetAddress || "Unknown",
+        city: deliveryAddress.city || "San Francisco",
+        state: deliveryAddress.state || "CA",
+        zip: deliveryAddress.zipCode || "94102",
+        country: "US",
+      },
+      dropoff_business_name: orderData.customerName || "Customer",
+      dropoff_phone_number: orderData.customerPhone || "+1-555-0000",
+      dropoff_instructions: orderData.specialInstructions || "Leave at door",
+      dropoff_cash_on_delivery: 0,
+      order_value: totalPrice,
+      items: meals.map((meal: any) => ({
+        name: meal.name || "Meal",
+        description: meal.description || "",
+        quantity: 1,
+        price: Number(meal.price) * 100 || 0,
+      })),
+      pickup_window: {
+        start_time: new Date(Date.now() + 5 * 60000).toISOString(),
+        end_time: new Date(Date.now() + 20 * 60000).toISOString(),
+      },
+      dropoff_window: {
+        start_time: new Date(Date.now() + 30 * 60000).toISOString(),
+        end_time: new Date(Date.now() + 90 * 60000).toISOString(),
+      },
+      contactless_dropoff: true,
+      action_if_undeliverable: "return_to_pickup",
+      tip: 500, // $5.00 tip
+    };
+
+    // Generate JWT token for DoorDash authentication
+    const now = Math.floor(Date.now() / 1000);
+    const exp = now + 3600;
+
+    const header = {
+      "alg": "HS256",
+      "typ": "JWT",
+      "dd-ver": "DD-JWT-V1",
+    };
+
+    const payload = {
+      aud: "doordash",
+      iss: doorDashDevId,
+      kid: doorDashKeyId,
+      exp,
+      iat: now,
+    };
+
+    // JWT encoding
+    const base64 = (obj: any) =>
+      Buffer.from(JSON.stringify(obj)).toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+
+    const headerB64 = base64(header);
+    const payloadB64 = base64(payload);
+    const signatureInput = `${headerB64}.${payloadB64}`;
+
+    // Sign with HMAC-SHA256
+    const signature = crypto
+      .createHmac("sha256", doorDashSecret)
+      .update(signatureInput)
+      .digest("base64")
+      .replace(/=/g, "")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_");
+
+    const jwtToken = `${signatureInput}.${signature}`;
+
+    // Call DoorDash API to create delivery
+    const response = await fetch("https://openapi.doordash.com/drive/v2/deliveries", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${jwtToken}`,
+        "Content-Type": "application/json",
+        "User-Agent": "FreshPunk/1.0",
+      },
+      body: JSON.stringify(deliveryPayload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.error("DoorDash delivery creation failed", {
+        orderId,
+        restaurantId,
+        squareOrderId,
+        status: response.status,
+        error: errorText.slice(0, 500),
+      });
+      return {
+        success: false,
+        error: `DoorDash API error: ${response.status}`,
+      };
+    }
+
+    const deliveryData = await response.json() as any;
+    logger.info("DoorDash delivery created", {
+      orderId,
+      restaurantId,
+      squareOrderId,
+      deliveryId: deliveryData.delivery_id,
+      status: deliveryData.delivery_status,
+    });
+
+    return {
+      success: true,
+      deliveryId: deliveryData.delivery_id || "",
+      trackingUrl: deliveryData.tracking_url || "",
+      status: deliveryData.delivery_status || "created",
+    };
+  } catch (error: any) {
+    logger.error("DoorDash delivery creation threw", {
+      orderId,
+      restaurantId,
+      error: error.message,
+    });
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+}
+
+/**
  * Forward order to specific Square restaurant
  * @param {string} orderId - The order ID
  * @param {string} restaurantId - The restaurant ID
@@ -1239,6 +1903,173 @@ async function forwardToSquareRestaurant(
   const db = getFirestore();
   const {baseUrl} = getSquareConfig();
   try {
+    // Build a cross-document idempotency key so multiple distinct order docs
+    // representing the same logical meal/day don't create multiple Square orders.
+    // Prefer a client-provided forwardKey; otherwise derive from stable fields.
+    const normalize = (v: any) => String(v || "").toLowerCase().trim().replace(/[^a-z0-9_-]+/g, "-");
+    const canonicalMealType = () => {
+      const raw = normalize(orderData.mealType || orderData.meal_type || "meal");
+      // strip trailing indexes like _0, -1, etc.
+      const stripped = raw.replace(/[-_]*\d+$/g, "");
+      if (stripped.includes("breakfast")) return "breakfast";
+      if (stripped.includes("lunch")) return "lunch";
+      if (stripped.includes("dinner")) return "dinner";
+      return stripped || "meal";
+    };
+    const deriveDayKey = () => {
+      // Prefer calendar date (UTC yyyymmdd) for stability across client naming
+      const ts = orderData.deliveryDate?._seconds || orderData.scheduledDate?._seconds || undefined;
+      if (ts) {
+        const d = new Date(ts * 1000);
+        const y = d.getUTCFullYear();
+        const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+        const dd = String(d.getUTCDate()).padStart(2, "0");
+        return `${y}${m}${dd}`;
+      }
+      if (orderData.dayName) return normalize(orderData.dayName);
+      if (orderData.day) return normalize(orderData.day);
+      return "unknown";
+    };
+    const userKey = normalize(orderData.userId || orderData.user_id || orderData.customerId || orderData.customer_id || "anon");
+    const dayKey = deriveDayKey();
+    const mealKey = canonicalMealType();
+    const forwardBaseRoot = normalize(orderData.forwardKey) || `${userKey}_${dayKey}_${mealKey}`;
+    const crossDocForwardKey = `${forwardBaseRoot}_${normalize(restaurantId)}`.slice(0, 120);
+
+    // Emit structured diagnostics for the derived key
+    logger.info("Forward key derived", {
+      orderId,
+      restaurantId,
+      forwardBaseRoot,
+      crossDocForwardKey,
+      parts: {userKey, dayKey, mealKey},
+    });
+
+    // Cross-document idempotency guard 0: check global index first
+    try {
+      const idxRef = db.collection("order_forward_index").doc(crossDocForwardKey);
+      const idxSnap = await idxRef.get();
+      const idxData = idxSnap.data() as any;
+      if (idxSnap.exists && idxData?.squareOrderId) {
+        logger.info("Order already forwarded via index, skipping", {
+          orderId,
+          restaurantId,
+          crossDocForwardKey,
+          squareOrderId: idxData.squareOrderId,
+        });
+        // Best-effort: reflect the linkage onto this order document too
+        try {
+          await db.collection("orders").doc(orderId).update({
+            [`squareOrders.${restaurantId}`]: {
+              squareOrderId: idxData.squareOrderId,
+              restaurantId,
+              forwardedAt: FieldValue.serverTimestamp(),
+              status: "forwarded",
+              viaIndex: true,
+            },
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        } catch (_) {/* ignore */}
+        return;
+      }
+    } catch (e) {
+      logger.warn("Forward index pre-check failed; continuing", {orderId, restaurantId, crossDocForwardKey});
+    }
+    // Idempotency guard 1: check if this order was already forwarded for this restaurant
+    try {
+      const existing = await db.collection("orders").doc(orderId).get();
+      const sq = (existing.data() as any)?.squareOrders;
+      const existingForward = sq && typeof sq === "object" ? sq[restaurantId] : undefined;
+      if (existingForward?.squareOrderId) {
+        logger.info("Order already forwarded for restaurant, skipping", {
+          orderId,
+          restaurantId,
+          squareOrderId: existingForward.squareOrderId,
+        });
+        return;
+      }
+      // If a forwarding lock exists and is recent (<2min) AND status is "forwarding", skip to avoid races
+      // But if status is "forward_failed", allow retry by clearing the lock
+      if (existingForward?.lockStartedAt?.seconds) {
+        const lockAgeMs = Date.now() - existingForward.lockStartedAt.seconds * 1000;
+        const currentStatus = existingForward.status;
+
+        if (currentStatus === "forward_failed") {
+          // Clear failed state to allow retry
+          logger.info("Clearing forward_failed state for retry", {orderId, restaurantId, lockAgeMs});
+          await db.collection("orders").doc(orderId).update({
+            [`squareOrders.${restaurantId}.status`]: "retrying",
+            [`squareOrders.${restaurantId}.lastError`]: FieldValue.delete(),
+            [`squareOrders.${restaurantId}.lockStartedAt`]: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        } else if (currentStatus === "forwarding" && lockAgeMs < 120000) {
+          logger.info("Forwarding lock active, skipping duplicate attempt", {
+            orderId,
+            restaurantId,
+            lockAgeMs,
+            status: currentStatus,
+          });
+          return;
+        }
+      }
+    } catch (e) {
+      // Non-fatal: continue without idempotency pre-check
+      logger.warn("Idempotency pre-check failed; proceeding", {orderId, restaurantId});
+    }
+
+    // Set a pre-flight lock to signal forwarding in progress (best-effort)
+    try {
+      await db.collection("orders").doc(orderId).update({
+        [`squareOrders.${restaurantId}.lockStartedAt`]: FieldValue.serverTimestamp(),
+        [`squareOrders.${restaurantId}.status`]: "forwarding",
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      logger.warn("Failed to set forwarding lock; will proceed", {orderId, restaurantId});
+    }
+
+    // Cross-document idempotency guard 1: attempt to acquire index lock transactionally
+    let acquiredIndexLock = false;
+    const idxRef = db.collection("order_forward_index").doc(crossDocForwardKey);
+    try {
+      await db.runTransaction(async (t) => {
+        const snap = await t.get(idxRef);
+        const data = snap.data() as any;
+        if (snap.exists && data?.squareOrderId) {
+          // Another writer already created Square order for this logical key
+          return;
+        }
+        // consider stale/empty as acquirable
+        const stale = data?.lockStartedAt?.seconds ? (Date.now() - data.lockStartedAt.seconds * 1000) > 30000 : true;
+        if (!snap.exists || stale) {
+          t.set(idxRef, {
+            orderId,
+            restaurantId,
+            baseRoot: forwardBaseRoot,
+            key: crossDocForwardKey,
+            status: "forwarding",
+            lockStartedAt: FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+          acquiredIndexLock = true;
+          return;
+        }
+        // If exists without squareOrderId, consider stale lock; proceed but don't flip acquired flag
+      });
+      if (!acquiredIndexLock) {
+        logger.info("Forward index indicates prior or concurrent forwarding, skipping", {
+          orderId,
+          restaurantId,
+          crossDocForwardKey,
+        });
+        return;
+      }
+      logger.info("Acquired forward index lock", {orderId, restaurantId, crossDocForwardKey});
+    } catch (e) {
+      logger.warn("Failed to acquire forward index lock; proceeding optimistically", {orderId, restaurantId, crossDocForwardKey});
+    }
     // Get restaurant Square credentials
     const restaurantDoc = await db.collection("restaurant_partners").doc(restaurantId).get();
     if (!restaurantDoc.exists) return;
@@ -1267,10 +2098,16 @@ async function forwardToSquareRestaurant(
       `PREP FORECAST - Week of ${orderData.weekStart || "TBD"}` :
       `FreshPunk Order #${orderId}`;
 
+  // Use crossDocForwardKey for Square idempotency so distinct docs dedupe
+  const idempotencyKey = `fp_${crossDocForwardKey}`.slice(0, 45);
+
     const squareOrder = {
+      idempotency_key: idempotencyKey,
       order: {
         location_id: locationId,
-        reference_id: truncatedReference,
+    reference_id: truncatedReference,
+    // Omit explicit state; let Square start the order in OPEN state. Setting COMPLETED here
+    // triggers validation because fulfillments are not terminal yet.
         source: {
           name: orderType === "prep_forecast" ? "FreshPunk Prep Forecast" : "FreshPunk Delivery",
         },
@@ -1278,29 +2115,54 @@ async function forwardToSquareRestaurant(
           name: meal.name,
           quantity: meal.quantity?.toString() || "1",
           catalog_object_id: meal.squareVariationId,
-          // Include base_price_money for variably-priced items
-          base_price_money: meal.price ? {
-            amount: Math.round(meal.price * 100), // Convert dollars to cents
+          // Always include a price for clearer dashboard visibility.
+          // Prefer meal.price (USD dollars) -> cents, else priceCents/price_cents, else $10 fallback in sandbox.
+          base_price_money: {
+            amount: (typeof meal.price === "number" && !isNaN(meal.price)) ?
+              Math.round(meal.price * 100) :
+              (typeof meal.priceCents === "number" && !isNaN(meal.priceCents)) ?
+                Math.round(meal.priceCents) :
+                (typeof meal.price_cents === "number" && !isNaN(meal.price_cents)) ?
+                  Math.round(meal.price_cents) :
+                  1000, // $10 fallback for sandbox visibility
             currency: "USD",
-          } : undefined,
+          },
           modifiers: [],
           note: orderNote,
         })),
-        fulfillments: orderType === "prep_forecast" ? [] : [{
-          type: "DELIVERY",
-          state: "PROPOSED",
-          delivery_details: {
-            recipient: {
-              display_name: orderData.customerName || "FreshPunk Customer",
-              phone_number: orderData.customerPhone,
+        // Note: tenders cannot be added during order creation via API
+        // We use Pay Order API after creation to mark as paid (see below)
+        fulfillments: orderType === "prep_forecast" ? [] : [
+
+          {
+            type: "DELIVERY",
+            // Same rationale as above: start at RESERVED so the order appears operational, not just proposed.
+            state: "PROPOSED",
+            delivery_details: {
+              recipient: {
+                display_name: orderData.customerName || orderData.userEmail || "FreshPunk Customer",
+                phone_number: orderData.customerPhone || undefined,
+                email_address: orderData.userEmail || undefined,
+              },
+              address: {
+                address_line_1: orderData.deliveryAddress || "Address to be determined",
+              },
+              schedule_type: "SCHEDULED",
+              deliver_at: (() => {
+                if (!orderData.deliveryDate?._seconds) return undefined;
+                const deliveryTime = new Date(orderData.deliveryDate._seconds * 1000);
+                const now = new Date();
+                return deliveryTime > now ? deliveryTime.toISOString() : undefined;
+              })(),
+              note: `Delivery for ${orderNote}`,
             },
-            address: {
-              address_line_1: orderData.deliveryAddress,
-            },
-            schedule_type: "ASAP",
-            note: `Delivery for ${orderNote}`,
           },
-        }],
+        ],
+        tickets: [
+          {
+            name: "Kitchen",
+          },
+        ],
         metadata: {
           freshpunk_order_id: orderId,
           freshpunk_customer_id: orderData.userId,
@@ -1326,6 +2188,329 @@ async function forwardToSquareRestaurant(
         const lineItemCount = (responseData.order?.line_items || []).length;
         const location_id = responseData.order?.location_id;
         const reference_id = responseData.order?.reference_id;
+        let finalState = responseData.order?.state || "UNKNOWN";
+
+      logger.info("Square order created", {orderId, restaurantId, squareOrderId, state: finalState});
+
+      // Record external payment (Stripe) in Square so the order appears as paid in Dashboard
+      // Approach: Create a Payment with source_id=EXTERNAL linked to the order_id.
+      // This does not move money but marks the order paid and adds a tender.
+      if (orderType !== "prep_forecast") {
+        const totalAmount = Number(responseData.order?.total_money?.amount || 0);
+        if (totalAmount > 0) {
+          try {
+              // Square Payments API idempotency_key max length is 45 chars
+              const paymentIdem = `${idempotencyKey}_ext`.slice(0, 45);
+            const createPaymentResp = await fetch(`${baseUrl}/v2/payments`, {
+              method: "POST",
+              headers: {
+                "Square-Version": "2023-10-18",
+                "Authorization": `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                idempotency_key: paymentIdem,
+                location_id: locationId,
+                amount_money: {amount: totalAmount, currency: "USD"},
+                source_id: "EXTERNAL",
+                external_details: {
+                  type: "OTHER",
+                  source: "FreshPunk (Stripe)",
+                },
+                order_id: squareOrderId,
+                autocomplete: true,
+              }),
+            });
+
+            if (createPaymentResp.ok) {
+              const paymentData = await createPaymentResp.json();
+              finalState = paymentData.payment?.order?.state || finalState;
+              logger.info("Square external payment recorded", {
+                orderId,
+                restaurantId,
+                squareOrderId,
+                paymentId: paymentData.payment?.id,
+                orderState: finalState,
+                paidAmount: paymentData.payment?.amount_money?.amount,
+              });
+
+              // ==================== DOORDASH DELIVERY INTEGRATION ====================
+              // Create a delivery request with DoorDash after successful payment
+              try {
+                const deliveryResult = await createDoorDashDelivery(
+                  orderId,
+                  restaurantId,
+                  meals,
+                  orderData,
+                  squareOrderId
+                );
+                if (deliveryResult.success) {
+                  logger.info("DoorDash delivery created successfully", {
+                    orderId,
+                    restaurantId,
+                    squareOrderId,
+                    doorDashDeliveryId: deliveryResult.deliveryId,
+                    trackingUrl: deliveryResult.trackingUrl,
+                  });
+                  // Store delivery info in order document
+                  try {
+                    await db.collection("orders").doc(orderId).update({
+                      [`squareOrders.${restaurantId}.doorDashDeliveryId`]: deliveryResult.deliveryId,
+                      [`squareOrders.${restaurantId}.doorDashTrackingUrl`]: deliveryResult.trackingUrl,
+                      [`squareOrders.${restaurantId}.doorDashStatus`]: deliveryResult.status,
+                      updatedAt: FieldValue.serverTimestamp(),
+                    });
+                    // Initialize lightweight tracking document for client live map
+                    await db.collection("order_tracking").doc(orderId).set({
+                      orderId,
+                      doorDashDeliveryId: deliveryResult.deliveryId,
+                      status: deliveryResult.status,
+                      driverLat: null,
+                      driverLng: null,
+                      createdAt: FieldValue.serverTimestamp(),
+                      updatedAt: FieldValue.serverTimestamp(),
+                    }, {merge: true});
+                  } catch (_) {/* ignore update failure */}
+                } else {
+                  logger.warn("DoorDash delivery creation failed", {
+                    orderId,
+                    restaurantId,
+                    squareOrderId,
+                    error: deliveryResult.error,
+                  });
+                }
+              } catch (e: any) {
+                logger.warn("DoorDash delivery creation threw", {
+                  orderId,
+                  restaurantId,
+                  squareOrderId,
+                  error: e?.message,
+                });
+              }
+            } else {
+              const text = await createPaymentResp.text().catch(() => "<no-body>");
+              logger.error("Square CreatePayment (EXTERNAL) failed", {
+                orderId,
+                restaurantId,
+                squareOrderId,
+                status: createPaymentResp.status,
+                error: text?.slice(0, 600),
+              });
+              // If insufficient scopes, annotate the order so ops knows to reauthorize
+              try {
+                const insufficient = createPaymentResp.status === 403 && /INSUFFICIENT_SCOPES|PAYMENTS_WRITE/i.test(text || "");
+                if (insufficient) {
+                  await db.collection("orders").doc(orderId).update({
+                    [
+                      `squareOrders.${restaurantId}.status`
+                    ]: "forwarded_unpaid",
+                    [
+                      `squareOrders.${restaurantId}.lastError`
+                    ]: "Square payments scope missing (PAYMENTS_WRITE). Reconnect Square via OAuth.",
+                    [
+                      `squareOrders.${restaurantId}.squareOrderId`
+                    ]: squareOrderId,
+                    updatedAt: FieldValue.serverTimestamp(),
+                  });
+                }
+              } catch (_) {/* ignore annotation failure */}
+            }
+          } catch (e: any) {
+            logger.error("Square CreatePayment threw", {orderId, restaurantId, squareOrderId, error: e?.message});
+          }
+        } else {
+          logger.warn("Order total is zero or missing; skipping external payment record", {orderId, restaurantId, squareOrderId});
+        }
+      }
+
+  // NOTE: Skip fulfillment completion and order closing for now
+  // Orders in OPEN state with RESERVED fulfillments are visible in the dashboard
+  // Attempting to close causes validation errors with fulfillment states
+  // Controlled by env var FP_ENABLE_ORDER_FINALIZE; leave disabled unless explicitly enabled.
+  if (process.env.FP_ENABLE_ORDER_FINALIZE === "1" && orderType !== "prep_forecast") {
+        try {
+          let currentVersion = responseData.order?.version;
+          const fulfillments = responseData.order?.fulfillments || [];
+
+          // Step 1: Update each fulfillment through state transitions: RESERVED -> PREPARED -> COMPLETED
+          let allFulfillmentsUpdated = true;
+          let lastFulfillmentError = "";
+
+          for (const fulfillment of fulfillments) {
+            // Transition through PREPARED state first (required by Square)
+            try {
+              // Step 1a: RESERVED -> PREPARED
+              const prepareResp = await fetch(`${baseUrl}/v2/orders/${squareOrderId}`, {
+                method: "PUT",
+                headers: {
+                  "Square-Version": "2023-10-18",
+                  "Authorization": `Bearer ${accessToken}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  order: {
+                    version: currentVersion,
+                    fulfillments: [{
+                      uid: fulfillment.uid,
+                      state: "PREPARED",
+                    }],
+                  },
+                  idempotency_key: `${idempotencyKey}_prepare_${fulfillment.uid}`,
+                }),
+              });
+
+              if (prepareResp.ok) {
+                const prepareData = await prepareResp.json();
+                currentVersion = prepareData.order?.version || currentVersion;
+                logger.info("Fulfillment transitioned to PREPARED", {
+                  orderId,
+                  restaurantId,
+                  squareOrderId,
+                  fulfillmentUid: fulfillment.uid,
+                });
+              } else {
+                const errText = await prepareResp.text().catch(() => "<no-body>");
+                allFulfillmentsUpdated = false;
+                lastFulfillmentError = `PREPARED transition failed: ${errText?.slice(0, 300)}`;
+                logger.error("Fulfillment PREPARED transition failed", {
+                  orderId,
+                  restaurantId,
+                  squareOrderId,
+                  fulfillmentUid: fulfillment.uid,
+                  status: prepareResp.status,
+                  error: errText?.slice(0, 500),
+                });
+                continue;
+              }
+
+              // Step 1b: PREPARED -> COMPLETED
+              const completeResp = await fetch(`${baseUrl}/v2/orders/${squareOrderId}`, {
+                method: "PUT",
+                headers: {
+                  "Square-Version": "2023-10-18",
+                  "Authorization": `Bearer ${accessToken}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  order: {
+                    version: currentVersion,
+                    fulfillments: [{
+                      uid: fulfillment.uid,
+                      state: "COMPLETED",
+                    }],
+                  },
+                  idempotency_key: `${idempotencyKey}_complete_${fulfillment.uid}`,
+                }),
+              });
+
+              if (completeResp.ok) {
+                const completeData = await completeResp.json();
+                currentVersion = completeData.order?.version || currentVersion;
+                logger.info("Fulfillment transitioned to COMPLETED", {
+                  orderId,
+                  restaurantId,
+                  squareOrderId,
+                  fulfillmentUid: fulfillment.uid,
+                  newVersion: currentVersion,
+                });
+              } else {
+                const errText = await completeResp.text().catch(() => "<no-body>");
+                allFulfillmentsUpdated = false;
+                lastFulfillmentError = `COMPLETED transition failed: ${errText?.slice(0, 300)}`;
+                logger.error("Fulfillment COMPLETED transition failed", {
+                  orderId,
+                  restaurantId,
+                  squareOrderId,
+                  fulfillmentUid: fulfillment.uid,
+                  status: completeResp.status,
+                  error: errText?.slice(0, 500),
+                });
+              }
+            } catch (e: any) {
+              allFulfillmentsUpdated = false;
+              lastFulfillmentError = e?.message || "Unknown error";
+              logger.error("Fulfillment update threw", {
+                orderId,
+                restaurantId,
+                squareOrderId,
+                fulfillmentUid: fulfillment.uid,
+                error: e?.message,
+              });
+            }
+          } // If any fulfillment update failed, don't try to close - mark as failed and stop
+          if (!allFulfillmentsUpdated) {
+            logger.error("Cannot close order - fulfillment updates failed", {
+              orderId,
+              restaurantId,
+              squareOrderId,
+              lastError: lastFulfillmentError,
+            });
+
+            try {
+              await db.collection("orders").doc(orderId).update({
+                [`squareOrders.${restaurantId}.status`]: "forward_failed",
+                [`squareOrders.${restaurantId}.lastError`]: `Fulfillment update failed: ${lastFulfillmentError}`,
+                [`squareOrders.${restaurantId}.squareOrderId`]: squareOrderId,
+                updatedAt: FieldValue.serverTimestamp(),
+              });
+            } catch (_) {/* ignore */}
+
+            return;
+          }
+
+          // Step 2: Close the order now that fulfillments are COMPLETED
+          const closeResp = await fetch(`${baseUrl}/v2/orders/${squareOrderId}/close`, {
+            method: "POST",
+            headers: {
+              "Square-Version": "2023-10-18",
+              "Authorization": `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({version: currentVersion}),
+          });
+
+          if (closeResp.ok) {
+            const closeData = await closeResp.json().catch(() => ({} as any));
+            finalState = closeData.order?.state || finalState;
+            logger.info("Square order closed successfully", {orderId, restaurantId, squareOrderId, state: finalState});
+          } else {
+            const errText = await closeResp.text().catch(() => "<no-body>");
+            logger.error("Square order close failed", {
+              orderId,
+              restaurantId,
+              squareOrderId,
+              status: closeResp.status,
+              error: errText?.slice(0, 500),
+            });
+
+            // Mark as failed so user can see the error
+            try {
+              await db.collection("orders").doc(orderId).update({
+                [`squareOrders.${restaurantId}.status`]: "forward_failed",
+                [`squareOrders.${restaurantId}.lastError`]: errText?.slice(0, 500) || "Close order failed",
+                [`squareOrders.${restaurantId}.squareOrderId`]: squareOrderId, // Store ID even on failure
+                updatedAt: FieldValue.serverTimestamp(),
+              });
+            } catch (_) {/* ignore */}
+
+            // Don't proceed to mark as forwarded
+            return;
+          }
+        } catch (e: any) {
+          logger.error("Square order finalization threw", {orderId, restaurantId, squareOrderId, error: e?.message});
+
+          // Mark as failed
+          try {
+            await db.collection("orders").doc(orderId).update({
+              [`squareOrders.${restaurantId}.status`]: "forward_failed",
+              [`squareOrders.${restaurantId}.lastError`]: e?.message || "Finalization error",
+              updatedAt: FieldValue.serverTimestamp(),
+            });
+          } catch (_) {/* ignore */}
+
+          return;
+        }
+      }
 
       // Update FreshPunk order with Square order ID
       await db.collection("orders").doc(orderId).update({
@@ -1338,6 +2523,21 @@ async function forwardToSquareRestaurant(
         updatedAt: FieldValue.serverTimestamp(),
       });
 
+      // Update forward index to reflect success
+      try {
+        await db.collection("order_forward_index").doc(crossDocForwardKey).set({
+          orderId,
+          restaurantId,
+          baseRoot: forwardBaseRoot,
+          key: crossDocForwardKey,
+          squareOrderId,
+          status: "forwarded",
+          updatedAt: FieldValue.serverTimestamp(),
+        }, {merge: true});
+      } catch (e) {
+        logger.warn("Failed to update forward index after success", {orderId, restaurantId, crossDocForwardKey});
+      }
+
       logger.info("Order forwarded to Square", {
         orderId,
         restaurantId,
@@ -1346,15 +2546,87 @@ async function forwardToSquareRestaurant(
         location_id,
         reference_id,
         lineItemCount,
+        state: finalState,
+        idempotency_key: idempotencyKey,
       });
     } else {
-      const errorData = await response.text();
+      const errorText = await response.text();
+
+      // Check if this is an idempotency conflict (Square already has an order with this key)
+      // In that case, we should treat it as success and extract the existing order ID
+      let errorData: any = null;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = {errors: [{detail: errorText}]};
+      }
+
+      // Square sometimes returns the existing order in the response even on conflict
+      // Check if we have an order object in the error response
+      if (errorData?.order?.id) {
+        const existingSquareOrderId = errorData.order.id;
+        logger.info("Square idempotency match: order already exists", {
+          orderId,
+          restaurantId,
+          squareOrderId: existingSquareOrderId,
+          idempotencyKey,
+        });
+
+        // Treat as success - update Firestore with the existing Square order ID
+        await db.collection("orders").doc(orderId).update({
+          [`squareOrders.${restaurantId}`]: {
+            squareOrderId: existingSquareOrderId,
+            restaurantId,
+            forwardedAt: FieldValue.serverTimestamp(),
+            status: "forwarded",
+            idempotencyMatch: true,
+          },
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        await db.collection("order_forward_index").doc(crossDocForwardKey).set({
+          orderId,
+          restaurantId,
+          baseRoot: forwardBaseRoot,
+          key: crossDocForwardKey,
+          squareOrderId: existingSquareOrderId,
+          status: "forwarded",
+          idempotencyMatch: true,
+          updatedAt: FieldValue.serverTimestamp(),
+        }, {merge: true});
+
+        return; // Success path
+      }
+
+      // Otherwise, this is a real error
       logger.error("Square order creation failed", {
         orderId,
         restaurantId,
         orderType,
-        error: errorData,
+        error: errorText,
+        idempotency_key: idempotencyKey,
       });
+      // Mark failure state (non-terminal; can retry later)
+      try {
+        await db.collection("orders").doc(orderId).update({
+          [`squareOrders.${restaurantId}.status`]: "forward_failed",
+          [`squareOrders.${restaurantId}.lastError`]: errorText?.slice(0, 500) || "unknown",
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      } catch (_) {/* ignore */}
+
+      // Reflect failure into forward index so retriers can see reason
+      try {
+        await db.collection("order_forward_index").doc(crossDocForwardKey).set({
+          orderId,
+          restaurantId,
+          baseRoot: forwardBaseRoot,
+          key: crossDocForwardKey,
+          status: "forward_failed",
+          lastError: (errorText || "").slice(0, 500),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, {merge: true});
+      } catch (_) {/* ignore */}
     }
   } catch (error: any) {
     logger.error("Square order forwarding failed", {
@@ -1363,6 +2635,42 @@ async function forwardToSquareRestaurant(
       orderType,
       error: error.message,
     });
+    try {
+      await db.collection("orders").doc(orderId).update({
+        [`squareOrders.${restaurantId}.status`]: "forward_exception",
+        [`squareOrders.${restaurantId}.lastError`]: error.message?.slice(0, 500) || "exception",
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    } catch (_) {/* ignore */}
+    try {
+      // Recompute forward index key locally to avoid referencing out-of-scope vars
+      const normalizeLocal = (v: any) => String(v || "").toLowerCase().trim().replace(/[^a-z0-9_-]+/g, "-");
+      const deriveDayLocal = () => {
+        if (orderData.dayName) return normalizeLocal(orderData.dayName);
+        if (orderData.day) return normalizeLocal(orderData.day);
+        const ts = orderData.deliveryDate?._seconds || orderData.deliveryDate?._seconds;
+        if (ts) {
+          const d = new Date(ts * 1000);
+          const y = d.getUTCFullYear();
+          const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+          const dd = String(d.getUTCDate()).padStart(2, "0");
+          return `${y}${m}${dd}`;
+        }
+        return "unknown";
+      };
+      const baseRootLocal = normalizeLocal(orderData.forwardKey) ||
+        `${normalizeLocal(orderData.userId)}_${deriveDayLocal()}_${normalizeLocal(orderData.mealType || orderData.meal_type || "meal")}`;
+      const idxKeyLocal = `${baseRootLocal}_${normalizeLocal(restaurantId)}`.slice(0, 120);
+      await db.collection("order_forward_index").doc(idxKeyLocal).set({
+        orderId,
+        restaurantId,
+        baseRoot: baseRootLocal,
+        key: idxKeyLocal,
+        status: "forward_exception",
+        lastError: error.message?.slice(0, 500) || "exception",
+        updatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+    } catch (_) {/* ignore */}
   }
 }
 
@@ -1741,3 +3049,315 @@ function levenshteinDistance(str1: string, str2: string): number {
 
   return matrix[str2.length][str1.length];
 }
+
+// ============================================================================
+// SQUARE WEBHOOK HANDLER FOR POS ORDERS
+// ============================================================================
+
+/**
+ * Handle Square Webhook events for order.created and order.updated
+ * Automatically triggers DoorDash delivery for POS orders
+ */
+export const squareWebhookHandler = onRequest(
+  {secrets: [SQUARE_APPLICATION_SECRET, SQUARE_APPLICATION_ID, SQUARE_ENV]},
+  async (req: any, res: any) => {
+    try {
+      const db = getFirestore();
+      const {applicationSecret} = getSquareConfig();
+
+      // Verify webhook signature
+      const signature = req.get("X-Square-Hmac-SHA256");
+      const body = req.rawBody || JSON.stringify(req.body);
+
+      // Parse request body first
+      let event: any;
+      try {
+        event = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+      } catch (e) {
+        logger.error("Failed to parse webhook body", {error: e});
+        return res.status(400).send("Bad request: Invalid JSON");
+      }
+
+      // Check signature if present (production events always have it)
+      if (signature && applicationSecret) {
+        const hash = crypto
+          .createHmac("sha256", applicationSecret)
+          .update(body)
+          .digest("base64");
+
+        const signatureValid = hash === signature;
+        if (!signatureValid) {
+          logger.warn("Webhook signature verification failed", {
+            received: signature,
+            computed: hash,
+            match: false,
+            eventType: event.type,
+          });
+          // Don't reject - Square test events may not have valid signatures
+        } else {
+          logger.info("Webhook signature verified successfully");
+        }
+      } else if (!signature) {
+        // Test event from Square Dashboard - no signature
+        logger.info("Webhook received without signature (likely test event)", {
+          eventType: event.type,
+        });
+      } else {
+        logger.error("Square application secret not configured");
+        return res.status(500).send("Server error: Secret not configured");
+      }
+
+      const eventId = event.id || `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const eventType = event.type;
+
+      logger.info("Square webhook received", {eventId, eventType});
+
+      // Deduplicate: check if we've already processed this webhook
+      if (!eventId) {
+        logger.error("Cannot process webhook without eventId");
+        return res.status(400).send("Bad request: Missing event ID");
+      }
+
+      const eventRef = db.collection("square_webhook_events").doc(eventId);
+      const eventSnap = await eventRef.get();
+
+      if (eventSnap.exists) {
+        logger.info("Webhook event already processed (deduplicated)", {eventId, eventType});
+        return res.status(200).send({received: true});
+      }
+
+      // Record webhook event to prevent duplicates
+      await eventRef.set({
+        eventType,
+        processedAt: FieldValue.serverTimestamp(),
+        data: event.data,
+      });
+
+      // Handle different event types
+      if (eventType === "order.created" || eventType === "order.updated") {
+        // Handle both production events (event.data.object.order)
+        // and test events (event.data.object.order_created)
+        const order = event.data?.object?.order || event.data?.object?.order_created;
+
+        if (!order) {
+          logger.warn("Order webhook missing order data", {
+            eventId,
+            eventType,
+            eventDataKeys: Object.keys(event.data || {}),
+            eventDataObjectKeys: Object.keys(event.data?.object || {}),
+          });
+          return res.status(200).send({received: true});
+        }
+
+        const squareOrderId = order.id;
+        const locationId = order.location_id;
+        const customerEmail = order.customer_id;
+
+        // Check if order has delivery requirements
+        const fulfillments = order.fulfillments || [];
+        const hasDeliveryFulfillment = fulfillments.some((f: any) => f.type === "DELIVERY");
+
+        if (!hasDeliveryFulfillment) {
+          logger.info("Order webhook: No delivery fulfillment, skipping", {squareOrderId});
+          return res.status(200).send({received: true});
+        }
+
+        // Extract delivery address
+        const delivery = fulfillments.find((f: any) => f.type === "DELIVERY");
+        const deliveryAddress = delivery?.delivery_details?.recipient?.address;
+
+        if (!deliveryAddress) {
+          logger.warn("Order webhook: No delivery address found", {squareOrderId});
+          return res.status(200).send({received: true});
+        }
+
+        // Get total amount
+        const totalAmount = Number(order.total_money?.amount || 0);
+
+        if (totalAmount <= 0) {
+          logger.warn("Order webhook: Invalid or zero total", {squareOrderId, totalAmount});
+          return res.status(200).send({received: true});
+        }
+
+        // Extract line items/meals
+        const meals = (order.line_items || []).map((item: any) => ({
+          name: item.name || "Item",
+          description: item.note || "",
+          price: Number(item.gross_sales_money?.amount || 0) / 100, // Convert cents to dollars
+        }));
+
+        // Build order data for DoorDash
+        const orderData = {
+          customerName: delivery?.delivery_details?.recipient?.display_name || "Customer",
+          customerPhone: delivery?.delivery_details?.recipient?.phone_number || "+1-555-0000",
+          specialInstructions: delivery?.delivery_details?.notes || "",
+          deliveryAddress: {
+            streetAddress: deliveryAddress.address_line_1 || "",
+            city: deliveryAddress.city || "",
+            state: deliveryAddress.administrative_district_level_1 || "",
+            zipCode: deliveryAddress.postal_code || "",
+          },
+        };
+
+        logger.info("Processing Square POS order for DoorDash delivery", {
+          squareOrderId,
+          locationId,
+          totalAmount: `$${(totalAmount / 100).toFixed(2)}`,
+          meals: meals.length,
+        });
+
+        // Create DoorDash delivery (reuse existing function)
+        const deliveryResult = await createDoorDashDelivery(
+          squareOrderId, // Use Square order ID as reference
+          locationId, // Use location ID as restaurant ID
+          meals,
+          orderData,
+          squareOrderId // Square order ID for reference
+        );
+
+        if (deliveryResult.success) {
+          logger.info("DoorDash delivery created from Square webhook", {
+            squareOrderId,
+            doorDashDeliveryId: deliveryResult.deliveryId,
+            trackingUrl: deliveryResult.trackingUrl,
+          });
+
+          // Store in Firestore for tracking
+          await db.collection("square_pos_orders").doc(squareOrderId).set(
+            {
+              squareOrderId,
+              locationId,
+              totalAmount,
+              doorDashDeliveryId: deliveryResult.deliveryId,
+              doorDashTrackingUrl: deliveryResult.trackingUrl,
+              doorDashStatus: deliveryResult.status,
+              customerEmail,
+              meals,
+              orderData,
+              processedAt: FieldValue.serverTimestamp(),
+              status: "delivery_created",
+            },
+            {merge: true}
+          );
+        } else {
+          logger.error("Failed to create DoorDash delivery from Square webhook", {
+            squareOrderId,
+            error: deliveryResult.error,
+          });
+
+          // Store failed attempt
+          await db.collection("square_pos_orders").doc(squareOrderId).set(
+            {
+              squareOrderId,
+              locationId,
+              totalAmount,
+              failedDeliveryAttempt: FieldValue.serverTimestamp(),
+              failureReason: deliveryResult.error,
+              status: "delivery_failed",
+            },
+            {merge: true}
+          );
+        }
+      }
+
+      // Always return 200 to acknowledge receipt
+      res.status(200).send({received: true});
+    } catch (error: any) {
+      logger.error("Square webhook handler error", {error: error.message});
+      // Still return 200 to prevent Square from retrying indefinitely
+      res.status(200).send({error: error.message});
+    }
+  }
+);
+
+// ============================================================================
+// DOORDASH DELIVERY POLLING (Interim until webhooks implemented)
+// ============================================================================
+// Poll active DoorDash deliveries and update driver location + status for client tracking.
+export const pollDoorDashDeliveries = onSchedule({
+  // Run every 2 minutes; adjust as needed for rate limits.
+  schedule: "every 2 minutes",
+  timeZone: "Etc/UTC",
+  secrets: [DOORDASH_DEVELOPER_ID, DOORDASH_KEY_ID, DOORDASH_SIGNING_SECRET],
+}, async () => {
+  try {
+    const db = getFirestore();
+    const doorDashDevId = DOORDASH_DEVELOPER_ID.value();
+    const doorDashKeyId = DOORDASH_KEY_ID.value();
+    const doorDashSecret = DOORDASH_SIGNING_SECRET.value();
+
+    if (!doorDashDevId || !doorDashKeyId || !doorDashSecret) {
+      logger.warn("pollDoorDashDeliveries missing credentials; skipping run");
+      return;
+    }
+
+    // Active statuses (non-terminal). These will be updated until delivered/canceled.
+    const activeStatuses = ["created", "assigned", "picked_up", "en_route"];
+    const trackingSnap = await db.collection("order_tracking")
+      .where("status", "in", activeStatuses)
+      .limit(50) // safety cap
+      .get();
+
+    if (trackingSnap.empty) {
+      logger.debug("pollDoorDashDeliveries: no active deliveries");
+      return;
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const exp = now + 3600;
+    const header = {"alg": "HS256", "typ": "JWT", "dd-ver": "DD-JWT-V1"};
+    const payload = {aud: "doordash", iss: doorDashDevId, kid: doorDashKeyId, exp, iat: now};
+    const base64 = (obj: any) => Buffer.from(JSON.stringify(obj)).toString("base64")
+      .replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+    const headerB64 = base64(header);
+    const payloadB64 = base64(payload);
+    const signatureInput = `${headerB64}.${payloadB64}`;
+    const signature = crypto.createHmac("sha256", doorDashSecret)
+      .update(signatureInput)
+      .digest("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+    const jwtToken = `${signatureInput}.${signature}`;
+
+    let updatedCount = 0;
+
+    for (const doc of trackingSnap.docs) {
+      const data = doc.data();
+      const deliveryId = data.doorDashDeliveryId;
+      if (!deliveryId) continue;
+      try {
+        const resp = await fetch(`https://openapi.doordash.com/drive/v2/deliveries/${deliveryId}`, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${jwtToken}`,
+            "Content-Type": "application/json",
+            "User-Agent": "FreshPunk/1.0",
+          },
+        });
+        if (!resp.ok) {
+          logger.warn("DoorDash status fetch failed", {deliveryId, status: resp.status});
+          continue;
+        }
+        const statusData = await resp.json();
+        const dasher = statusData.dasher_info;
+        const location = dasher?.location;
+        const newStatus = statusData.delivery_status || data.status;
+        await doc.ref.set({
+          status: newStatus,
+          driverLat: location?.lat ?? null,
+            driverLng: location?.lng ?? null,
+          driverName: dasher?.name ?? null,
+          driverPhone: dasher?.phone_number ?? null,
+          updatedAt: FieldValue.serverTimestamp(),
+          completedAt: ["delivered", "canceled"].includes(newStatus) ? FieldValue.serverTimestamp() : data.completedAt ?? null,
+        }, {merge: true});
+        updatedCount++;
+      } catch (e: any) {
+        logger.error("pollDoorDashDeliveries error", {deliveryId, error: e?.message});
+      }
+    }
+
+    logger.info("pollDoorDashDeliveries run complete", {checked: trackingSnap.size, updated: updatedCount});
+  } catch (e: any) {
+    logger.error("pollDoorDashDeliveries fatal error", {error: e?.message});
+  }
+});
+

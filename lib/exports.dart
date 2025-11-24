@@ -4,6 +4,7 @@ export 'app_v3/models/meal_model_v3.dart';
 // V3 Services  
 export 'app_v3/services/auth/firestore_service_v3.dart';
 export 'app_v3/services/data_clear_service.dart';
+export 'app_v3/services/preferences/notification_preferences_service.dart';
 
 // V3 Pages
 export 'app_v3/pages/auth/splash_page_v3.dart';

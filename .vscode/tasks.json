@@ -14,6 +14,50 @@
 			"isBackground": true
 		},
 		{
+			"label": "Run Flutter (DoorDash)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"run",
+				"--dart-define=DOORDASH_DEVELOPER_ID=${input:doordashDeveloperId}",
+				"--dart-define=DOORDASH_KEY_ID=${input:doordashKeyId}",
+				"--dart-define=DOORDASH_SIGNING_SECRET=${input:doordashSigningSecret}"
+			],
+			"group": "build",
+			"isBackground": true
+		},
+		{
+			"label": "Run Flutter (DoorDash Chrome)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"run",
+				"-d",
+				"chrome",
+				"--dart-define=DOORDASH_DEVELOPER_ID=${input:doordashDeveloperId}",
+				"--dart-define=DOORDASH_KEY_ID=${input:doordashKeyId}",
+				"--dart-define=DOORDASH_SIGNING_SECRET=${input:doordashSigningSecret}"
+			],
+			"group": "build",
+			"isBackground": true
+		},
+		{
+			"label": "Build Flutter Web (DoorDash release)",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"build",
+				"web",
+				"--release",
+				"--dart-define=DOORDASH_DEVELOPER_ID=${input:doordashDeveloperId}",
+				"--dart-define=DOORDASH_KEY_ID=${input:doordashKeyId}",
+				"--dart-define=DOORDASH_SIGNING_SECRET=${input:doordashSigningSecret}"
+			],
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": ["$msCompile"]
+		},
+		{
 			"label": "Run Flutter",
 			"type": "shell",
 			"command": "flutter",
@@ -856,7 +900,7 @@
 				"--no-fatal-infos"
 			],
 			"problemMatcher": [
-				"$dart"
+				"$msCompile"
 			],
 			"group": "build"
 		},
@@ -871,7 +915,7 @@
 			],
 			"isBackground": false,
 			"problemMatcher": [
-				"$dart"
+				"$msCompile"
 			],
 			"group": "build"
 		},
@@ -886,7 +930,7 @@
 			],
 			"isBackground": false,
 			"problemMatcher": [
-				"$dart"
+				"$msCompile"
 			],
 			"group": "build"
 		},
@@ -901,7 +945,7 @@
 			],
 			"isBackground": false,
 			"problemMatcher": [
-				"$dart"
+				"$msCompile"
 			],
 			"group": "build"
 		},
@@ -916,7 +960,7 @@
 			],
 			"isBackground": false,
 			"problemMatcher": [
-				"$dart"
+				"$msCompile"
 			],
 			"group": "build"
 		},
@@ -931,7 +975,7 @@
 			],
 			"isBackground": false,
 			"problemMatcher": [
-				"$dart"
+				"$msCompile"
 			],
 			"group": "build"
 		},
@@ -946,7 +990,7 @@
 			],
 			"isBackground": false,
 			"problemMatcher": [
-				"$dart"
+				"$msCompile"
 			],
 			"group": "build"
 		},
@@ -961,7 +1005,7 @@
 			],
 			"isBackground": false,
 			"problemMatcher": [
-				"$dart"
+				"$msCompile"
 			],
 			"group": "build"
 		},
@@ -976,7 +1020,7 @@
 			],
 			"isBackground": false,
 			"problemMatcher": [
-				"$dart"
+				"$msCompile"
 			],
 			"group": "build"
 		},
@@ -991,7 +1035,7 @@
 			],
 			"isBackground": false,
 			"problemMatcher": [
-				"$dart"
+				"$msCompile"
 			],
 			"group": "build"
 		},
@@ -1006,7 +1050,7 @@
 			],
 			"isBackground": false,
 			"problemMatcher": [
-				"$dart-analysis"
+				"$msCompile"
 			],
 			"group": "build"
 		},
@@ -1019,7 +1063,7 @@
 				"--no-fatal-infos"
 			],
 			"problemMatcher": [
-				"$dart"
+				"$msCompile"
 			],
 			"group": "build"
 		},
@@ -1250,6 +1294,24 @@
 			"type": "promptString",
 			"description": "Stripe Price ID for 3 meals/day (e.g., price_...)",
 			"default": ""
+		},
+		{
+			"id": "doordashDeveloperId",
+			"type": "promptString",
+			"description": "DoorDash Developer ID",
+			"default": ""
+		},
+		{
+			"id": "doordashKeyId",
+			"type": "promptString",
+			"description": "DoorDash Key ID",
+			"default": ""
+		},
+		{
+			"id": "doordashSigningSecret",
+			"type": "promptString",
+			"description": "DoorDash Signing Secret",
+			"password": true
 		}
 	]
 }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../../utils/cloud_functions_helper.dart';
+
 class SquareRestaurantDashboardV3 extends StatefulWidget {
   final String restaurantId;
   
@@ -19,6 +21,17 @@ class _SquareRestaurantDashboardV3State extends State<SquareRestaurantDashboardV
   List<Map<String, dynamic>> _recentOrders = [];
   bool _isLoading = true;
   bool _isMenuSyncing = false;
+  static const _region = 'us-central1';
+  final FirebaseFunctions _functions =
+      FirebaseFunctions.instanceFor(region: _region);
+
+  HttpsCallable _callable(String name) {
+    return callableForPlatform(
+      functions: _functions,
+      functionName: name,
+      region: _region,
+    );
+  }
 
   @override
   void initState() {
@@ -501,7 +514,7 @@ class _SquareRestaurantDashboardV3State extends State<SquareRestaurantDashboardV
     });
 
     try {
-      final callable = FirebaseFunctions.instance.httpsCallable('syncSquareMenu');
+  final callable = _callable('syncSquareMenu');
       await callable.call({
         'restaurantId': widget.restaurantId,
       });

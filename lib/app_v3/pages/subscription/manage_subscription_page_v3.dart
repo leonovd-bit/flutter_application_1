@@ -268,10 +268,13 @@ class _ManageSubscriptionPageV3State extends State<ManageSubscriptionPageV3> {
 	}
 
 	Future<void> _cancelSubscription() async {
-		final subId = (_activeSub?['stripeSubscriptionId'] ?? _activeSub?['id'])?.toString();
+		final subId = (_activeSub?['stripeSubscriptionId'] 
+			?? _activeSub?['stripe_subscription_id'] 
+			?? _activeSub?['id'])
+			?.toString();
 		if (subId == null || subId.isEmpty) {
 			ScaffoldMessenger.of(context).showSnackBar(
-				const SnackBar(content: Text('No active subscription to cancel.')),
+				const SnackBar(content: Text('No Stripe subscription linked to cancel.')),
 			);
 			return;
 		}
@@ -327,6 +330,9 @@ class _ManageSubscriptionPageV3State extends State<ManageSubscriptionPageV3> {
 	@override
 	Widget build(BuildContext context) {
 		final hasChanges = _dirtySelection;
+		// Determine if this user has a real Stripe subscription that can be cancelled
+		final stripeSubId = (_activeSub?['stripeSubscriptionId'] ?? _activeSub?['stripe_subscription_id'])?.toString();
+		final canCancelStripe = (stripeSubId != null && stripeSubId.isNotEmpty);
 		
 		return Focus(
 			autofocus: true,
@@ -569,9 +575,13 @@ class _ManageSubscriptionPageV3State extends State<ManageSubscriptionPageV3> {
 											ListTile(
 												leading: const Icon(Icons.cancel_outlined),
 												title: const Text('Cancel subscription'),
-												subtitle: const Text('Stops at the end of the current period'),
+												subtitle: Text(
+													canCancelStripe
+														? 'Stops at the end of the current period'
+														: 'No Stripe subscription linked — nothing to cancel',
+												),
 												trailing: TextButton(
-													onPressed: _cancelling ? null : _cancelSubscription,
+													onPressed: (_cancelling || !canCancelStripe) ? null : _cancelSubscription,
 													style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
 													child: Text(_cancelling ? 'Cancelling…' : 'Cancel'),
 												),
