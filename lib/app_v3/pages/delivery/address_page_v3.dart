@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import '../../widgets/swipeable_page.dart';
 import '../../theme/app_theme_v3.dart';
 import '../../models/meal_model_v3.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -143,15 +144,16 @@ class _AddressPageV3State extends State<AddressPageV3> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppThemeV3.background,
-      appBar: AppBar(
-        backgroundColor: AppThemeV3.surface,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
+    return SwipeablePage(
+      child: Scaffold(
+        backgroundColor: AppThemeV3.background,
+        appBar: AppBar(
+          backgroundColor: AppThemeV3.surface,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.pop(context),
+          ),
         title: Text(
           'Select Address',
           style: AppThemeV3.textTheme.headlineMedium?.copyWith(
@@ -429,6 +431,7 @@ class _AddressPageV3State extends State<AddressPageV3> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

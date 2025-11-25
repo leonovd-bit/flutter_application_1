@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../theme/app_theme_v3.dart';
 import '../../services/payment/stripe_service.dart';
 import '../../models/mock_user_model.dart';
+import '../../widgets/swipeable_page.dart';
 
 class PaymentMethodsPageV3 extends StatefulWidget {
   final VoidCallback? onPaymentComplete;
@@ -118,9 +119,10 @@ class _PaymentMethodsPageV3State extends State<PaymentMethodsPageV3> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppThemeV3.background,
-      appBar: AppBar(
+    return SwipeablePage(
+      child: Scaffold(
+        backgroundColor: AppThemeV3.background,
+        appBar: AppBar(
         backgroundColor: AppThemeV3.background,
         elevation: 0,
         title: Text(
@@ -141,6 +143,7 @@ class _PaymentMethodsPageV3State extends State<PaymentMethodsPageV3> {
           : _paymentMethods.isEmpty
               ? _buildEmptyState()
               : _buildPaymentMethodsList(),
+      ),
     );
   }
 

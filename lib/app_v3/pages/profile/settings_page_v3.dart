@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/app_theme_v3.dart';
+import '../../widgets/swipeable_page.dart';
 import '../auth/welcome_page_v3.dart';
 import '../delivery/address_page_v3.dart';
 import 'profile_page_v3.dart';
@@ -140,10 +141,6 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
       try {
         final bool didAuthenticate = await _localAuth.authenticate(
           localizedReason: 'Enable biometric authentication for Victus',
-          options: const AuthenticationOptions(
-            biometricOnly: true,
-            stickyAuth: true,
-          ),
         );
 
         if (didAuthenticate) {
@@ -624,11 +621,12 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text(
-          'Settings',
+    return SwipeablePage(
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          title: const Text(
+            'Settings',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             color: Colors.black87,
@@ -926,6 +924,7 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
 
           const SizedBox(height: 32),
         ],
+      ),
       ),
     );
   }

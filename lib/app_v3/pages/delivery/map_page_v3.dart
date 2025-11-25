@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import '../../widgets/swipeable_page.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../theme/app_theme_v3.dart';
 import '../../services/maps/google_maps_test_service.dart';
@@ -310,11 +311,12 @@ class _MapPageV3State extends State<MapPageV3> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text(
-          'FreshPunk Locations',
+    return SwipeablePage(
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          title: const Text(
+            'FreshPunk Locations',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             color: Colors.black87,
@@ -357,6 +359,7 @@ class _MapPageV3State extends State<MapPageV3> {
           'Nearest Kitchen',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
+      ),
       ),
     );
   }

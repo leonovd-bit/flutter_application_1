@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'dart:ui';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'firebase_options.dart';
 import 'app_v3/pages/auth/splash_page_v3.dart';
 import 'app_v3/pages/home_page_v3.dart';
@@ -29,76 +30,105 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint('[FCM] Background message: ${message.messageId}');
 }
 
-void main() {
-  runZonedGuarded(() async {
-    // Important: initialize bindings in the same zone as runApp
-    WidgetsFlutterBinding.ensureInitialized();
+void main() async {
+  // Important: initialize bindings first
+  WidgetsFlutterBinding.ensureInitialized();
 
-    // Error handlers for visibility during startup
-    FlutterError.onError = (FlutterErrorDetails details) {
-      FlutterError.presentError(details);
-    };
-    PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
-      // ignore: avoid_print
-      print('Top-level framework error: $error\n$stack');
-      return true;
-    };
+  // Error handlers for visibility during startup
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+  };
 
+  // Initialize Firebase - ignore if already initialized (happens on Android)
+  try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-
-    // Initialize environment variables from .env file
-    await EnvironmentService.init();
-    
-    // Print API configuration status in debug mode
-    if (kDebugMode) {
-      EnvironmentService.printStatus();
-    }
-
-    // Set background message handler
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-
-    // MemoryOptimizer.optimizeImageCache(); // Disabled for web compatibility
-
-    // Initialize Stripe (mobile/desktop only; skip on web)
-    if (!kIsWeb) {
-      try {
-        await StripeService.instance.init();
-        debugPrint('[Stripe] Initialized successfully');
-      } catch (e) {
-        debugPrint('[Stripe] Initialization failed: $e');
-      }
+    debugPrint('[Firebase] Initialized successfully');
+  } catch (e) {
+    // Firebase might already be initialized by google-services plugin on Android
+    if (e.toString().contains('duplicate-app')) {
+      debugPrint('[Firebase] Already initialized, continuing...');
     } else {
-      debugPrint('[Stripe] Skipping init on web');
+      debugPrint('[Firebase] Initialization error: $e');
     }
+  }
 
-    // Initialize enhanced FCM service (FREE push notifications)
+  // Initialize Firebase App Check
+  try {
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: kDebugMode 
+        ? AndroidProvider.debug 
+        : AndroidProvider.playIntegrity,
+      appleProvider: kDebugMode
+        ? AppleProvider.debug
+        : AppleProvider.appAttest,
+      webProvider: ReCaptchaV3Provider('recaptcha-v3-site-key'),
+    );
+    debugPrint('[AppCheck] Initialized successfully');
+  } catch (e) {
+    debugPrint('[AppCheck] Initialization error: $e');
+  }
+
+  // Initialize environment variables from .env file
+  await EnvironmentService.init();
+  
+  // Print API configuration status in debug mode
+  if (kDebugMode) {
+    EnvironmentService.printStatus();
+  }
+
+  // Set background message handler
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+  // MemoryOptimizer.optimizeImageCache(); // Disabled for web compatibility
+
+  // Initialize Stripe (mobile/desktop only; skip on web)
+  if (!kIsWeb) {
+    try {
+      await StripeService.instance.init();
+      debugPrint('[Stripe] Initialized successfully');
+    } catch (e) {
+      debugPrint('[Stripe] Initialization failed: $e');
+    }
+  } else {
+    debugPrint('[Stripe] Skipping init on web');
+  }
+
+  // Initialize enhanced FCM service (FREE push notifications)
+  try {
     await FCMServiceV3.instance.initAndRegisterToken();
+  } catch (e) {
+    debugPrint('[FCM] Initialization failed: $e');
+  }
 
-    // Initialize Stripe publishable key (mobile/desktop only)
-    if (!kIsWeb) {
+  // Initialize Stripe publishable key (mobile/desktop only)
+  if (!kIsWeb) {
+    try {
       await BillingService.initialize();
+    } catch (e) {
+      debugPrint('[Billing] Initialization failed: $e');
     }
+  }
 
-    // Test DoorDash API connection only if credentials are configured
-    if (EnvironmentService.isDoorDashConfigured) {
-      debugPrint('[App] Testing DoorDash credentials...');
+  // Test DoorDash API connection only if credentials are configured
+  if (EnvironmentService.isDoorDashConfigured) {
+    debugPrint('[App] Testing DoorDash credentials...');
+    try {
       final doorDashConnected = await DoorDashService.instance.testConnection();
       debugPrint('[App] DoorDash connection result: ${doorDashConnected ? '✅ CONNECTED' : '❌ FAILED'}');
       // Optional: run a one-off delivery creation test in debug builds
       if (kDebugMode) {
         await testDoorDashDeliveryCreation();
       }
-    } else {
-      debugPrint('[App] Skipping DoorDash tests: credentials not configured (set DOORDASH_* via --dart-define or .env)');
+    } catch (e) {
+      debugPrint('[DoorDash] Test failed: $e');
     }
+  } else {
+    debugPrint('[App] Skipping DoorDash tests: credentials not configured (set DOORDASH_* via --dart-define or .env)');
+  }
 
   runApp(const MyApp());
-  }, (error, stack) {
-    // ignore: avoid_print
-    print('Uncaught error during app startup: $error\n$stack');
-  });
 }
 
 class MyApp extends StatefulWidget {

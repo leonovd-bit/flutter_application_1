@@ -841,22 +841,15 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
     try {
   debugPrint('Starting Google sign-in process...'); // Debug
       
-  final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+  await GoogleSignIn.instance.initialize();
+  final GoogleSignInAccount googleUser = await GoogleSignIn.instance.authenticate();
   debugPrint('Google user: $googleUser'); // Debug
-      
-      if (googleUser == null) {
-        debugPrint('Google sign-in was cancelled by user'); // Debug
-        setState(() => _isLoading = false);
-        return;
-      }
 
   debugPrint('Getting Google authentication...'); // Debug
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-  debugPrint('Access token: ${googleAuth.accessToken != null ? "Present" : "Missing"}'); // Debug
   debugPrint('ID token: ${googleAuth.idToken != null ? "Present" : "Missing"}'); // Debug
       
       final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 

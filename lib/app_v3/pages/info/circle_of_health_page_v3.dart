@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../widgets/swipeable_page.dart';
 import '../../theme/app_theme_v3.dart';
 import '../meals/menu_page_v3.dart';
 import '../../services/auth/firestore_service_v3.dart';
@@ -54,15 +55,16 @@ class _CircleOfHealthPageV3State extends State<CircleOfHealthPageV3> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
+    return SwipeablePage(
+      child: Scaffold(
         backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () => Navigator.pop(context),
-        ),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black87),
+            onPressed: () => Navigator.pop(context),
+          ),
         title: const Text(
           'Circle of Health',
           style: TextStyle(fontWeight: FontWeight.w700, color: Colors.black87),
@@ -88,6 +90,7 @@ class _CircleOfHealthPageV3State extends State<CircleOfHealthPageV3> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

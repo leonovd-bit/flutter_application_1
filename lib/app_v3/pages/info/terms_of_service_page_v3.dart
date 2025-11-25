@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_theme_v3.dart';
+import '../../widgets/swipeable_page.dart';
 
 class TermsOfServicePageV3 extends StatelessWidget {
   const TermsOfServicePageV3({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppThemeV3.background,
-      appBar: AppBar(
+    return SwipeablePage(
+      child: Scaffold(
         backgroundColor: AppThemeV3.background,
-        elevation: 0,
-        title: Text(
-          'Terms of Service',
+        appBar: AppBar(
+          backgroundColor: AppThemeV3.background,
+          elevation: 0,
+          title: Text(
+            'Terms of Service',
           style: AppThemeV3.textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.w800,
           ),
@@ -49,6 +51,7 @@ class TermsOfServicePageV3 extends StatelessWidget {
             _buildContactInfo(),
           ],
         ),
+      ),
       ),
     );
   }

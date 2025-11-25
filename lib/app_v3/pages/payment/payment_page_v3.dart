@@ -14,6 +14,7 @@ import '../../../services/billing_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/mock_user_model.dart';
 import 'package:flutter/foundation.dart';
+import '../../widgets/swipeable_page.dart';
 
 class PaymentPageV3 extends StatefulWidget {
   final MealPlanModelV3 mealPlan;
@@ -47,7 +48,8 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
   Widget build(BuildContext context) {
   final pricing = _calculatePricing();
 
-  return Scaffold(
+  return SwipeablePage(
+    child: Scaffold(
       backgroundColor: AppThemeV3.background,
       appBar: AppBar(
         backgroundColor: AppThemeV3.surface,
@@ -425,6 +427,7 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

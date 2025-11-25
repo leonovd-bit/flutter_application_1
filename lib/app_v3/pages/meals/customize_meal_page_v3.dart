@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_theme_v3.dart';
 import '../../models/meal_model_v3.dart';
+import '../../widgets/swipeable_page.dart';
 import '../../models/customization_model_v3.dart';
 
 class CustomizeMealPageV3 extends StatefulWidget {
@@ -235,12 +236,13 @@ class _CustomizeMealPageV3State extends State<CustomizeMealPageV3> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppThemeV3.background,
-      appBar: AppBar(
-        backgroundColor: AppThemeV3.surface,
-        title: Text('Customize ${widget.baseMeal.name}'),
-      ),
+    return SwipeablePage(
+      child: Scaffold(
+        backgroundColor: AppThemeV3.background,
+        appBar: AppBar(
+          backgroundColor: AppThemeV3.surface,
+          title: Text('Customize ${widget.baseMeal.name}'),
+        ),
       bottomNavigationBar: SafeArea(
         child: Container(
           padding: const EdgeInsets.all(16),
@@ -289,6 +291,7 @@ class _CustomizeMealPageV3State extends State<CustomizeMealPageV3> {
           for (final g in _config.groups) _buildGroup(g),
           const SizedBox(height: 80),
         ],
+      ),
       ),
     );
   }

@@ -3,6 +3,7 @@ import '../../theme/app_theme_v3.dart';
 import '../../models/meal_model_v3.dart';
 import '../../services/meals/meal_service_v3.dart';
 import '../../widgets/app_image.dart';
+import '../../widgets/swipeable_page.dart';
 
 class MenuPageV3 extends StatefulWidget {
   final String menuType;
@@ -28,9 +29,10 @@ class _MenuPageV3State extends State<MenuPageV3> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppThemeV3.background,
-      appBar: AppBar(
+    return SwipeablePage(
+      child: Scaffold(
+        backgroundColor: AppThemeV3.background,
+        appBar: AppBar(
         backgroundColor: AppThemeV3.surface,
         elevation: 0,
         leading: IconButton(
@@ -141,6 +143,7 @@ class _MenuPageV3State extends State<MenuPageV3> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

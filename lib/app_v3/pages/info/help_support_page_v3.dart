@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_theme_v3.dart';
+import '../../widgets/swipeable_page.dart';
 
 class HelpSupportPageV3 extends StatelessWidget {
   const HelpSupportPageV3({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppThemeV3.background,
-      appBar: AppBar(
+    return SwipeablePage(
+      child: Scaffold(
         backgroundColor: AppThemeV3.background,
-        elevation: 0,
-        title: Text(
-          'Help & Support',
+        appBar: AppBar(
+          backgroundColor: AppThemeV3.background,
+          elevation: 0,
+          title: Text(
+            'Help & Support',
           style: AppThemeV3.textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.w800,
           ),
@@ -43,6 +45,7 @@ class HelpSupportPageV3 extends StatelessWidget {
             _buildAppInformation(context),
           ],
         ),
+      ),
       ),
     );
   }

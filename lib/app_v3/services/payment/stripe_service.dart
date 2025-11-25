@@ -141,12 +141,17 @@ class StripeService {
 
   Future<List<Map<String, dynamic>>> listPaymentMethods() async {
     try {
-  final callable = _callable('listPaymentMethods');
-  final result = await callable.call();
-  final resp = (result.data as Map?) ?? {};
-  final list = (resp['data'] as List? ?? []).cast<dynamic>();
+      debugPrint('[Stripe] Fetching payment methods from Firebase Function...');
+      final callable = _callable('listPaymentMethods');
+      final result = await callable.call();
+      debugPrint('[Stripe] Firebase Function result: ${result.data}');
+      final resp = (result.data as Map?) ?? {};
+      final list = (resp['data'] as List? ?? []).cast<dynamic>();
+      debugPrint('[Stripe] Parsed ${list.length} payment methods');
       return list.map<Map<String, dynamic>>((e) => (e as Map).cast<String, dynamic>()).toList();
-    } catch (_) {
+    } catch (e, stack) {
+      debugPrint('[Stripe] Error fetching payment methods: $e');
+      debugPrint('[Stripe] Stack trace: $stack');
       return [];
     }
   }

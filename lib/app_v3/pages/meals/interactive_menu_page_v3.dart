@@ -4,6 +4,7 @@ import '../../models/meal_model_v3.dart';
 import '../../services/meals/meal_service_v3.dart';
 import '../../widgets/app_image.dart';
 import 'customize_meal_page_v3.dart';
+import '../../widgets/swipeable_page.dart';
 
 class InteractiveMenuPageV3 extends StatefulWidget {
   final String menuType;
@@ -119,15 +120,16 @@ class _InteractiveMenuPageV3State extends State<InteractiveMenuPageV3> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppThemeV3.background,
-      appBar: AppBar(
-        backgroundColor: AppThemeV3.surface,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
+    return SwipeablePage(
+      child: Scaffold(
+        backgroundColor: AppThemeV3.background,
+        appBar: AppBar(
+          backgroundColor: AppThemeV3.surface,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.pop(context),
+          ),
         title: Text(
           '${_selectedCategory == 'custom' ? 'Customize' : 'Select'} ${widget.menuType.capitalizeFirst()} for ${widget.day}',
           style: AppThemeV3.textTheme.headlineMedium?.copyWith(
@@ -210,6 +212,7 @@ class _InteractiveMenuPageV3State extends State<InteractiveMenuPageV3> {
                       ),
           ),
         ],
+      ),
       ),
     );
   }

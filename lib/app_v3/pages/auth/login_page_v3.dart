@@ -537,22 +537,18 @@ class _LoginPageV3State extends State<LoginPageV3> {
     setState(() => _isLoading = true);
 
     try {
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn().timeout(
+      await GoogleSignIn.instance.initialize();
+      
+      final GoogleSignInAccount googleUser = await GoogleSignIn.instance.authenticate().timeout(
         const Duration(seconds: 30),
         onTimeout: () {
           throw Exception('Google sign in timeout. Please check your internet connection.');
         },
       );
 
-      if (googleUser == null) {
-        setState(() => _isLoading = false);
-        return;
-      }
-
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
 
       final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 

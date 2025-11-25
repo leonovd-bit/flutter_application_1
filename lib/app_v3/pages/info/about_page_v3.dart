@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_theme_v3.dart';
+import '../../widgets/swipeable_page.dart';
 
 class AboutPageV3 extends StatelessWidget {
   const AboutPageV3({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppThemeV3.background,
-      appBar: AppBar(
+    return SwipeablePage(
+      child: Scaffold(
         backgroundColor: AppThemeV3.background,
-        elevation: 0,
-        title: Text(
-          'About FreshPunk',
+        appBar: AppBar(
+          backgroundColor: AppThemeV3.background,
+          elevation: 0,
+          title: Text(
+            'About FreshPunk',
           style: AppThemeV3.textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.w800,
           ),
@@ -52,6 +54,7 @@ class AboutPageV3 extends StatelessWidget {
             _buildVersionInfo(),
           ],
         ),
+      ),
       ),
     );
   }

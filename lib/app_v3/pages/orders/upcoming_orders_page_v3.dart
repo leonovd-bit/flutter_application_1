@@ -268,10 +268,11 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text('Upcoming Orders', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+    return SwipeablePage(
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          title: const Text('Upcoming Orders', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
@@ -282,6 +283,7 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(AppThemeV3.primaryGreen)))
           : _buildBody(),
+      ),
     );
   }
 
