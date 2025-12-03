@@ -5,6 +5,7 @@ import '../../widgets/swipeable_page.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../theme/app_theme_v3.dart';
 import '../../services/maps/google_maps_test_service.dart';
+import '../../services/maps/location_tracking_service.dart';
 
 class MapPageV3 extends StatefulWidget {
   const MapPageV3({super.key});
@@ -67,17 +68,43 @@ class _MapPageV3State extends State<MapPageV3> {
   }
 
   Future<void> _requestLocationPermission() async {
-    final permission = await Permission.location.request();
-    _hasLocationPermission = permission.isGranted || permission.isLimited;
+    final locationService = LocationTrackingService();
+    final status = await locationService.requestLocationPermissions(
+      requestBackground: false, // Only need foreground for map view
+    );
+    
+    _hasLocationPermission = status == LocationPermissionStatus.granted ||
+        status == LocationPermissionStatus.grantedWithBackground ||
+        status == LocationPermissionStatus.grantedForegroundOnly;
+    
     if (!_hasLocationPermission) {
       // Defer UI feedback until after first frame to avoid Scaffold context issues in initState
       if (mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           final messenger = ScaffoldMessenger.maybeOf(context);
+          
+          String message = 'Location permission denied. You can enable it in Settings to show your position.';
+          bool showSettings = false;
+          
+          if (status == LocationPermissionStatus.deniedForever) {
+            message = 'Location permission permanently denied. Please enable it in Settings.';
+            showSettings = true;
+          } else if (status == LocationPermissionStatus.serviceDisabled) {
+            message = 'Location services are disabled. Please enable them in Settings.';
+            showSettings = true;
+          }
+          
           messenger?.showSnackBar(
-            const SnackBar(
-              content: Text('Location permission denied. You can enable it in Settings to show your position.'),
+            SnackBar(
+              content: Text(message),
+              duration: const Duration(seconds: 5),
+              action: showSettings
+                  ? SnackBarAction(
+                      label: 'Settings',
+                      onPressed: () => locationService.openAppSettings(),
+                    )
+                  : null,
             ),
           );
         });

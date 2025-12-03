@@ -426,14 +426,8 @@ class _ManageSubscriptionPageV3State extends State<ManageSubscriptionPageV3> {
 																									if (nb is DateTime) dt = nb;
 																									// Firestore Timestamp support
 																									try { if (dt == null && nb != null && nb.toString().isNotEmpty) { dt = (nb as dynamic).toDate() as DateTime; } } catch (_) {}
-																									final amt = _activeSub?['monthlyAmount'];
-																									String amtStr = '';
-																									if (amt is num) {
-																										amtStr = '~\$${amt.toDouble().toStringAsFixed(0)}/mo';
-																									}
 																									final dateStr = dt != null ? dt.toLocal().toString().split('.').first : '—';
-																									final tail = amtStr.isNotEmpty ? ' • $amtStr' : '';
-																									return Text('Next billing: $dateStr$tail', style: const TextStyle(color: Colors.black54));
+																									return Text('Next billing: $dateStr', style: const TextStyle(color: Colors.black54));
 																								}),
 												const SizedBox(height: 8),
 												Text('Plan changes apply at the next billing cycle.', style: TextStyle(color: Colors.black54, fontSize: 12)),
@@ -505,7 +499,7 @@ class _ManageSubscriptionPageV3State extends State<ManageSubscriptionPageV3> {
 																																),
 																														],
 																													),
-																													subtitle: Text('${plan.mealsPerDay} meal(s)/day • ~\$${plan.monthlyPrice.toStringAsFixed(0)}/mo'),
+																													subtitle: Text('${plan.mealsPerDay} meal(s) per day'),
 															controlAffinity: ListTileControlAffinity.leading,
 															onChanged: isCurrentPlan ? null : (val) {
 																final chosen = val;

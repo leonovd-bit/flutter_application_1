@@ -117,11 +117,44 @@ class StripeService {
           merchantDisplayName: 'FreshPunk',
           setupIntentClientSecret: clientSecret,
           allowsDelayedPaymentMethods: true,
+          customerId: customerId,
+          customerEphemeralKeySecret: null, // Optional: can add ephemeral key for better UX
         ),
       );
+      
+      // Present the payment sheet and wait for completion
       await Stripe.instance.presentPaymentSheet();
-      return true;
+      
+      // Verify the setup intent was successful
+      debugPrint('[Stripe] Payment sheet completed, verifying setup intent...');
+      final setupIntent = await _verifySetupIntent(clientSecret);
+      
+      if (setupIntent != null && setupIntent['status'] == 'succeeded') {
+        final paymentMethodId = setupIntent['payment_method'] as String?;
+        if (paymentMethodId != null) {
+          debugPrint('[Stripe] Payment method saved successfully: $paymentMethodId');
+          
+          // Optional: Set as default payment method
+          try {
+            await setDefaultPaymentMethod(paymentMethodId);
+            debugPrint('[Stripe] Set as default payment method');
+          } catch (e) {
+            debugPrint('[Stripe] Failed to set as default (non-fatal): $e');
+          }
+          
+          return true;
+        }
+      }
+      
+      debugPrint('[Stripe] Setup intent status: ${setupIntent?['status']}');
+      throw Exception('Payment method was not saved successfully');
+      
     } on StripeException catch (e) {
+      debugPrint('[Stripe] StripeException: ${e.error.code} - ${e.error.message}');
+      if (e.error.code == FailureCode.Canceled) {
+        debugPrint('[Stripe] User cancelled payment sheet');
+        return false;
+      }
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.error.message ?? 'Stripe error')),
@@ -175,6 +208,27 @@ class StripeService {
       return (data?['success'] == true);
     } catch (_) {
       return false;
+    }
+  }
+
+  /// Verify a setup intent status by retrieving it from Stripe
+  Future<Map<String, dynamic>?> _verifySetupIntent(String clientSecret) async {
+    try {
+      final setupIntentId = clientSecret.split('_secret_')[0];
+      debugPrint('[Stripe] Verifying setup intent: $setupIntentId');
+      
+      final callable = _callable('retrieveSetupIntent');
+      final result = await callable.call({'setup_intent': setupIntentId});
+      final data = result.data as Map?;
+      
+      if (data != null) {
+        debugPrint('[Stripe] Setup intent retrieved: ${data['status']}');
+        return data.cast<String, dynamic>();
+      }
+      return null;
+    } catch (e) {
+      debugPrint('[Stripe] Error verifying setup intent: $e');
+      return null;
     }
   }
 

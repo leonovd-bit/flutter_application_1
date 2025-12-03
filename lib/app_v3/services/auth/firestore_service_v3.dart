@@ -206,7 +206,7 @@ class FirestoreServiceV3 {
           .collection(_ordersCollection)
           .where('userId', isEqualTo: userId)
           .where('status', isEqualTo: 'pending')
-          .orderBy('deliveryDate')
+          .orderBy('estimatedDeliveryTime')
           .limit(1)
           .get();
       
@@ -219,7 +219,7 @@ class FirestoreServiceV3 {
             .collection(_ordersCollection)
             .where('userId', isEqualTo: userId)
             .where('status', isEqualTo: 'confirmed')
-            .orderBy('deliveryDate')
+            .orderBy('estimatedDeliveryTime')
             .limit(1)
             .get();
         debugPrint('[Firestore] Query returned ${snapshot.docs.length} confirmed orders');
@@ -391,7 +391,7 @@ class FirestoreServiceV3 {
           .collection(_ordersCollection)
           .where('userId', isEqualTo: userId)
           .where('status', whereIn: ['pending', 'confirmed'])
-          .orderBy('deliveryDate')
+          .orderBy('estimatedDeliveryTime')
           .get();
       
   return snapshot.docs.map((doc) => {

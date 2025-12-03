@@ -559,7 +559,24 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 8),
-        TextField(
+        TextFormField(
+          controller: TextEditingController(text: config?.deliveryTime ?? '12:30'),
+          readOnly: true,
+          onTap: () async {
+            final controller = TextEditingController(text: config?.deliveryTime ?? '12:30');
+            await _pickTimeForController(controller);
+            if (controller.text.isNotEmpty) {
+              setState(() {
+                _proteinConfigs[protein.id] = ProteinConfigV3(
+                  proteinId: protein.id,
+                  servingsPerWeek: config?.servingsPerWeek ?? 1,
+                  deliveryDay: config?.deliveryDay ?? 'monday',
+                  deliveryTime: controller.text,
+                  deliveryAddress: config?.deliveryAddress ?? '',
+                );
+              });
+            }
+          },
           decoration: InputDecoration(
             hintText: '12:30',
             border: OutlineInputBorder(
@@ -567,17 +584,6 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
               borderSide: const BorderSide(color: Colors.grey, width: 2),
             ),
           ),
-          onChanged: (value) {
-            setState(() {
-              _proteinConfigs[protein.id] = ProteinConfigV3(
-                proteinId: protein.id,
-                servingsPerWeek: config?.servingsPerWeek ?? 1,
-                deliveryDay: config?.deliveryDay ?? 'monday',
-                deliveryTime: value,
-                deliveryAddress: config?.deliveryAddress ?? '',
-              );
-            });
-          },
         ),
 
         const SizedBox(height: 16),
@@ -885,6 +891,11 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
                   
                   // Time input
                   TextFormField(
+                    readOnly: true,
+                    onTap: () => _pickTimeForController(
+                      _timeControllers[day]![meal]!,
+                    ),
+                    controller: _timeControllers[day]![meal],
                     decoration: InputDecoration(
                       labelText: 'Time',
                       hintText: 'e.g., 12:30',

@@ -74,7 +74,11 @@ class _UpcomingOrdersPageV3State extends State<UpcomingOrdersPageV3> with Widget
         final orders = remoteOrdersData
             .map((data) => OrderModelV3.fromJson(data))
             .toList()
-          ..sort((a, b) => a.deliveryDate.compareTo(b.deliveryDate));
+          ..sort((a, b) {
+            final aTime = a.estimatedDeliveryTime ?? a.deliveryDate;
+            final bTime = b.estimatedDeliveryTime ?? b.deliveryDate;
+            return aTime.compareTo(bTime);
+          });
 
         setState(() {
           _upcomingOrders = orders;

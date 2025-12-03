@@ -25,6 +25,16 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "userId", "mode": "ASCENDING" },
+        { "fieldPath": "status", "mode": "ASCENDING" },
+        { "fieldPath": "estimatedDeliveryTime", "mode": "ASCENDING" },
+        { "fieldPath": "__name__", "mode": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "mode": "ASCENDING" },
         { "fieldPath": "deliveryDate", "mode": "ASCENDING" },
         { "fieldPath": "__name__", "mode": "ASCENDING" }
       ]

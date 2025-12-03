@@ -300,33 +300,12 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
     return _cachedNutritionData;
   }
 
-  /// Load nutrition data from SharedPreferences and cache it
+  /// Load nutrition data from delivered orders only (not scheduled meals)
   Future<void> _loadNutritionData() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      final prefs = await SharedPreferences.getInstance();
-      
-      // Find meal selections data
-      String? mealSelectionsJson;
-      final selectedSchedule = prefs.getString('selected_schedule_${user.uid}') ?? 'weekly';
-      mealSelectionsJson = prefs.getString('meal_selections_${user.uid}_$selectedSchedule');
-      
-      // Fallback: find any meal_selections entry for this user
-      if (mealSelectionsJson == null) {
-        final firstKey = prefs
-            .getKeys()
-            .firstWhere((k) => k.startsWith('meal_selections_${user.uid}_'), orElse: () => '');
-        if (firstKey.isNotEmpty) {
-          mealSelectionsJson = prefs.getString(firstKey);
-        }
-      }
-
-      if (mealSelectionsJson == null) return;
-
-      final mealSelections = json.decode(mealSelectionsJson) as Map<String, dynamic>;
-      
       // Reset cached data
       final newData = <String, Map<String, int>>{
         'Mon': {'Calories': 0, 'Protein': 0, 'Fat': 0},
@@ -337,45 +316,65 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
         'Sat': {'Calories': 0, 'Protein': 0, 'Fat': 0},
         'Sun': {'Calories': 0, 'Protein': 0, 'Fat': 0},
       };
+
+      // Get delivered orders from Firestore
+      final db = FirebaseFirestore.instance;
       
+      // Calculate date range: current week (Monday to Sunday)
+      final now = DateTime.now();
+      final currentWeekday = now.weekday; // 1 = Monday, 7 = Sunday
+      final startOfWeek = now.subtract(Duration(days: currentWeekday - 1));
+      final startOfWeekMidnight = DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day);
+      final endOfWeek = startOfWeekMidnight.add(const Duration(days: 7));
+
+      debugPrint('[HomePage] Loading nutrition for week: ${startOfWeekMidnight.toIso8601String()} to ${endOfWeek.toIso8601String()}');
+
+      // Query orders that have been delivered this week
+      final ordersSnapshot = await db
+          .collection('orders')
+          .where('userId', isEqualTo: user.uid)
+          .where('status', isEqualTo: 'delivered') // Only count delivered orders
+          .where('deliveryDate', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfWeekMidnight))
+          .where('deliveryDate', isLessThan: Timestamp.fromDate(endOfWeek))
+          .get();
+
+      debugPrint('[HomePage] Found ${ordersSnapshot.docs.length} delivered orders this week');
+
       // Map full day names to short names
-      final dayMapping = {
-        'monday': 'Mon',
-        'tuesday': 'Tue',
-        'wednesday': 'Wed',
-        'thursday': 'Thu',
-        'friday': 'Fri',
-        'saturday': 'Sat',
-        'sunday': 'Sun',
-      };
+      final dayMapping = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-      // Iterate through each day
-      for (final dayEntry in mealSelections.entries) {
-        final dayLower = dayEntry.key.toLowerCase();
-        final shortDay = dayMapping[dayLower];
-        if (shortDay == null) continue;
+      // Process each delivered order
+      for (final doc in ordersSnapshot.docs) {
+        try {
+          final orderData = doc.data();
+          final deliveryDate = (orderData['deliveryDate'] as Timestamp?)?.toDate();
+          if (deliveryDate == null) continue;
 
-        final dayMeals = dayEntry.value as Map<String, dynamic>?;
-        if (dayMeals == null) continue;
+          // Get day of week (1 = Monday, 7 = Sunday)
+          final weekday = deliveryDate.weekday;
+          final shortDay = dayMapping[weekday - 1]; // Convert to 0-indexed
 
-        // Iterate through meal types (breakfast, lunch, dinner)
-        for (final mealEntry in dayMeals.entries) {
-          final mealData = mealEntry.value as Map<String, dynamic>?;
-          if (mealData == null) continue;
+          // Get meal nutrition from order
+          final meals = orderData['meals'] as List<dynamic>?;
+          if (meals == null || meals.isEmpty) continue;
 
-          try {
-            final meal = MealModelV3.fromJson(mealData);
-            
-            // Add nutrition values
-            newData[shortDay]!['Calories'] = 
-                newData[shortDay]!['Calories']! + meal.calories;
-            newData[shortDay]!['Protein'] = 
-                newData[shortDay]!['Protein']! + meal.protein;
-            newData[shortDay]!['Fat'] = 
-                newData[shortDay]!['Fat']! + meal.fat;
-          } catch (e) {
-            debugPrint('[HomePage] Error parsing meal for $dayLower: $e');
+          for (final mealData in meals) {
+            final meal = mealData as Map<String, dynamic>?;
+            if (meal == null) continue;
+
+            final calories = (meal['calories'] as num?)?.toInt() ?? 0;
+            final protein = (meal['protein'] as num?)?.toInt() ?? 0;
+            final fat = (meal['fat'] as num?)?.toInt() ?? 0;
+
+            // Add to day's totals
+            newData[shortDay]!['Calories'] = newData[shortDay]!['Calories']! + calories;
+            newData[shortDay]!['Protein'] = newData[shortDay]!['Protein']! + protein;
+            newData[shortDay]!['Fat'] = newData[shortDay]!['Fat']! + fat;
+
+            debugPrint('[HomePage] Added nutrition for $shortDay: $calories cal, ${protein}g protein, ${fat}g fat');
           }
+        } catch (e) {
+          debugPrint('[HomePage] Error processing order ${doc.id}: $e');
         }
       }
 

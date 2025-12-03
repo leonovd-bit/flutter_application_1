@@ -48,9 +48,22 @@
 	
 	<!-- Location permissions -->
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app needs access to location to automatically fill your delivery address.</string>
+	<string>This app needs access to location to show your current location on the map and automatically fill your delivery address.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>This app needs access to location to automatically fill your delivery address.</string>
+	<string>This app needs access to location to show your current location on the map and automatically fill your delivery address.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>This app needs access to location to show your current location on the map and track delivery progress.</string>
+	
+	<!-- App Tracking Transparency (iOS 14+) -->
+	<key>NSUserTrackingUsageDescription</key>
+	<string>This app would like to track your location to provide accurate delivery tracking and show your current position on the map.</string>
+	
+	<!-- Location accuracy (iOS 14+) -->
+	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
+	<dict>
+		<key>DeliveryTracking</key>
+		<string>Enable precise location to accurately track your delivery and show your current position.</string>
+	</dict>
 	
 	<!-- Google Maps API Key -->
 	<key>GoogleMapsAPIKey</key>

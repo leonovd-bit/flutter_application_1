@@ -1,12 +1,4 @@
-[StripeWeb] Initializing with key: pk_test_51Rly3MAQ9rq...
-main.dart.js:38253 [StripeWeb] Initialized with publishable key
-main.dart.js:38253 [StripeWeb] Confirming setup with client secret
-api.stripe.com/v1/setup_intents/seti_1SWqTOAQ9rq5N6YJ3GUSbiBc/confirm:1  Failed to load resource: the server responded with a status of 400 ()Understand this error
-api.stripe.com/v1/setup_intents/seti_1SWqTOAQ9rq5N6YJ3GUSbiBc/confirm:1  Failed to load resource: the server responded with a status of 400 ()Understand this error
-main.dart.js:38253 [StripeWeb] Error confirming setup: Exception: A payment method of type card was expected to be present, but this SetupIntent does not have a payment method and none was provided. Try again providing either the payment_method or payment_method_data parameters.
-main.dart.js:38253 [Stripe] Error: Exception: A payment method of type card was expected to be present, but this SetupIntent does not have a payment method and none was provided. Try again providing either the payment_method or payment_method_data parameters.
-main.dart.js:38253 [Route] pop <- minified:a95<bool>
-main.dart.js:38253 [Payment] User cancelled or payment method addition failed/**
+/**
  * Order Generation and Confirmation Functions
  * These functions handle meal selection to order conversion and notifications
  */
@@ -301,7 +293,7 @@ export const confirmNextOrder = onCall(corsOptions, async (request: any) => {
     const earliestPendingSnap = await db.collection("orders")
       .where("userId", "==", userId)
       .where("status", "==", "pending")
-      .orderBy("deliveryDate", "asc")
+      .orderBy("estimatedDeliveryTime", "asc")
       .limit(1)
       .get();
 

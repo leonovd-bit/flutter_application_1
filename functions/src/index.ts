@@ -574,15 +574,53 @@ export const createSetupIntent = onCall({
   const stripe = getStripe();
     const {customer} = request.data;
 
+    if (!customer) {
+      throw new Error("customer is required");
+    }
+
     const setupIntent = await stripe.setupIntents.create({
       customer,
       automatic_payment_methods: {enabled: true},
+      usage: "off_session", // Allow charging when customer is not present
+      payment_method_options: {
+        card: {
+          request_three_d_secure: "automatic",
+        },
+      },
     });
 
+    logger.info(`Setup intent created for customer: ${customer}`);
     return {client_secret: setupIntent.client_secret};
   } catch (error) {
     logger.error("Error creating setup intent:", error);
     throw new Error("Failed to create setup intent");
+  }
+});
+
+// Retrieve Setup Intent
+export const retrieveSetupIntent = onCall({
+  ...baseCallableOptions,
+  secrets: [STRIPE_SECRET_KEY],
+}, async (request: any) => {
+  try {
+    const stripe = getStripe();
+    const {setup_intent} = request.data;
+
+    if (!setup_intent) {
+      throw new Error("setup_intent is required");
+    }
+
+    const setupIntent = await stripe.setupIntents.retrieve(setup_intent);
+
+    return {
+      id: setupIntent.id,
+      status: setupIntent.status,
+      payment_method: setupIntent.payment_method,
+      customer: setupIntent.customer,
+    };
+  } catch (error) {
+    logger.error("Error retrieving setup intent:", error);
+    throw new Error("Failed to retrieve setup intent");
   }
 });
 

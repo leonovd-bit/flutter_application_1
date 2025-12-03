@@ -2101,15 +2101,27 @@ async function forwardToSquareRestaurant(
   // Use crossDocForwardKey for Square idempotency so distinct docs dedupe
   const idempotencyKey = `fp_${crossDocForwardKey}`.slice(0, 45);
 
+    // Calculate prep time and pickup window for POS integration
+    const deliveryTime = orderData.deliveryDate?._seconds ?
+      new Date(orderData.deliveryDate._seconds * 1000) :
+      new Date(Date.now() + 2 * 60 * 60 * 1000); // Default: 2 hours from now
+
+    // Prep time: 30 minutes before pickup (ISO 8601 duration format)
+    const prepTimeDuration = "PT30M";
+
+    // Pickup window: DoorDash picks up 30-60 mins before delivery
+    const pickupAt = new Date(deliveryTime.getTime() - 45 * 60 * 1000); // 45 mins before delivery
+
     const squareOrder = {
       idempotency_key: idempotencyKey,
       order: {
         location_id: locationId,
-    reference_id: truncatedReference,
-    // Omit explicit state; let Square start the order in OPEN state. Setting COMPLETED here
-    // triggers validation because fulfillments are not terminal yet.
+        reference_id: truncatedReference,
+        // OPEN state makes order appear in active POS queue
+        state: "OPEN",
         source: {
-          name: orderType === "prep_forecast" ? "FreshPunk Prep Forecast" : "FreshPunk Delivery",
+          // Mark as third-party delivery so it appears in correct POS category
+          name: orderType === "prep_forecast" ? "FreshPunk Prep Forecast" : "FreshPunk (Third Party Delivery)",
         },
         line_items: meals.map((meal) => ({
           name: meal.name,
@@ -2130,43 +2142,39 @@ async function forwardToSquareRestaurant(
           modifiers: [],
           note: orderNote,
         })),
-        // Note: tenders cannot be added during order creation via API
-        // We use Pay Order API after creation to mark as paid (see below)
+        // Use PICKUP fulfillment instead of DELIVERY so it appears in POS prep queue
+        // Restaurant prepares food, DoorDash driver picks it up (from restaurant's perspective, it's a pickup)
         fulfillments: orderType === "prep_forecast" ? [] : [
-
           {
-            type: "DELIVERY",
-            // Same rationale as above: start at RESERVED so the order appears operational, not just proposed.
+            type: "PICKUP",
+            // PROPOSED state makes order appear in active queue immediately
             state: "PROPOSED",
-            delivery_details: {
-              recipient: {
-                display_name: orderData.customerName || orderData.userEmail || "FreshPunk Customer",
-                phone_number: orderData.customerPhone || undefined,
-                email_address: orderData.userEmail || undefined,
-              },
-              address: {
-                address_line_1: orderData.deliveryAddress || "Address to be determined",
-              },
+            pickup_details: {
+              // Scheduled pickup triggers kitchen prep workflow in POS
               schedule_type: "SCHEDULED",
-              deliver_at: (() => {
-                if (!orderData.deliveryDate?._seconds) return undefined;
-                const deliveryTime = new Date(orderData.deliveryDate._seconds * 1000);
-                const now = new Date();
-                return deliveryTime > now ? deliveryTime.toISOString() : undefined;
-              })(),
-              note: `Delivery for ${orderNote}`,
+              pickup_at: pickupAt.toISOString(),
+              prep_time_duration: prepTimeDuration,
+              recipient: {
+                display_name: "DoorDash Driver (for " + (orderData.customerName || orderData.userEmail || "Customer") + ")",
+                phone_number: orderData.customerPhone || undefined,
+              },
+              note: `Third-party delivery order. Customer: ${orderData.customerName || orderData.userEmail || "N/A"}. Delivery address: ${orderData.deliveryAddress || "TBD"}. Expected pickup: ${pickupAt.toLocaleTimeString()}.`,
             },
           },
         ],
         tickets: [
           {
             name: "Kitchen",
+            // Note field appears on kitchen ticket printout
+            note: `🚗 DELIVERY ORDER - Ready by ${pickupAt.toLocaleTimeString()}\nCustomer: ${orderData.customerName || "N/A"}\nDeliver to: ${orderData.deliveryAddress || "TBD"}`,
           },
         ],
         metadata: {
           freshpunk_order_id: orderId,
           freshpunk_customer_id: orderData.userId,
           freshpunk_order_type: orderType,
+          delivery_address: orderData.deliveryAddress || "",
+          customer_name: orderData.customerName || orderData.userEmail || "",
         },
       },
     };
