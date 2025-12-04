@@ -4,8 +4,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../pages/home_page_v3.dart';
 import '../../pages/auth/welcome_page_v3.dart';
 import '../../pages/auth/splash_page_v3.dart';
+import '../../pages/auth/phone_verification_page_v3.dart';
+import '../../pages/auth/phone_collection_page_v3.dart';
 import '../../pages/onboarding/choose_meal_plan_page_v3.dart';
 import 'firestore_service_v3.dart';
+import 'progress_manager.dart';
 import '../../debug/debug_state.dart';
 
 class AuthWrapper extends StatefulWidget {
@@ -88,23 +91,15 @@ class _AuthWrapperState extends State<AuthWrapper> {
         if (snapshot.hasData && snapshot.data != null) {
           debugPrint('User authenticated: ${snapshot.data!.uid}');
           
-          // Check if user has completed setup
-          return FutureBuilder<bool>(
-            future: _checkSetupCompleted(),
-            builder: (context, setupSnapshot) {
-              if (setupSnapshot.connectionState == ConnectionState.waiting) {
+          // Check onboarding progress to determine where to send user
+          return FutureBuilder<Widget>(
+            future: _determineNextPage(),
+            builder: (context, pageSnapshot) {
+              if (pageSnapshot.connectionState == ConnectionState.waiting) {
                 return const SplashPageV3();
               }
               
-              final setupCompleted = setupSnapshot.data ?? false;
-              
-              if (setupCompleted) {
-                debugPrint('Setup completed - showing home page');
-                return const HomePageV3();
-              } else {
-                debugPrint('Setup not completed - resuming onboarding');
-                return const ChooseMealPlanPageV3(isSignupFlow: true);
-              }
+              return pageSnapshot.data ?? const WelcomePageV3();
             },
           );
         } else {
@@ -113,6 +108,70 @@ class _AuthWrapperState extends State<AuthWrapper> {
         }
       },
     );
+  }
+  
+  /// Determine which page to show based on onboarding progress
+  Future<Widget> _determineNextPage() async {
+    try {
+      // Check if setup is fully completed
+      final prefs = await SharedPreferences.getInstance();
+      final setupCompleted = prefs.getBool('setup_completed') ?? false;
+      
+      if (setupCompleted) {
+        debugPrint('[AuthWrapper] Setup completed - showing home page');
+        return const HomePageV3();
+      }
+      
+      // Check onboarding progress
+      final currentStep = await ProgressManager.getCurrentStep();
+      debugPrint('[AuthWrapper] Current onboarding step: $currentStep');
+      
+      if (currentStep == null) {
+        // No saved progress - start fresh with meal plan
+        debugPrint('[AuthWrapper] No saved progress - starting with meal plan');
+        return const ChooseMealPlanPageV3(isSignupFlow: true);
+      }
+      
+      // Resume from where user left off
+      switch (currentStep) {
+        case OnboardingStep.welcome:
+        case OnboardingStep.signup:
+          return const WelcomePageV3();
+          
+        case OnboardingStep.emailVerification:
+        case OnboardingStep.phoneVerification:
+          // Get saved phone number from progress
+          final signupData = await ProgressManager.getSignupProgress();
+          final phoneNumber = signupData?['phone'] as String?;
+          
+          if (phoneNumber != null && phoneNumber.isNotEmpty) {
+            debugPrint('[AuthWrapper] Resuming phone verification with saved phone');
+            return PhoneVerificationPageV3(phoneNumber: phoneNumber);
+          } else {
+            // No phone saved - collect it first (for social sign-in users)
+            debugPrint('[AuthWrapper] No phone saved - collecting phone number');
+            return const PhoneCollectionPageV3();
+          }
+          
+        case OnboardingStep.deliverySchedule:
+        case OnboardingStep.paymentSetup:
+          // For delivery schedule and payment, we need data from previous steps
+          // If that data is missing, restart from meal plan
+          debugPrint('[AuthWrapper] Partial progress - restarting from meal plan');
+          return const ChooseMealPlanPageV3(isSignupFlow: true);
+          
+        case OnboardingStep.completed:
+          debugPrint('[AuthWrapper] Onboarding marked complete - showing home');
+          // Mark setup as completed in SharedPreferences
+          await prefs.setBool('setup_completed', true);
+          await ProgressManager.clearOnboardingProgress();
+          return const HomePageV3();
+      }
+    } catch (e) {
+      debugPrint('[AuthWrapper] Error determining next page: $e');
+      // On error, default to meal plan page (safest option for authenticated users)
+      return const ChooseMealPlanPageV3(isSignupFlow: true);
+    }
   }
   
   Future<bool> _checkSetupCompleted() async {

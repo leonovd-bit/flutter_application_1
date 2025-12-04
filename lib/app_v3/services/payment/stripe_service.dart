@@ -114,7 +114,7 @@ class StripeService {
       debugPrint('[Stripe] Using Stripe PaymentSheet with SetupIntent');
       await Stripe.instance.initPaymentSheet(
         paymentSheetParameters: SetupPaymentSheetParameters(
-          merchantDisplayName: 'FreshPunk',
+          merchantDisplayName: 'Victus',
           setupIntentClientSecret: clientSecret,
           allowsDelayedPaymentMethods: true,
           customerId: customerId,

@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -5,7 +6,9 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/app_theme_v3.dart';
 import '../../services/connectivity_service_v3.dart';
+import '../../services/auth/progress_manager.dart';
 import 'signup_page_v3.dart';
+import 'phone_collection_page_v3.dart';
 import '../home_page_v3.dart';
 import '../onboarding/choose_meal_plan_page_v3.dart';
 import 'welcome_page_v3.dart';
@@ -362,33 +365,36 @@ class _LoginPageV3State extends State<LoginPageV3> {
                   
                   const SizedBox(height: 16),
                   
-                  // Apple Sign In Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _isLoading ? null : _signInWithApple,
-                      style: OutlinedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        side: BorderSide(color: Colors.black, width: 2),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                  // Apple Sign In Button (iOS only)
+                  if (Platform.isIOS)
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _isLoading ? null : _signInWithApple,
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: Colors.black,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          side: BorderSide(color: Colors.black, width: 2),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
-                      ),
-                      icon: const Icon(Icons.apple, size: 24),
-                      label: Text(
-                        'Continue with Apple',
-                        style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
+                        icon: const Icon(Icons.apple, size: 24),
+                        label: Text(
+                          'Continue with Apple',
+                          style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),
-                  ),
                   
-                  const SizedBox(height: 24),
+                  if (Platform.isIOS) const SizedBox(height: 16),
+                  
+                  const SizedBox(height: 8),
                   
                   // Forgot password
                   TextButton(
@@ -535,9 +541,10 @@ class _LoginPageV3State extends State<LoginPageV3> {
 
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
-
+    
     try {
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      final googleSignIn = GoogleSignIn();
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
       
       // User cancelled the sign-in
       if (googleUser == null) {
@@ -567,11 +574,12 @@ class _LoginPageV3State extends State<LoginPageV3> {
       debugPrint('Google Sign-In - Is new user: $isNewUser'); // Debug
       
       if (isNewUser) {
-        // New user accidentally used login page - send through setup with isSignupFlow
-        debugPrint('New user on login page - redirecting to onboarding'); // Debug
+        // New user accidentally used login page - collect phone first
+        debugPrint('New user on login page - collecting phone'); // Debug
+        await ProgressManager.saveCurrentStep(OnboardingStep.phoneVerification);
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const ChooseMealPlanPageV3(isSignupFlow: true)),
+          MaterialPageRoute(builder: (context) => const PhoneCollectionPageV3()),
         );
       } else {
         // Existing user - go to home
@@ -582,30 +590,37 @@ class _LoginPageV3State extends State<LoginPageV3> {
         );
       }
     } catch (e) {
-  debugPrint('Google sign in error: $e');
+      // Check for user cancellation first - be completely silent
+      final errorString = e.toString().toLowerCase();
+      if (errorString.contains('sign_in_canceled') || 
+          errorString.contains('popup_closed') ||
+          errorString.contains('user_cancelled') ||
+          errorString.contains('cancel') ||
+          e.runtimeType.toString().contains('PlatformException')) {
+        debugPrint('Google sign-in cancelled by user');
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+        return; // Silent return for cancellation
+      }
+      
+      debugPrint('Google sign in error: $e');
       if (!mounted) return;
-      String errorMessage = 'Failed to sign in with Google';
+      
+      // User-friendly error messages
+      String errorMessage = 'Unable to sign in with Google';
       
       if (e.toString().contains('network-request-failed') || 
           e.toString().contains('timeout') ||
           e.toString().contains('Failed host lookup')) {
-        errorMessage = 'Network error. Please check your internet connection and try again.';
-      } else if (e.toString().contains('sign_in_canceled')) {
-        errorMessage = 'Sign in was cancelled';
-      } else if (e.toString().contains('sign_in_failed')) {
-        errorMessage = 'Google sign in failed. Please try again.';
+        errorMessage = 'Network error. Please check your internet connection';
       }
       
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(errorMessage),
+          backgroundColor: Colors.red,
           duration: const Duration(seconds: 4),
-          action: errorMessage.contains('Network error') 
-            ? SnackBarAction(
-                label: 'Retry',
-                onPressed: () => _signInWithGoogle(),
-              )
-            : null,
         ),
       );
     } finally {
@@ -640,11 +655,11 @@ class _LoginPageV3State extends State<LoginPageV3> {
       debugPrint('Apple Sign-In - Is new user: $isNewUser'); // Debug
       
       if (isNewUser) {
-        // New user accidentally used login page - send through setup with isSignupFlow
-        debugPrint('New Apple user on login page - redirecting to onboarding'); // Debug
+        // New user accidentally used login page - collect phone first
+        debugPrint('New Apple user on login page - collecting phone'); // Debug
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const ChooseMealPlanPageV3(isSignupFlow: true)),
+          MaterialPageRoute(builder: (context) => const PhoneCollectionPageV3()),
         );
       } else {
         // Existing user - go to home

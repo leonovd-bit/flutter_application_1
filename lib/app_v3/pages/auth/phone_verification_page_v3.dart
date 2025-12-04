@@ -23,26 +23,36 @@ class _PhoneVerificationPageV3State extends State<PhoneVerificationPageV3> {
   bool _canResendSms = false;
   int _resendCooldown = 60;
   final _codeController = TextEditingController();
+  bool _hasNavigated = false; // Prevent double navigation
 
   @override
   void initState() {
     super.initState();
+    _codeController.addListener(() {
+      setState(() {}); // Update button state when text changes
+    });
     _startPhoneVerificationCheck();
     _startResendCooldown();
   }
 
   void _startPhoneVerificationCheck() {
     _timer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+      if (_hasNavigated) {
+        timer.cancel();
+        return;
+      }
+      
       try {
         // Check if phone is verified in Firestore
         final hasVerified = await PhoneVerificationService.instance
             .checkPhoneVerificationStatus();
         
-        if (hasVerified) {
+        if (hasVerified && !_hasNavigated) {
+          _hasNavigated = true;
           timer.cancel();
           if (mounted) {
             try {
-              print('[PhoneVerification] Phone verified, navigating to meal plan selection');
+              print('[PhoneVerification] Phone verified via polling, navigating to meal plan selection');
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
@@ -51,6 +61,7 @@ class _PhoneVerificationPageV3State extends State<PhoneVerificationPageV3> {
               );
             } catch (e) {
               print('[PhoneVerification] Navigation error: $e');
+              _hasNavigated = false; // Reset if navigation failed
             }
           }
         }
@@ -101,15 +112,30 @@ class _PhoneVerificationPageV3State extends State<PhoneVerificationPageV3> {
       return;
     }
 
+    if (_hasNavigated) {
+      print('[PhoneVerification] Already navigated, ignoring verify attempt');
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
-      // Verify the code with Firebase
-      await PhoneVerificationService.instance.verifyCode(code);
+      print('[PhoneVerification] Verifying code: $code');
+      
+      // Verify the code with Firebase and get credential
+      final credential = await PhoneVerificationService.instance.verifyCode(code);
+      print('[PhoneVerification] Code verified, got credential');
+
+      // Link the phone credential to current user
+      await PhoneVerificationService.instance.linkPhoneToCurrentUser(credential);
+      print('[PhoneVerification] Phone linked to user');
 
       // Update Firestore with phone verification
       await PhoneVerificationService.instance.updateUserProfilePhone();
+      print('[PhoneVerification] Firestore updated');
 
+      _hasNavigated = true;
+      
       if (mounted) {
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
@@ -122,7 +148,9 @@ class _PhoneVerificationPageV3State extends State<PhoneVerificationPageV3> {
 
         // Navigate to meal plan selection
         await Future.delayed(const Duration(seconds: 1));
-        if (mounted) {
+        if (mounted && !_hasNavigated) {
+          _hasNavigated = true;
+          print('[PhoneVerification] Navigating to meal plan page');
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -132,6 +160,7 @@ class _PhoneVerificationPageV3State extends State<PhoneVerificationPageV3> {
         }
       }
     } catch (e) {
+      print('[PhoneVerification] Error during verification: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

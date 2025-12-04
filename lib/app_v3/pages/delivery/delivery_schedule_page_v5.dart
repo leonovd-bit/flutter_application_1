@@ -66,9 +66,33 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
   // Day configurations: Map<Day, Map<MealType, {time, address}>>
   Map<String, Map<String, Map<String, dynamic>>> _dayConfigurations = {};
 
+  // Per-day, per-meal controllers for time and address
+  // Map<Day, Map<MealType, {timeController, addressController}>>
+  final Map<String, Map<String, Map<String, TextEditingController>>> _dayMealControllers = {};
+
   // Meal type selections (breakfast, lunch, dinner)
   Set<String> _selectedMeals = {}; // Selected meal types for the schedule
   bool _applyToAllDays = false; // Apply same config to all selected days
+
+  // Helper to get or create time controller for a day/meal
+  TextEditingController _getDayMealTimeController(String day, String meal) {
+    _dayMealControllers.putIfAbsent(day, () => {});
+    _dayMealControllers[day]!.putIfAbsent(meal, () => {
+      'time': TextEditingController(),
+      'address': TextEditingController(),
+    });
+    return _dayMealControllers[day]![meal]!['time']!;
+  }
+
+  // Helper to get or create address controller for a day/meal
+  TextEditingController _getDayMealAddressController(String day, String meal) {
+    _dayMealControllers.putIfAbsent(day, () => {});
+    _dayMealControllers[day]!.putIfAbsent(meal, () => {
+      'time': TextEditingController(),
+      'address': TextEditingController(),
+    });
+    return _dayMealControllers[day]![meal]!['address']!;
+  }
 
   // Helpers
   Future<void> _pickTimeForController(TextEditingController controller) async {
@@ -105,6 +129,7 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
                       final hh = temp.hour.toString().padLeft(2, '0');
                       final mm = temp.minute.toString().padLeft(2, '0');
                       controller.text = '$hh:$mm';
+                      setState(() {}); // Trigger rebuild to show the time
                       Navigator.pop(context);
                     },
                     child: const Text('Done'),
@@ -892,10 +917,16 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
                   // Time input
                   TextFormField(
                     readOnly: true,
-                    onTap: () => _pickTimeForController(
-                      _timeControllers[day]![meal]!,
-                    ),
-                    controller: _timeControllers[day]![meal],
+                    onTap: () {
+                      // Ensure controllers exist for this day/meal
+                      _dayMealControllers.putIfAbsent(day, () => {});
+                      _dayMealControllers[day]!.putIfAbsent(meal, () => {
+                        'time': TextEditingController(),
+                        'address': TextEditingController(),
+                      });
+                      _pickTimeForController(_dayMealControllers[day]![meal]!['time']!);
+                    },
+                    controller: _getDayMealTimeController(day, meal),
                     decoration: InputDecoration(
                       labelText: 'Time',
                       hintText: 'e.g., 12:30',
@@ -917,6 +948,7 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
                   
                   // Address input
                   TextFormField(
+                    controller: _getDayMealAddressController(day, meal),
                     decoration: InputDecoration(
                       labelText: 'Delivery Address',
                       hintText: 'Enter address',

@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -7,6 +8,7 @@ import '../../services/auth/progress_manager.dart';
 import '../../services/auth/auth_wrapper.dart' show ExplicitSetupApproval; // approve explicit setup
 import '../../services/auth/phone_verification_service.dart';
 import 'phone_verification_page_v3.dart';
+import 'phone_collection_page_v3.dart';
 import 'login_page_v3.dart';
 import '../onboarding/choose_meal_plan_page_v3.dart';
 import '../home_page_v3.dart';
@@ -696,32 +698,35 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                 
                 const SizedBox(height: 16),
                 
-                // Apple Sign Up Button
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _isLoading ? null : _signUpWithApple,
-                    style: OutlinedButton.styleFrom(
-                      backgroundColor: AppThemeV3.textPrimary,
-                      foregroundColor: Colors.white,
-                      side: BorderSide.none,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                // Apple Sign Up Button (iOS only)
+                if (Platform.isIOS)
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _isLoading ? null : _signUpWithApple,
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: AppThemeV3.textPrimary,
+                        foregroundColor: Colors.white,
+                        side: BorderSide.none,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                    ),
-                    icon: const Icon(Icons.apple, size: 24),
-                    label: Text(
-                      'Continue with Apple',
-                      style: AppThemeV3.textTheme.titleMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
+                      icon: const Icon(Icons.apple, size: 24),
+                      label: Text(
+                        'Continue with Apple',
+                        style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
-                ),
                 
-                const SizedBox(height: 24),
+                if (Platform.isIOS) const SizedBox(height: 16),
+                
+                const SizedBox(height: 8),
               ],
             ),
           ),
@@ -759,8 +764,14 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
         ExplicitSetupApproval.approve(context);
       }
 
-      // Update progress to phone verification step
+      // Update progress to phone verification step and save phone number
       await ProgressManager.saveCurrentStep(OnboardingStep.phoneVerification);
+      await ProgressManager.saveSignupProgress(
+        email: _emailController.text.trim(),
+        phone: phoneNumber,
+        name: _nameController.text.trim(),
+        authMethod: 'email',
+      );
 
       // Start phone verification
       debugPrint('Starting phone verification for: $phoneNumber');
@@ -839,31 +850,32 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
     setState(() => _isLoading = true);
 
     try {
-      debugPrint('Starting Google sign-in process...'); // Debug
+      debugPrint('Starting Google sign-in process...');
       
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-      debugPrint('Google user: $googleUser'); // Debug
+      final googleSignIn = GoogleSignIn();
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      debugPrint('Google user: $googleUser');
 
       // User cancelled the sign-in
       if (googleUser == null) {
-        debugPrint('Google sign-in cancelled by user'); // Debug
+        debugPrint('Google sign-in cancelled by user');
         if (mounted) {
           setState(() => _isLoading = false);
         }
         return;
       }
 
-      debugPrint('Getting Google authentication...'); // Debug
+      debugPrint('Getting Google authentication...');
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      debugPrint('ID token: ${googleAuth.idToken != null ? "Present" : "Missing"}'); // Debug
+      debugPrint('ID token: ${googleAuth.idToken != null ? "Present" : "Missing"}');
       
       final credential = GoogleAuthProvider.credential(
         idToken: googleAuth.idToken,
       );
 
-  debugPrint('Signing in with Firebase...'); // Debug
+      debugPrint('Signing in with Firebase...');
       final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
-  debugPrint('Firebase sign-in successful: ${userCredential.user?.uid}'); // Debug
+      debugPrint('Firebase sign-in successful: ${userCredential.user?.uid}'); // Debug
 
       // Check if this is a new user or existing user
       final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
@@ -871,12 +883,12 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
 
       if (mounted) {
         if (isNewUser) {
-          // New user - go through setup process with isSignupFlow
-          debugPrint('New user detected - starting onboarding'); // Debug
-          await ProgressManager.saveCurrentStep(OnboardingStep.signup);
+          // New user - collect phone number first
+          debugPrint('New user detected - collecting phone'); // Debug
+          await ProgressManager.saveCurrentStep(OnboardingStep.phoneVerification);
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const ChooseMealPlanPageV3(isSignupFlow: true)),
+            MaterialPageRoute(builder: (context) => const PhoneCollectionPageV3()),
           );
         } else {
           // Existing user who came to signup page - redirect to home
@@ -888,25 +900,50 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
         }
       }
     } on FirebaseAuthException catch (e) {
-      debugPrint('Firebase Auth Exception in Google sign-in: ${e.code} - ${e.message}'); // Debug
+      debugPrint('Firebase Auth Exception in Google sign-in: ${e.code} - ${e.message}');
       if (mounted) {
+        String errorMessage = 'Unable to sign in with Google';
+        if (e.code == 'account-exists-with-different-credential') {
+          errorMessage = 'An account already exists with this email using a different sign-in method';
+        } else if (e.code == 'invalid-credential') {
+          errorMessage = 'Google sign-in credentials are invalid';
+        } else if (e.code == 'operation-not-allowed') {
+          errorMessage = 'Google sign-in is not enabled';
+        } else if (e.code == 'user-disabled') {
+          errorMessage = 'This account has been disabled';
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Firebase Error: ${e.code} - ${e.message}'),
+            content: Text(errorMessage),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 8),
+            duration: const Duration(seconds: 4),
           ),
         );
       }
     } catch (e) {
-      debugPrint('General Exception in Google sign-in: $e'); // Debug
-      debugPrint('Exception type: ${e.runtimeType}'); // Debug
+      // Check for user cancellation first - be completely silent
+      final errorString = e.toString().toLowerCase();
+      if (errorString.contains('sign_in_canceled') || 
+          errorString.contains('popup_closed') ||
+          errorString.contains('user_cancelled') ||
+          errorString.contains('cancel') ||
+          e.runtimeType.toString().contains('PlatformException')) {
+        debugPrint('Google sign-in cancelled by user');
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+        return; // Silent return for cancellation
+      }
+      
+      // Show user-friendly error for actual failures
+      debugPrint('General Exception in Google sign-in: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Google sign-in failed: $e'),
+          const SnackBar(
+            content: Text('Google sign-in is currently unavailable. Please try again later.'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 8),
+            duration: Duration(seconds: 4),
           ),
         );
       }
@@ -941,12 +978,12 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
 
       if (mounted) {
         if (isNewUser) {
-          // New user - go through setup process with isSignupFlow
-          debugPrint('New Apple user - starting onboarding'); // Debug
-          await ProgressManager.saveCurrentStep(OnboardingStep.signup);
+          // New user - collect phone number first
+          debugPrint('New Apple user - collecting phone'); // Debug
+          await ProgressManager.saveCurrentStep(OnboardingStep.phoneVerification);
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const ChooseMealPlanPageV3(isSignupFlow: true)),
+            MaterialPageRoute(builder: (context) => const PhoneCollectionPageV3()),
           );
         } else {
           // Existing user who came to signup page - redirect to home

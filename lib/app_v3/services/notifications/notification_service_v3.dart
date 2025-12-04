@@ -215,7 +215,7 @@ class NotificationServiceV3 {
       const androidDetails = AndroidNotificationDetails(
         'delivery_reminders',
         'Delivery Reminders',
-        channelDescription: 'Reminders one hour before your FreshPunk delivery',
+        channelDescription: 'Reminders one hour before your Victus delivery',
         importance: Importance.high,
         priority: Priority.high,
       );
@@ -223,7 +223,7 @@ class NotificationServiceV3 {
       const details = NotificationDetails(android: androidDetails, iOS: darwinDetails, macOS: darwinDetails);
       await _fln.show(
         999999, // test id unlikely to collide
-        'FreshPunk test',
+        'Victus test',
         'This is a test notification.',
         details,
       );

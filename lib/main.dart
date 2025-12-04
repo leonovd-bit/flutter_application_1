@@ -211,7 +211,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     debugPrint('[AppStart] Initial route: $initialRoute');
     
     return MaterialApp(
-      title: 'FreshPunk',
+      title: 'Victus',
       theme: AppThemeV3.lightTheme,
       debugShowCheckedModeBanner: false,
       // Restore normal app flow: use routes with an explicit initialRoute

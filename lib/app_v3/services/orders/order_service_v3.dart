@@ -42,7 +42,7 @@ class OrderServiceV3 {
   await NotificationServiceV3.instance.scheduleIfNotExists(
         id: notifId,
         deliveryTime: deliveryDate,
-        title: 'FreshPunk delivery',
+        title: 'Victus delivery',
         body: 'Your ${schedule.mealType} arrives in 1 hour at ${address.label}.',
         payload: orderId,
       );

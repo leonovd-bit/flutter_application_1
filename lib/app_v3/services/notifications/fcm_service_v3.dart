@@ -184,7 +184,7 @@ class FCMServiceV3 {
         const channel = AndroidNotificationChannel(
           'order_updates',
           'Order Updates',
-          description: 'Notifications about your FreshPunk orders',
+          description: 'Notifications about your Victus orders',
           importance: Importance.high,
           sound: RawResourceAndroidNotificationSound('notification'),
         );
@@ -226,7 +226,7 @@ class FCMServiceV3 {
     final notification = message.notification;
     if (notification != null && !kIsWeb) {
       await _showLocalNotification(
-        title: notification.title ?? 'FreshPunk',
+        title: notification.title ?? 'Victus',
         body: notification.body ?? '',
         data: message.data,
       );
@@ -248,7 +248,7 @@ class FCMServiceV3 {
     const androidDetails = AndroidNotificationDetails(
       'order_updates',
       'Order Updates',
-      channelDescription: 'Notifications about your FreshPunk orders',
+      channelDescription: 'Notifications about your Victus orders',
       importance: Importance.high,
       priority: Priority.high,
       showWhen: true,
@@ -309,7 +309,7 @@ class FCMServiceV3 {
       }
       
       await _showLocalNotification(
-        title: '🍽️ FreshPunk Test',
+        title: '🍽️ Victus Test',
         body: 'Push notifications are working! Your orders will appear here.',
         data: {'test': 'true'},
       );
