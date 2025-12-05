@@ -3,19 +3,19 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>433852717304-p815a2ucaro6nfatcuqio7qcgp8gu1jn.apps.googleusercontent.com</string>
+	<string>433852717304-44jd1544anfsqfvpsq9ie9kb5hs5n0v5.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.433852717304-p815a2ucaro6nfatcuqio7qcgp8gu1jn</string>
+	<string>com.googleusercontent.apps.433852717304-44jd1544anfsqfvpsq9ie9kb5hs5n0v5</string>
 	<key>ANDROID_CLIENT_ID</key>
 	<string>433852717304-pdv4vudv20cgncas28h29qd5sht92koh.apps.googleusercontent.com</string>
 	<key>API_KEY</key>
-	<string>AIzaSyD9cpvMjyWUXcXfiqNv0ZpavDBgxmLV9x4</string>
+	<string>AIzaSyCo8B9rp5xliWRtybccAt-_8YcCuswBMrs</string>
 	<key>GCM_SENDER_ID</key>
 	<string>433852717304</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.example.flutterApplication1</string>
+	<string>com.Victus.flutterApplication1</string>
 	<key>PROJECT_ID</key>
 	<string>freshpunk-48db1</string>
 	<key>STORAGE_BUCKET</key>
@@ -31,6 +31,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:433852717304:ios:7d8efe18144cb9f6c0c30d</string>
+	<string>1:433852717304:ios:5b42c6e784412de3c0c30d</string>
 </dict>
 </plist>
