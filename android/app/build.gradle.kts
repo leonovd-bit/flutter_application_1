@@ -59,3 +59,21 @@ flutter {
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
+
+// Copy APK to Flutter's expected location after build
+afterEvaluate {
+    tasks.named("assembleDebug").configure {
+        doLast {
+            val apkFile = file("build/outputs/apk/debug/app-debug.apk")
+            if (apkFile.exists()) {
+                val flutterApkDir = file("../../build/app/outputs/flutter-apk")
+                flutterApkDir.mkdirs()
+                copy {
+                    from(apkFile)
+                    into(flutterApkDir)
+                }
+                println("APK copied to Flutter location")
+            }
+        }
+    }
+}

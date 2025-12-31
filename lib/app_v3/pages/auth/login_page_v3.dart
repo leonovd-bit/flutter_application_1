@@ -343,21 +343,30 @@ class _LoginPageV3State extends State<LoginPageV3> {
                   // Google Sign In Button
                   SizedBox(
                     width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _isLoading ? null : _signInWithGoogle,
-                      style: OutlinedButton.styleFrom(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        debugPrint('[LoginPage] Google button pressed! _isLoading=$_isLoading');
+                        if (!_isLoading) {
+                          _signInWithGoogle();
+                        } else {
+                          debugPrint('[LoginPage] Button disabled because _isLoading=true');
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
                         foregroundColor: Colors.black,
-                        side: BorderSide(color: Colors.black, width: 2),
                         padding: const EdgeInsets.symmetric(vertical: 16),
+                        side: BorderSide(color: Colors.black, width: 2),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      icon: const Icon(Icons.g_mobiledata, size: 24),
+                      icon: const Icon(Icons.g_mobiledata, size: 24, color: Colors.black),
                       label: Text(
-                        'Continue with Google',
+                        _isLoading ? 'Loading...' : 'Continue with Google',
                         style: AppThemeV3.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w700,
+                          color: Colors.black,
                         ),
                       ),
                     ),
@@ -540,26 +549,40 @@ class _LoginPageV3State extends State<LoginPageV3> {
   }
 
   Future<void> _signInWithGoogle() async {
+    debugPrint('[LoginPage] _signInWithGoogle called');
     setState(() => _isLoading = true);
     
     try {
-      final googleSignIn = GoogleSignIn();
+      debugPrint('[LoginPage] Initializing GoogleSignIn');
+      final googleSignIn = GoogleSignIn(
+        scopes: [
+          'email',
+          'profile',
+        ],
+      );
+      debugPrint('[LoginPage] Calling googleSignIn.signIn()');
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      
+      debugPrint('[LoginPage] GoogleSignIn result: ${googleUser?.email ?? "null"}');
       
       // User cancelled the sign-in
       if (googleUser == null) {
+        debugPrint('[LoginPage] User cancelled sign-in');
         if (mounted) {
           setState(() => _isLoading = false);
         }
         return;
       }
 
+      debugPrint('[LoginPage] Getting authentication details');
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
 
+      debugPrint('[LoginPage] Creating Firebase credential');
       final credential = GoogleAuthProvider.credential(
         idToken: googleAuth.idToken,
       );
 
+      debugPrint('[LoginPage] Signing in with Firebase');
       final userCredential = await FirebaseAuth.instance.signInWithCredential(credential).timeout(
         const Duration(seconds: 30),
         onTimeout: () {
@@ -567,15 +590,17 @@ class _LoginPageV3State extends State<LoginPageV3> {
         },
       );
 
+      debugPrint('[LoginPage] Firebase sign-in successful: ${userCredential.user?.uid}');
+      
       if (!mounted) return;
       
       // Check if this is a new user or existing user
       final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
-      debugPrint('Google Sign-In - Is new user: $isNewUser'); // Debug
+      debugPrint('[LoginPage] Google Sign-In - Is new user: $isNewUser');
       
       if (isNewUser) {
         // New user accidentally used login page - collect phone first
-        debugPrint('New user on login page - collecting phone'); // Debug
+        debugPrint('[LoginPage] New user on login page - collecting phone');
         await ProgressManager.saveCurrentStep(OnboardingStep.phoneVerification);
         Navigator.pushReplacement(
           context,
@@ -583,13 +608,16 @@ class _LoginPageV3State extends State<LoginPageV3> {
         );
       } else {
         // Existing user - go to home
-        debugPrint('Existing user - going to home'); // Debug
+        debugPrint('[LoginPage] Existing user - going to home');
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const HomePageV3()),
         );
       }
     } catch (e) {
+      debugPrint('[LoginPage] Error caught: ${e.toString()}');
+      debugPrint('[LoginPage] Error type: ${e.runtimeType}');
+      
       // Check for user cancellation first - be completely silent
       final errorString = e.toString().toLowerCase();
       if (errorString.contains('sign_in_canceled') || 
@@ -597,7 +625,7 @@ class _LoginPageV3State extends State<LoginPageV3> {
           errorString.contains('user_cancelled') ||
           errorString.contains('cancel') ||
           e.runtimeType.toString().contains('PlatformException')) {
-        debugPrint('Google sign-in cancelled by user');
+        debugPrint('[LoginPage] Google sign-in cancelled by user');
         if (mounted) {
           setState(() => _isLoading = false);
         }

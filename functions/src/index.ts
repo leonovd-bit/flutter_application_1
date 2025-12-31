@@ -45,6 +45,7 @@ export {
   devForceSyncSquareMenu,
   sendWeeklyPrepSchedules,
   getRestaurantNotifications,
+  doorDashWebhookHandler, // DoorDash webhook for delivery status updates
   // squareWebhookHandler, // REMOVED: Only needed if restaurants create orders independently
 } from "./square-integration";
 

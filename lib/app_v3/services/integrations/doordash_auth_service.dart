@@ -1,5 +1,6 @@
 import 'dart:convert';
-import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
+import 'dart:typed_data';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import '../../config/doordash_config.dart';
 
@@ -10,6 +11,7 @@ class DoorDashAuthService {
   static final DoorDashAuthService instance = DoorDashAuthService._();
 
   /// Generate JWT token for DoorDash API authentication
+  /// Uses manual HMAC-SHA256 signing to match Node.js implementation
   String generateJWTToken() {
     try {
       // Check if we have valid credentials
@@ -26,7 +28,7 @@ class DoorDashAuthService {
 
       // JWT Payload
       final now = DateTime.now();
-      final expiry = now.add(const Duration(hours: 1)); // Token expires in 1 hour
+      final expiry = now.add(const Duration(minutes: 30)); // Token expires in 30 minutes (DoorDash max)
       
       final payload = {
         'aud': 'doordash',
@@ -36,19 +38,38 @@ class DoorDashAuthService {
         'iat': now.millisecondsSinceEpoch ~/ 1000,
       };
 
-      // Create and sign JWT
-      final jwt = JWT(
-        payload,
-        header: header,
-      );
+      // Base64url encode (remove padding, replace characters)
+      String base64UrlEncode(Map<String, dynamic> obj) {
+        final json = jsonEncode(obj);
+        final bytes = utf8.encode(json);
+        return base64Url.encode(bytes).replaceAll('=', '');
+      }
 
-      // Sign with the signing secret (DoorDash uses HMAC-SHA256 with base64 secret)
-      final token = jwt.sign(
-        SecretKey(DoorDashConfig.signingKey),
-        algorithm: JWTAlgorithm.HS256,
-      );
+      // Create JWT parts
+      final headerB64 = base64UrlEncode(header);
+      final payloadB64 = base64UrlEncode(payload);
+      final signatureInput = '$headerB64.$payloadB64';
+
+      // Decode the signing secret from base64url BEFORE signing
+      // DoorDash documentation: "the signing secret was base64url decoded prior to signing"
+      String secret = DoorDashConfig.signingKey;
+      // Add padding if needed for base64url decoding
+      while (secret.length % 4 != 0) {
+        secret += '=';
+      }
+      final decodedSecret = base64Url.decode(secret);
+      
+      // Sign with HMAC-SHA256 using the decoded secret bytes
+      final hmac = Hmac(sha256, decodedSecret);
+      final digest = hmac.convert(utf8.encode(signatureInput));
+      
+      // Base64url encode the signature
+      final signature = base64Url.encode(digest.bytes).replaceAll('=', '');
+      
+      final token = '$signatureInput.$signature';
 
       debugPrint('[DoorDashAuth] JWT token generated successfully');
+      debugPrint('[DoorDashAuth] Token: ${token.substring(0, 50)}...');
       return token;
 
     } catch (e) {
@@ -60,8 +81,20 @@ class DoorDashAuthService {
   /// Validate JWT token (check if it's expired)
   bool isTokenValid(String token) {
     try {
-      final jwt = JWT.verify(token, SecretKey(DoorDashConfig.signingKey));
-      final exp = jwt.payload['exp'] as int;
+      // Split token into parts
+      final parts = token.split('.');
+      if (parts.length != 3) return false;
+
+      // Decode payload (add padding if needed)
+      String payloadB64 = parts[1];
+      while (payloadB64.length % 4 != 0) {
+        payloadB64 += '=';
+      }
+      
+      final payloadJson = utf8.decode(base64Url.decode(payloadB64));
+      final payload = jsonDecode(payloadJson) as Map<String, dynamic>;
+      
+      final exp = payload['exp'] as int;
       final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
       
       return exp > now;

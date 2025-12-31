@@ -9,6 +9,7 @@ import 'dart:convert';
 import '../onboarding/choose_meal_plan_page_v3.dart';
 import '../meals/meal_schedule_page_v3_fixed.dart';
 import '../../services/maps/simple_google_maps_service.dart';
+import 'address_page_v3.dart';
 
 extension StringExtension on String {
   String capitalize() {
@@ -614,12 +615,47 @@ class _DeliverySchedulePageV5State extends State<DeliverySchedulePageV5> {
         const SizedBox(height: 16),
 
         // Address input
-        const Text(
-          'Delivery Address',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Delivery Address',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+            ),
+            TextButton.icon(
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AddressPageV3(),
+                  ),
+                );
+                // If user selected an address, populate the field
+                if (result != null && result is Map<String, dynamic>) {
+                  final selectedAddress = result['fullAddress'] ?? '';
+                  setState(() {
+                    _proteinConfigs[protein.id] = ProteinConfigV3(
+                      proteinId: protein.id,
+                      servingsPerWeek: config?.servingsPerWeek ?? 1,
+                      deliveryDay: config?.deliveryDay ?? 'monday',
+                      deliveryTime: config?.deliveryTime ?? '12:30',
+                      deliveryAddress: selectedAddress,
+                    );
+                  });
+                }
+              },
+              icon: const Icon(Icons.add_location_alt, size: 16),
+              label: const Text('Add Manually'),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         TextField(
+          controller: TextEditingController(text: config?.deliveryAddress ?? ''),
           decoration: InputDecoration(
             hintText: '2 6th Ave, 45, New York City, NY 10013',
             prefixIcon: const Icon(Icons.location_on, size: 20),

@@ -3369,3 +3369,130 @@ export const pollDoorDashDeliveries = onSchedule({
   }
 });
 
+// ============================================================================
+// DOORDASH WEBHOOK HANDLER
+// ============================================================================
+
+/**
+ * Handle DoorDash webhook events for delivery status updates
+ * Webhook URL: https://YOUR-REGION-YOUR-PROJECT.cloudfunctions.net/doorDashWebhookHandler
+ */
+export const doorDashWebhookHandler = onRequest(
+  {
+    secrets: [DOORDASH_DEVELOPER_ID, DOORDASH_KEY_ID, DOORDASH_SIGNING_SECRET],
+    cors: false,
+  },
+  async (req, res) => {
+    try {
+      const db = getFirestore();
+
+      // Only accept POST requests
+      if (req.method !== "POST") {
+        res.status(405).send({error: "Method not allowed"});
+        return;
+      }
+
+      const webhookData = req.body;
+      const deliveryId = webhookData.external_delivery_id;
+      const eventName = webhookData.event_name;
+
+      logger.info("DoorDash webhook received", {
+        deliveryId,
+        eventName,
+        data: JSON.stringify(webhookData).slice(0, 500),
+      });
+
+      // Validate required fields
+      if (!deliveryId || !eventName) {
+        logger.warn("DoorDash webhook missing required fields", {deliveryId, eventName});
+        res.status(200).send({received: true}); // Still acknowledge
+        return;
+      }
+
+      // Map event names to status
+      const statusMap: {[key: string]: string} = {
+        "DASHER_CONFIRMED": "assigned",
+        "DASHER_CONFIRMED_PICKUP_ARRIVAL": "dasher_at_pickup",
+        "DASHER_PICKED_UP": "picked_up",
+        "DASHER_CONFIRMED_DROPOFF_ARRIVAL": "dasher_at_dropoff",
+        "DASHER_DROPPED_OFF": "delivered",
+        "DELIVERY_CANCELLED": "cancelled",
+        "DELIVERY_RETURNED": "returned",
+        "DELIVERY_RETURN_INITIALIZED": "return_initialized",
+      };
+      const status = statusMap[eventName] || eventName.toLowerCase();
+
+      // Update order tracking in Firestore
+      const trackingRef = db.collection("order_tracking").doc(deliveryId);
+      const trackingDoc = await trackingRef.get();
+
+      if (!trackingDoc.exists) {
+        logger.warn("DoorDash webhook: tracking document not found", {deliveryId});
+        // Create tracking document if it doesn't exist
+        await trackingRef.set({
+          deliveryId,
+          status,
+          lastUpdate: FieldValue.serverTimestamp(),
+          webhookEvents: [webhookData],
+          createdAt: FieldValue.serverTimestamp(),
+        });
+      } else {
+        // Update existing document
+        await trackingRef.update({
+          status,
+          lastUpdate: FieldValue.serverTimestamp(),
+          webhookEvents: FieldValue.arrayUnion(webhookData),
+        });
+      }
+
+      // Handle specific status events
+      switch (status) {
+      case "assigned":
+        logger.info("Dasher assigned to delivery", {
+          deliveryId,
+          dasher: webhookData.dasher_name,
+        });
+        // Optionally notify customer
+        break;
+
+      case "picked_up":
+        logger.info("Order picked up by dasher", {deliveryId});
+        // Optionally notify customer: "Your order is on the way!"
+        break;
+
+      case "delivered": {
+        logger.info("Order delivered successfully", {deliveryId});
+        // Mark order as completed, notify customer
+        const orderData = trackingDoc.data();
+        if (orderData?.orderId) {
+          await db.collection("orders").doc(orderData.orderId).update({
+            status: "delivered",
+            deliveredAt: FieldValue.serverTimestamp(),
+          });
+        }
+        break;
+      }
+
+      case "cancelled":
+      case "returned":
+        logger.warn("Delivery cancelled or returned", {
+          deliveryId,
+          status,
+          reason: webhookData.cancellation_reason,
+        });
+        // Handle cancellation: refund, notify customer, etc.
+        break;
+
+      default:
+        logger.info("DoorDash delivery status update", {deliveryId, status});
+      }
+
+      // Always return 200 to acknowledge receipt
+      res.status(200).send({received: true});
+    } catch (error: any) {
+      logger.error("DoorDash webhook handler error", {error: error.message});
+      // Still return 200 to prevent DoorDash from retrying indefinitely
+      res.status(200).send({error: error.message});
+    }
+  }
+);

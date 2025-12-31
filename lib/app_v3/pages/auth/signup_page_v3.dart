@@ -674,20 +674,33 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                 // Google Sign Up Button
                 SizedBox(
                   width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _isLoading ? null : _signUpWithGoogle,
-                    style: OutlinedButton.styleFrom(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      debugPrint('[SignupPage] ========== BUTTON TAPPED ==========');
+                      debugPrint('[SignupPage] Google button pressed! _isLoading=$_isLoading');
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Button tapped! _isLoading=$_isLoading'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                      if (!_isLoading) {
+                        _signUpWithGoogle();
+                      } else {
+                        debugPrint('[SignupPage] Button disabled because _isLoading=true');
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
                       backgroundColor: AppThemeV3.textPrimary,
                       foregroundColor: Colors.white,
-                      side: BorderSide.none,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    icon: const Icon(Icons.g_mobiledata, size: 24),
+                    icon: const Icon(Icons.g_mobiledata, size: 24, color: Colors.white),
                     label: Text(
-                      'Continue with Google',
+                      _isLoading ? 'Loading...' : 'Continue with Google',
                       style: AppThemeV3.textTheme.titleMedium?.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
@@ -847,14 +860,21 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
   }
 
   Future<void> _signUpWithGoogle() async {
+    debugPrint('[SignupPage] _signUpWithGoogle called');
     setState(() => _isLoading = true);
 
     try {
-      debugPrint('Starting Google sign-in process...');
+      debugPrint('[SignupPage] Starting Google sign-in process...');
       
-      final googleSignIn = GoogleSignIn();
+      final googleSignIn = GoogleSignIn(
+        scopes: [
+          'email',
+          'profile',
+        ],
+      );
+      debugPrint('[SignupPage] GoogleSignIn initialized with scopes');
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-      debugPrint('Google user: $googleUser');
+      debugPrint('[SignupPage] Google user result: ${googleUser?.email ?? "null"}');
 
       // User cancelled the sign-in
       if (googleUser == null) {
@@ -900,15 +920,16 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
         }
       }
     } on FirebaseAuthException catch (e) {
-      debugPrint('Firebase Auth Exception in Google sign-in: ${e.code} - ${e.message}');
+      debugPrint('[SignupPage] Firebase Auth Exception in Google sign-in: ${e.code} - ${e.message}');
+      debugPrint('[SignupPage] Full exception details: $e');
       if (mounted) {
-        String errorMessage = 'Unable to sign in with Google';
+        String errorMessage = 'Unable to sign in with Google: ${e.code} - ${e.message}';
         if (e.code == 'account-exists-with-different-credential') {
           errorMessage = 'An account already exists with this email using a different sign-in method';
         } else if (e.code == 'invalid-credential') {
-          errorMessage = 'Google sign-in credentials are invalid';
+          errorMessage = 'Google sign-in credentials are invalid: ${e.message}';
         } else if (e.code == 'operation-not-allowed') {
-          errorMessage = 'Google sign-in is not enabled';
+          errorMessage = 'Google sign-in is not enabled in Firebase';
         } else if (e.code == 'user-disabled') {
           errorMessage = 'This account has been disabled';
         }
@@ -917,11 +938,15 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
           SnackBar(
             content: Text(errorMessage),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
+            duration: const Duration(seconds: 5),
           ),
         );
       }
     } catch (e) {
+      debugPrint('[SignupPage] Non-Firebase error in Google sign-in: $e');
+      debugPrint('[SignupPage] Error type: ${e.runtimeType}');
+      debugPrint('[SignupPage] Full error: $e');
+      
       // Check for user cancellation first - be completely silent
       final errorString = e.toString().toLowerCase();
       if (errorString.contains('sign_in_canceled') || 
@@ -929,21 +954,21 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
           errorString.contains('user_cancelled') ||
           errorString.contains('cancel') ||
           e.runtimeType.toString().contains('PlatformException')) {
-        debugPrint('Google sign-in cancelled by user');
+        debugPrint('[SignupPage] Google sign-in cancelled by user');
         if (mounted) {
           setState(() => _isLoading = false);
         }
         return; // Silent return for cancellation
       }
       
-      // Show user-friendly error for actual failures
-      debugPrint('General Exception in Google sign-in: $e');
+      // Show detailed error for debugging
       if (mounted) {
+        String errorMessage = 'Google sign-in error: $e';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Google sign-in is currently unavailable. Please try again later.'),
+          SnackBar(
+            content: Text(errorMessage),
             backgroundColor: Colors.red,
-            duration: Duration(seconds: 4),
+            duration: const Duration(seconds: 5),
           ),
         );
       }

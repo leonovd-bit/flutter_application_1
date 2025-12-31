@@ -28,7 +28,6 @@
 }
 
 # Optimize enums
--optimizeaggressively
 -allowaccessmodification
 
 # Remove unused code

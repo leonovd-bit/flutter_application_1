@@ -181,7 +181,7 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Billed monthly. Cancel anytime.',
+                            'Billed weekly. Cancel anytime.',
                             style: AppThemeV3.textTheme.bodySmall?.copyWith(
                               color: AppThemeV3.accent,
                             ),
