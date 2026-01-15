@@ -106,23 +106,21 @@ export const initiateSquareOAuthHttp = onRequest(
     // Generate Square OAuth URL (properly encoded)
     const state = applicationRef.id; // Use application ID as state parameter
 
-    // Request the scopes we use. Important: include PAYMENTS_WRITE to allow
-    // recording EXTERNAL payments against orders so they appear as paid.
+    // Request the minimal scopes we actually use:
     // - MERCHANT_PROFILE_READ: read merchant details
-    // - PAYMENTS_READ: reconciling payments
-    // - PAYMENTS_WRITE: create EXTERNAL payments (required for visibility)
-    // - ITEMS_READ: read Catalog items (/v2/catalog/*)
-    // - INVENTORY_READ: read inventory counts
-    // - ORDERS_READ: query/search orders
-    // - ORDERS_WRITE: create/update orders when forwarding
-    // Note: Request only documented Square scopes to avoid consent errors.
+    // - PAYMENTS_WRITE: record external payments (mark orders as paid)
+    // - ITEMS_READ: sync catalog items to FreshPunk
+    // - ORDERS_READ: query/search orders and fulfillment status
+    // - ORDERS_WRITE: create/update orders and fulfillment requests
+    //
+    // INTENTIONALLY EXCLUDED:
+    // - REFUNDS_READ/REFUNDS_WRITE: Not requesting refund access
+    // - CUSTOMERS_READ/CUSTOMERS_WRITE: Not managing Square customers
+    // - INVENTORY_READ/INVENTORY_WRITE: Not managing inventory beyond catalog
     const scopes = [
       "MERCHANT_PROFILE_READ",
-      "PAYMENTS_READ",
       "PAYMENTS_WRITE",
       "ITEMS_READ",
-      // Inventory + Orders
-      "INVENTORY_READ",
       "ORDERS_READ",
       "ORDERS_WRITE",
     ];
@@ -199,7 +197,7 @@ export const squareOAuthTestPage = onRequest(
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Square OAuth Test</title>
+    <title>Victus Square Connection</title>
     <style>
       body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; max-width: 720px; margin: 40px auto; padding: 0 16px; }
       h1 { font-size: 24px; }
@@ -207,24 +205,21 @@ export const squareOAuthTestPage = onRequest(
       input { width: 100%; padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px; }
       button { margin-top: 16px; padding: 10px 16px; border: 0; background: #2563eb; color: white; border-radius: 6px; cursor: pointer; }
       .status { margin-top: 16px; font-size: 14px; color: #374151; }
-      .note { margin-top: 24px; color: #6b7280; font-size: 12px; }
       .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; }
     </style>
   </head>
   <body>
-  <h1>🟦 Square OAuth Test Page</h1>
-  <p style="color:#6b7280">If you see this, the page rendered successfully.</p>
-    <p>Use this page to connect a restaurant's Square account in Sandbox.</p>
+  <h1>🟦 Victus Square Connection</h1>
+    <p>Connect your Square account to Victus to start receiving orders.</p>
     <div class="card">
       <label for="name">Restaurant name</label>
-      <input id="name" placeholder="Green Blend" />
+      <input id="name" placeholder="Your restaurant name" />
       <label for="email">Contact email</label>
-      <input id="email" placeholder="owner@example.com" />
+      <input id="email" placeholder="owner@restaurant.com" />
       <label for="phone">Contact phone (optional)</label>
-      <input id="phone" placeholder="(555) 123-4567" />
-      <button id="connect">Connect Square Account →</button>
+      <input id="phone" placeholder="+1 (555) 123-4567" />
+      <button id="connect">Connect with Square →</button>
       <div class="status" id="status"></div>
-      <div class="note">After authorizing with Square, you'll be redirected to our callback which will display a success page.</div>
     </div>
 
     <script>
@@ -260,24 +255,9 @@ export const squareOAuthTestPage = onRequest(
           });
           const data = await resp.json();
           if (data.success && data.oauthUrl) {
-            // Show OAuth URL with copy button before redirect
-            status.innerHTML = 
-              '<div style="margin-bottom:12px"><strong>OAuth URL Generated!</strong></div>' +
-              '<div style="margin-bottom:8px">If the Square page appears blank, try opening in a new tab or copy this URL and paste it directly into the address bar:</div>' +
-              '<textarea readonly style="width:100%;height:80px;font-size:11px;padding:8px;margin-bottom:8px">' + data.oauthUrl + '</textarea>' +
-              '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">' +
-              '<button onclick="navigator.clipboard.writeText(\\'' + data.oauthUrl.replace(/'/g, "\\\\'") + '\\');alert(\\'Copied!\\');" style="padding:8px 16px;background:#28a745;color:white;border:none;border-radius:4px;cursor:pointer">Copy URL</button>' +
-              '<button onclick="window.location.href=\\'' + data.oauthUrl.replace(/'/g, "\\\\'") + '\\';" style="padding:8px 16px;background:#007bff;color:white;border:none;border-radius:4px;cursor:pointer">Continue (same tab)</button>' +
-              '<button onclick="window.open(\\'' + data.oauthUrl.replace(/'/g, "\\\\'") + '\\', \\'_blank\\', \\'noopener\\');" style="padding:8px 16px;background:#6b7280;color:white;border:none;border-radius:4px;cursor:pointer">Open in new tab</button>' +
-              '</div>' +
-              '<div style="margin-top:8px"><a href="' + data.oauthUrl + '" target="_blank" rel="noopener" style="font-size:12px">Open Square consent in a new tab ↗</a></div>' +
-              '<div style="margin-top:12px;font-size:12px;color:#666">Auto-redirecting in 10 seconds...</div>' +
-              '<div style="margin-top:12px;font-size:12px;color:#9CA3AF">Tip: If it still looks blank, try an Incognito/Private window, disable content blockers for squareupsandbox.com, or revoke the app in your Square Sandbox seller dashboard and retry.</div>';
-            
-            // Auto-redirect after 10 seconds
-            setTimeout(() => {
-              window.location.href = data.oauthUrl;
-            }, 10000);
+            // Redirect immediately to Square
+            status.textContent = 'Redirecting to Square...';
+            window.location.href = data.oauthUrl;
           } else {
             status.textContent = 'Failed: ' + (data.message || 'Unknown error');
           }
@@ -500,6 +480,38 @@ export const completeSquareOAuthHttp = onRequest(
       updatedAt: FieldValue.serverTimestamp(),
     });
 
+    // ALSO update the legacy "restaurants" collection entry if it exists
+    // This ensures backward compatibility with existing code that references old restaurant IDs
+    try {
+      // Look for the restaurant by name in the old collection
+      const restaurantsSnapshot = await db.collection("restaurants")
+        .where("restaurantName", "==", applicationData.restaurantName)
+        .limit(1)
+        .get();
+
+      if (!restaurantsSnapshot.empty) {
+        const legacyRestaurantRef = restaurantsSnapshot.docs[0].ref;
+        await legacyRestaurantRef.update({
+          squareMerchantId: merchant_id,
+          squareAccessToken: access_token,
+          squareTokenExpiresAt: expires_at ? new Date(expires_at) : null,
+          squareLocationId: squareLocationId,
+          squareBusinessName: merchant.business_name,
+          status: "active",
+          onboardingCompleted: true,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        logger.info("Updated legacy restaurant record", {
+          legacyId: restaurantsSnapshot.docs[0].id,
+          merchantId: merchant_id,
+        });
+      }
+    } catch (legacyError: any) {
+      logger.warn("Failed to update legacy restaurant record (non-critical)", {
+        error: legacyError.message,
+      });
+    }
+
     // Trigger initial menu sync (non-blocking, log errors but don't fail OAuth)
     try {
       await triggerMenuSync(restaurantRef.id, access_token, merchant_id);
@@ -542,14 +554,14 @@ export const completeSquareOAuthHttp = onRequest(
         </div>
         <div class="info">
           <h3>🎉 You're all set!</h3>
-          <p>Your Square POS is now connected to FreshPunk. Here's what happens next:</p>
+          <p>Your Square POS is now connected to Victus. Here's what happens next:</p>
           <ul>
             <li>✅ Customer orders will automatically appear in your Square dashboard</li>
             <li>✅ Payments are processed through your existing Square system</li>
-            <li>✅ Your menu items are synced with FreshPunk</li>
+            <li>✅ Your menu items are synced with Victus</li>
             <li>✅ No additional login or portal access needed</li>
           </ul>
-          <p><strong>Next steps:</strong> Simply monitor your Square dashboard for incoming FreshPunk orders. That's it!</p>
+          <p><strong>Next steps:</strong> Simply monitor your Square dashboard for incoming Victus orders. That's it!</p>
         </div>
         <p style="color: #666; font-size: 14px; margin-top: 30px;">You can close this window now.</p>
       </body>
@@ -1756,9 +1768,9 @@ async function createDoorDashDelivery(
       external_delivery_id: squareOrderId,
       locale: "en-US",
       order_fulfillment_method: "delivery",
-      origin_facility_id: "freshpunk_kitchen_001",
+      origin_facility_id: "victus_kitchen_001",
       pickup_address: pickupAddress,
-      pickup_business_name: "FreshPunk Kitchen",
+      pickup_business_name: "Victus Kitchen",
       pickup_phone_number: "+1-415-555-0100",
       pickup_instructions: "Ready for pickup at kitchen entrance",
       pickup_time: new Date(Date.now() + 10 * 60000).toISOString(),
@@ -1836,7 +1848,7 @@ async function createDoorDashDelivery(
       headers: {
         "Authorization": `Bearer ${jwtToken}`,
         "Content-Type": "application/json",
-        "User-Agent": "FreshPunk/1.0",
+        "User-Agent": "Victus/1.0",
       },
       body: JSON.stringify(deliveryPayload),
     });
@@ -2086,8 +2098,8 @@ async function forwardToSquareRestaurant(
 
     // Create Square order with proper labeling
     const orderReference = orderType === "prep_forecast" ?
-      `freshpunk_forecast_${orderId}` :
-      `freshpunk_order_${orderId}`;
+      `victus_forecast_${orderId}` :
+      `victus_order_${orderId}`;
 
     // Square reference_id has 40 char limit - truncate if needed
     const truncatedReference = orderReference.length > 40 ?
@@ -2096,21 +2108,18 @@ async function forwardToSquareRestaurant(
 
     const orderNote = orderType === "prep_forecast" ?
       `PREP FORECAST - Week of ${orderData.weekStart || "TBD"}` :
-      `FreshPunk Order #${orderId}`;
+      `Victus Order #${orderId}`;
 
   // Use crossDocForwardKey for Square idempotency so distinct docs dedupe
   const idempotencyKey = `fp_${crossDocForwardKey}`.slice(0, 45);
 
-    // Calculate prep time and pickup window for POS integration
+    // Calculate prep time and delivery window for POS integration
     const deliveryTime = orderData.deliveryDate?._seconds ?
       new Date(orderData.deliveryDate._seconds * 1000) :
       new Date(Date.now() + 2 * 60 * 60 * 1000); // Default: 2 hours from now
 
-    // Prep time: 30 minutes before pickup (ISO 8601 duration format)
+    // Prep time: 30 minutes before delivery (ISO 8601 duration format)
     const prepTimeDuration = "PT30M";
-
-    // Pickup window: DoorDash picks up 30-60 mins before delivery
-    const pickupAt = new Date(deliveryTime.getTime() - 45 * 60 * 1000); // 45 mins before delivery
 
     const squareOrder = {
       idempotency_key: idempotencyKey,
@@ -2121,7 +2130,7 @@ async function forwardToSquareRestaurant(
         state: "OPEN",
         source: {
           // Mark as third-party delivery so it appears in correct POS category
-          name: orderType === "prep_forecast" ? "FreshPunk Prep Forecast" : "FreshPunk (Third Party Delivery)",
+          name: orderType === "prep_forecast" ? "Victus Prep Forecast" : "Victus (Third Party Delivery)",
         },
         line_items: meals.map((meal) => ({
           name: meal.name,
@@ -2142,23 +2151,56 @@ async function forwardToSquareRestaurant(
           modifiers: [],
           note: orderNote,
         })),
-        // Use PICKUP fulfillment instead of DELIVERY so it appears in POS prep queue
-        // Restaurant prepares food, DoorDash driver picks it up (from restaurant's perspective, it's a pickup)
+        // Use DELIVERY fulfillment type with customer details, address, and scheduled delivery time
+        // This matches what restaurants see in Square (customer recipient, delivery address, delivery time)
         fulfillments: orderType === "prep_forecast" ? [] : [
           {
-            type: "PICKUP",
-            // PROPOSED state makes order appear in active queue immediately
-            state: "PROPOSED",
-            pickup_details: {
-              // Scheduled pickup triggers kitchen prep workflow in POS
+            type: "DELIVERY",
+            // PREPARED state shows ready orders in the Orders section for pickup/delivery
+            state: "PREPARED",
+            delivery_details: {
+              // Scheduled delivery triggers kitchen prep workflow in POS
               schedule_type: "SCHEDULED",
-              pickup_at: pickupAt.toISOString(),
+              deliver_at: deliveryTime.toISOString(),
               prep_time_duration: prepTimeDuration,
               recipient: {
-                display_name: "DoorDash Driver (for " + (orderData.customerName || orderData.userEmail || "Customer") + ")",
+                // Display name - address shown separately in delivery_address object
+                display_name: orderData.customerName || orderData.userEmail || "Customer",
                 phone_number: orderData.customerPhone || undefined,
+                email_address: orderData.userEmail || undefined,
               },
-              note: `Third-party delivery order. Customer: ${orderData.customerName || orderData.userEmail || "N/A"}. Delivery address: ${orderData.deliveryAddress || "TBD"}. Expected pickup: ${pickupAt.toLocaleTimeString()}.`,
+              delivery_address: {
+                // Extract address fields safely - handle both object and string formats
+                address_line_1: (
+                  (typeof orderData.deliveryAddress === "object" ?
+                    orderData.deliveryAddress?.streetAddress :
+                    orderData.deliveryAddress) || ""
+                ).slice(0, 255),
+                address_line_2: (
+                  typeof orderData.deliveryAddress === "object" ?
+                    (orderData.deliveryAddress?.streetAddress2 || "") :
+                    ""
+                ).slice(0, 255),
+                locality: (
+                  typeof orderData.deliveryAddress === "object" ?
+                    (orderData.deliveryAddress?.city || "") :
+                    ""
+                ).slice(0, 255),
+                administrative_district_level_1: (
+                  typeof orderData.deliveryAddress === "object" ?
+                    (orderData.deliveryAddress?.state || "") :
+                    ""
+                ).slice(0, 10),
+                postal_code: (
+                  typeof orderData.deliveryAddress === "object" ?
+                    (orderData.deliveryAddress?.zipCode || "") :
+                    ""
+                ).slice(0, 10),
+                country: "US",
+              },
+              note: `Customer: ${orderData.customerName || orderData.userEmail || "N/A"}. Phone: ${orderData.customerPhone || "N/A"}. Special instructions: ${orderData.specialInstructions || "None"}. Expected delivery: ${deliveryTime.toLocaleTimeString()}.`,
+              // Set is_no_contact to enable contactless delivery option
+              is_no_contact: orderData.contactlessDelivery || false,
             },
           },
         ],
@@ -2166,18 +2208,36 @@ async function forwardToSquareRestaurant(
           {
             name: "Kitchen",
             // Note field appears on kitchen ticket printout
-            note: `🚗 DELIVERY ORDER - Ready by ${pickupAt.toLocaleTimeString()}\nCustomer: ${orderData.customerName || "N/A"}\nDeliver to: ${orderData.deliveryAddress || "TBD"}`,
+            note: `🚗 DELIVERY ORDER - Ready by ${deliveryTime.toLocaleTimeString()}\nCustomer: ${orderData.customerName || orderData.userEmail || "N/A"}\nPhone: ${orderData.customerPhone || "N/A"}\nDeliver to: ${orderData.deliveryAddress?.streetAddress || orderData.deliveryAddress || "TBD"}\nCity/State: ${orderData.deliveryAddress?.city || "TBD"}, ${orderData.deliveryAddress?.state || "TBD"} ${orderData.deliveryAddress?.zipCode || ""}\nSpecial instructions: ${orderData.specialInstructions || "None"}`,
           },
         ],
         metadata: {
           freshpunk_order_id: orderId,
           freshpunk_customer_id: orderData.userId,
           freshpunk_order_type: orderType,
-          delivery_address: orderData.deliveryAddress || "",
+          // Convert address object to string (Square metadata requires strings, not objects)
+          delivery_address: typeof orderData.deliveryAddress === "object" ?
+            `${orderData.deliveryAddress?.streetAddress || ""}, ${orderData.deliveryAddress?.city || ""}, ${orderData.deliveryAddress?.state || ""} ${orderData.deliveryAddress?.zipCode || ""}`.trim() :
+            (orderData.deliveryAddress || ""),
           customer_name: orderData.customerName || orderData.userEmail || "",
         },
       },
     };
+
+    // Log the address fields we're about to send to Square for debugging
+    const delivAddressObj = squareOrder.order.fulfillments?.[0]?.delivery_details?.delivery_address;
+    if (delivAddressObj) {
+      logger.info("DEBUG: Delivery address being sent to Square", {
+        orderId,
+        address_line_1: delivAddressObj.address_line_1,
+        address_line_2: delivAddressObj.address_line_2,
+        locality: delivAddressObj.locality,
+        administrative_district_level_1: delivAddressObj.administrative_district_level_1,
+        postal_code: delivAddressObj.postal_code,
+        country: delivAddressObj.country,
+        sourceDeliveryAddress: orderData.deliveryAddress,
+      });
+    }
 
     // Send to Square
     const response = await fetch(`${baseUrl}/v2/orders`, {

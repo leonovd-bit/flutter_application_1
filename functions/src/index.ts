@@ -25,6 +25,24 @@ initializeApp();
 // Export order generation and confirmation functions
 export {generateOrderFromMealSelection, sendOrderConfirmation, confirmNextOrder} from "./order-functions";
 
+// Export admin order management
+export {editOrder, manuallyForwardOrder} from "./admin-order-management";
+
+// Export fulfillment state management
+export {
+  updateFulfillmentState,
+  updateFulfillmentStateHttp,
+  syncOrderStatusToSquare,
+} from "./fulfillment-state-management";
+
+// Export Square delivery testing
+export {testSquareDeliveryConfig} from "./test-square-delivery";
+export {verifySquareAddresses} from "./verify-square-address";
+export {checkRestaurantSquareSetup} from "./check-restaurant-setup";
+export {searchRestaurants} from "./search-restaurants";
+export {listAllRestaurants} from "./list-restaurants";
+export {dumpAllRestaurants} from "./dump-restaurants";
+
 // (Removed) meal population function import
 // import {runPopulateMeals} from "./populate-meals";
 
@@ -54,6 +72,46 @@ export {
   manualOAuthEntry,
 } from "./manual-oauth-helper";
 
+// Export manual OAuth save (emergency fix)
+export {
+  manualOAuthSave,
+} from "./manual-oauth-save";
+
+// Export OAuth token refresh
+export {
+  refreshOAuthToken,
+} from "./refresh-oauth-token";
+
+// Export OAuth credential lookup
+export {
+  getRestaurantOAuthCredentials,
+} from "./get-oauth-credentials";
+
+// Export OAuth credential copy
+export {
+  copyOAuthCredentials,
+} from "./copy-oauth-credentials";
+
+// Export debug tools
+export {
+  debugRestaurantPartners,
+} from "./debug-restaurant-partners";
+
+// Export manual restaurant creation
+export {
+  manualCreateRestaurant,
+} from "./manual-create-restaurant";
+
+// Export database diagnostics
+export {
+  diagnoseDatabase,
+} from "./diagnose-database";
+
+// Export Firestore write test
+export {
+  testFirestoreWrite,
+} from "./test-firestore-write";
+
 // Export menu diagnostics
 export {
   checkMenuSyncStatus,
@@ -72,6 +130,8 @@ export {
 // Export restaurant notification functions
 export {
   notifyRestaurantsOnOrder,
+  notifyRestaurantsOnSubscription,
+  weeklyRestaurantScheduleReminder,
   sendRestaurantOrderNotification,
   registerRestaurantPartner,
   getRestaurantOrders,
@@ -1717,3 +1777,764 @@ export const geocodeAddress = onCall({
     throw new HttpsError("internal", "Geocode failed: " + (e.message || "unknown"));
   }
 });
+
+/**
+ * List meals available for a restaurant
+ * Used to identify which meal to use for test orders
+ */
+export const listRestaurantMeals = onRequest(
+  {region: "us-central1"},
+  async (request, response) => {
+    response.set("Access-Control-Allow-Origin", "*");
+    response.set("Access-Control-Allow-Methods", "GET");
+
+    try {
+      const restaurantId = request.query.restaurantId || "fd1JQwNpIesg7HOEMeCv";
+      const db = getFirestore();
+
+      const mealsSnapshot = await db.collection("meals")
+        .where("restaurantId", "==", restaurantId)
+        .limit(20)
+        .get();
+
+      const meals = mealsSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      response.status(200).json({
+        restaurantId,
+        mealCount: meals.length,
+        meals,
+        message: meals.length === 0 ? "No meals found for this restaurant" : "Meals retrieved successfully",
+      });
+    } catch (error: any) {
+      logger.error("listRestaurantMeals error:", error);
+      response.status(500).json({
+        error: "Failed to list meals",
+        details: error.message,
+      });
+    }
+  }
+);
+
+/**
+ * Create a one-time test order with all features
+ * HTTP endpoint for testing order flow end-to-end
+ */
+export const createTestOrder = onRequest(
+  {region: "us-central1", timeoutSeconds: 60},
+  async (request, response) => {
+    // Enable CORS
+    response.set("Access-Control-Allow-Origin", "*");
+    response.set("Access-Control-Allow-Methods", "POST, GET");
+    response.set("Access-Control-Allow-Headers", "Content-Type");
+
+    if (request.method === "OPTIONS") {
+      response.status(200).send();
+      return;
+    }
+
+    if (request.method !== "POST") {
+      response.status(400).json({error: "Use POST method"});
+      return;
+    }
+
+    try {
+      const {
+        restaurantId = "03z9XtW3zzbIzWbEReU0",
+        mealId,
+        customerName = "Test Customer",
+        customerPhone = "650-555-0123",
+        customerEmail = "test@victus.local",
+        streetAddress = "1500 Sand Hill Rd",
+        city = "Palo Alto",
+        state = "CA",
+        zipCode = "94304",
+        deliveryMinutes = 45,
+        specialInstructions = "Test order - no peanuts",
+        oneTimePrice = 24.99,
+      } = request.body;
+
+      const db = getFirestore();
+      const now = new Date();
+      const deliveryTime = new Date(now.getTime() + deliveryMinutes * 60 * 1000);
+
+      // Get meal details if mealId provided
+      let mealData: any = null;
+      if (mealId) {
+        const mealRef = db.collection("meals").doc(mealId);
+        const mealSnap = await mealRef.get();
+        if (!mealSnap.exists) {
+          logger.warn(`Meal ${mealId} not found`);
+          // Continue anyway - we'll use provided price
+        } else {
+          mealData = mealSnap.data();
+        }
+      }
+
+      // Create a test user if one doesn't exist
+      const testUserEmail = `test-${Date.now()}@victus.local`;
+      let userId: string;
+
+      try {
+        const auth = getAuth();
+        const userRecord = await auth.createUser({
+          email: testUserEmail,
+          password: "TestPassword123!",
+          displayName: customerName,
+        });
+        userId = userRecord.uid;
+        logger.info(`Created test user: ${userId}`);
+      } catch (authError: any) {
+        if (authError.code === "auth/email-already-exists") {
+          // Use existing user by looking up via email
+          const auth = getAuth();
+          const existingUser = await auth.getUserByEmail(testUserEmail);
+          userId = existingUser.uid;
+          logger.info(`Using existing test user: ${userId}`);
+        } else {
+          throw authError;
+        }
+      }
+
+      // Create customer address document
+      const addressRef = await db.collection("users").doc(userId).collection("addresses").add({
+        streetAddress,
+        city,
+        state,
+        zipCode,
+        isDefault: true,
+        label: "Test Address",
+        createdAt: FieldValue.serverTimestamp(),
+      });
+
+      // Create order with all required fields
+      const orderData: any = {
+        userId,
+        restaurantId,
+        customerName,
+        customerEmail,
+        customerPhone,
+        deliveryAddress: {
+          streetAddress,
+          city,
+          state,
+          zipCode,
+        },
+        specialInstructions,
+        items: [],
+        // Meal item - MUST include restaurantId for Square forwarding to work
+        // NOTE: squareItemId and squareVariationId MUST be non-empty strings for the filter to work!
+        meals: [
+          {
+            mealId: mealId || "test_meal",
+            restaurantId, // CRITICAL: Required for forwardOrderOnStatusUpdate filter
+            name: mealData?.name || "Test Meal",
+            price: mealData?.price || oneTimePrice,
+            quantity: 1,
+            // Use meal data if available, otherwise use fallback IDs for Victus test meal
+            squareItemId: mealData?.squareItemId || "RQYPV5GFZ4SE52S2DR4OTKLI",
+            squareVariationId: mealData?.squareVariationId || "3IYTE3IDQURVNOBMXLBXGPPQ",
+          },
+        ],
+        // Order type and pricing
+        orderType: "one_time_order",
+        totalAmount: oneTimePrice,
+        subtotal: oneTimePrice,
+        tax: 0,
+        deliveryFee: 0,
+        total: oneTimePrice,
+        // Delivery details
+        deliveryDate: Timestamp.fromDate(deliveryTime),
+        deliveryTime: deliveryTime.toISOString(),
+        addressId: addressRef.id,
+        // Status tracking - start with CONFIRMED so onDocumentCreated trigger picks it up
+        status: "confirmed",
+        paymentStatus: "test",
+        forwardedToSquare: false,
+        emailsSent: [],
+        // Metadata
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        notes: "Test order via endpoint",
+      };
+
+      // Save order to Firestore with confirmed status so forwardOrderToSquare triggers immediately
+      const orderRef = await db.collection("orders").add(orderData);
+      const orderId = orderRef.id;
+
+      logger.info(`Created test order ${orderId} for restaurant ${restaurantId} with status=confirmed`);
+
+      // Return success response with all details
+      response.status(200).json({
+        success: true,
+        orderId,
+        userId,
+        restaurantId,
+        customerDetails: {
+          name: customerName,
+          email: customerEmail,
+          phone: customerPhone,
+        },
+        deliveryDetails: {
+          address: `${streetAddress}, ${city}, ${state} ${zipCode}`,
+          time: deliveryTime.toISOString(),
+          minutes: deliveryMinutes,
+        },
+        priceDetails: {
+          mealPrice: oneTimePrice,
+          subtotal: oneTimePrice,
+          total: oneTimePrice,
+          paymentStatus: "test (no real charge)",
+        },
+        meals: mealId ? [
+          {
+            mealId,
+            name: mealData?.name || "Test Meal",
+            price: oneTimePrice,
+          },
+        ] : [],
+        message: "Test order created successfully. Order should appear in Square POS within seconds. Email notification sent to restaurant.",
+        squareCheckUrl: `Check your Square dashboard for order: ${orderId}`,
+        emailCheckUrl: "Check your email for restaurant notification",
+      });
+    } catch (error: any) {
+      logger.error("createTestOrder error:", error);
+      response.status(500).json({
+        error: "Failed to create test order",
+        details: error.message || "Unknown error",
+      });
+    }
+  }
+);
+
+/**
+ * Check restaurant's Square environment (production vs sandbox)
+ * Diagnostic to verify access token environment matches location
+ */
+export const checkSquareEnvironment = onRequest(
+  {region: "us-central1"},
+  async (request, response) => {
+    response.set("Access-Control-Allow-Origin", "*");
+
+    try {
+      const restaurantId = (request.query.restaurantId as string) || "fd1JQwNpIesg7HOEMeCv";
+      const db = getFirestore();
+
+      const restaurantRef = db.collection("restaurant_partners").doc(restaurantId);
+      const doc = await restaurantRef.get();
+
+      if (!doc.exists) {
+        response.status(404).json({error: "Restaurant not found"});
+        return;
+      }
+
+      const data = doc.data()!;
+      const accessToken = data.squareAccessToken;
+
+      if (!accessToken) {
+        response.status(400).json({error: "No access token"});
+        return;
+      }
+
+      // Try production first
+      const prodResponse = await fetch("https://connect.squareup.com/v2/locations", {
+        headers: {"Authorization": `Bearer ${accessToken}`},
+      });
+
+      // Try sandbox second
+      const sandboxResponse = await fetch("https://connect.squareupsandbox.com/v2/locations", {
+        headers: {"Authorization": `Bearer ${accessToken}`},
+      });
+
+      const prodWorks = prodResponse.ok;
+      const sandboxWorks = sandboxResponse.ok;
+
+      let environment = "UNKNOWN";
+      if (prodWorks && !sandboxWorks) environment = "PRODUCTION";
+      if (!prodWorks && sandboxWorks) environment = "SANDBOX";
+      if (prodWorks && sandboxWorks) environment = "BOTH (unusual)";
+
+      // Get location info from the working endpoint
+      let locations: any[] = [];
+      if (prodWorks) {
+        const data = await prodResponse.json() as any;
+        locations = data.locations || [];
+      } else if (sandboxWorks) {
+        const data = await sandboxResponse.json() as any;
+        locations = data.locations || [];
+      }
+
+      response.status(200).json({
+        restaurantId,
+        accessTokenEnvironment: environment,
+        productionWorks: prodWorks,
+        sandboxWorks: sandboxWorks,
+        locationsFound: locations.length,
+        locations: locations.map((loc: any) => ({
+          id: loc.id,
+          name: loc.name,
+        })),
+        message: `Access token is for ${environment}. Your Square location is PRODUCTION.`,
+      });
+    } catch (error: any) {
+      logger.error("checkSquareEnvironment error:", error);
+      response.status(500).json({
+        error: "Failed to check environment",
+        details: error.message,
+      });
+    }
+  }
+);
+
+/**
+ * List Square catalog items for a restaurant
+ * Used to get real Square item IDs for test orders
+ */
+export const listSquareCatalogItems = onRequest(
+  {
+    region: "us-central1",
+    secrets: [defineSecret("SQUARE_ENV")],
+  },
+  async (request, response) => {
+    response.set("Access-Control-Allow-Origin", "*");
+
+    try {
+      const restaurantId = (request.query.restaurantId as string) || "fd1JQwNpIesg7HOEMeCv";
+      const db = getFirestore();
+
+      // Get restaurant's Square credentials
+      const restaurantRef = db.collection("restaurant_partners").doc(restaurantId);
+      const restaurantSnap = await restaurantRef.get();
+
+      if (!restaurantSnap.exists) {
+        response.status(404).json({error: "Restaurant not found"});
+        return;
+      }
+
+      const restaurant = restaurantSnap.data()!;
+      const accessToken = restaurant.squareAccessToken;
+      const locationId = restaurant.squareLocationId || restaurant.squareMerchantId;
+
+      if (!accessToken) {
+        response.status(400).json({error: "Restaurant has no Square access token"});
+        return;
+      }
+
+      // Try both environments (sandbox first, then production)
+      let catalogResponse = await fetch(
+        "https://connect.squareupsandbox.com/v2/catalog/list",
+        {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      // If unauthorized in sandbox, try production
+      if (catalogResponse.status === 401) {
+        catalogResponse = await fetch("https://connect.squareup.com/v2/catalog/list", {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+        });
+      }
+
+      if (!catalogResponse.ok) {
+        const error = await catalogResponse.text();
+        logger.error("Square catalog error", {
+          status: catalogResponse.status,
+          error: error.substring(0, 200),
+        });
+        response.status(500).json({
+          error: "Failed to fetch Square catalog",
+          status: catalogResponse.status,
+          hint: "Make sure the access token is valid for the environment (sandbox or production)",
+        });
+        return;
+      }
+
+      const catalogData: any = await catalogResponse.json();
+      const items = (catalogData.objects || []).filter((item: any) => item.type === "ITEM");
+
+      logger.info("Square catalog fetched", {restaurantId, itemCount: items.length});
+
+      response.status(200).json({
+        success: true,
+        restaurantId,
+        locationId,
+        itemCount: items.length,
+        items: items.map((item: any) => ({
+          id: item.id,
+          name: item.item_data?.name,
+          description: item.item_data?.description,
+          variations: item.item_data?.variations?.map((v: any) => ({
+            id: v.id,
+            name: v.item_variation_data?.name,
+            price: v.item_variation_data?.price_money?.amount,
+            currency: v.item_variation_data?.price_money?.currency,
+          })),
+        })),
+        message: "Square catalog items retrieved successfully",
+      });
+    } catch (error: any) {
+      logger.error("listSquareCatalogItems error:", error);
+      response.status(500).json({
+        error: "Failed to list Square catalog items",
+        details: error.message || "Unknown error",
+      });
+    }
+  }
+);
+
+/**
+ * Create a test meal for a restaurant
+ * Helper function to populate meals for testing
+ */
+export const createTestMeal = onRequest(
+  {region: "us-central1"},
+  async (request, response) => {
+    response.set("Access-Control-Allow-Origin", "*");
+    response.set("Access-Control-Allow-Methods", "POST");
+
+    if (request.method !== "POST") {
+      response.status(400).json({error: "Use POST method"});
+      return;
+    }
+
+    try {
+      const {
+        restaurantId = "fd1JQwNpIesg7HOEMeCv",
+        name = "Grilled Salmon with Vegetables",
+        description = "Fresh Atlantic salmon with seasonal vegetables and quinoa",
+        price = 24.99,
+        squareItemId = "VICTUS_SALMON_001",
+        squareVariationId = "VICTUS_SALMON_001_VAR",
+      } = request.body;
+
+      const db = getFirestore();
+
+      const mealRef = await db.collection("meals").add({
+        restaurantId,
+        name,
+        description,
+        price,
+        calories: 450,
+        protein: 35,
+        prepTime: 15,
+        squareItemId,
+        squareVariationId,
+        imageUrl: "https://via.placeholder.com/300x300?text=Salmon",
+        active: true,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      logger.info(`Created test meal ${mealRef.id} for restaurant ${restaurantId}`);
+
+      response.status(200).json({
+        success: true,
+        mealId: mealRef.id,
+        restaurantId,
+        mealDetails: {
+          name,
+          description,
+          price,
+          squareItemId,
+          squareVariationId,
+        },
+        message: "Test meal created successfully. Use this mealId for test orders.",
+      });
+    } catch (error: any) {
+      logger.error("createTestMeal error:", error);
+      response.status(500).json({
+        error: "Failed to create test meal",
+        details: error.message || "Unknown error",
+      });
+    }
+  }
+);
+
+/**
+ * Check raw order document to debug address issues
+ */
+export const debugOrderData = onRequest(
+  {region: "us-central1"},
+  async (request, response) => {
+    response.set("Access-Control-Allow-Origin", "*");
+
+    try {
+      const orderId = request.query.orderId as string;
+      if (!orderId) {
+        response.status(400).json({error: "orderId query parameter required"});
+        return;
+      }
+
+      const db = getFirestore();
+      const orderDoc = await db.collection("orders").doc(orderId).get();
+
+      if (!orderDoc.exists) {
+        response.status(404).json({error: `Order ${orderId} not found`});
+        return;
+      }
+
+      const order = orderDoc.data()!;
+
+      response.status(200).json({
+        orderId,
+        customerName: order.customerName,
+        customerPhone: order.customerPhone,
+        customerEmail: order.userEmail,
+        deliveryAddress: order.deliveryAddress,
+        deliveryAddressType: typeof order.deliveryAddress,
+        deliveryAddressKeys: order.deliveryAddress ? Object.keys(order.deliveryAddress) : [],
+        meals: order.meals ? order.meals.map((m: any) => ({
+          name: m.name,
+          restaurantId: m.restaurantId,
+          squareItemId: m.squareItemId,
+        })) : [],
+        squareOrders: order.squareOrders,
+      });
+    } catch (error: any) {
+      logger.error("debugOrderData error:", error);
+      response.status(500).json({
+        error: "Failed to debug order",
+        details: error.message,
+      });
+    }
+  }
+);
+
+/**
+ * Get the most recent test orders with their Square forwarding status
+ */
+export const getRecentOrders = onRequest(
+  {region: "us-central1"},
+  async (request, response) => {
+    response.set("Access-Control-Allow-Origin", "*");
+
+    try {
+      const db = getFirestore();
+      const limit = parseInt(request.query.limit as string) || 5;
+
+      // Get the most recent orders
+      const orderDocs = await db.collection("orders")
+        .orderBy("createdAt", "desc")
+        .limit(limit)
+        .get();
+
+      const orders = orderDocs.docs.map((doc) => {
+        const data = doc.data();
+        const sq = data.squareOrders?.[data.restaurantId];
+        return {
+          orderId: doc.id,
+          status: data.status,
+          customerName: data.customerName,
+          createdAt: data.createdAt?.toDate?.() || data.createdAt,
+          restaurantId: data.restaurantId,
+          squareStatus: sq?.status || "not_forwarded",
+          squareOrderId: sq?.squareOrderId || null,
+          squareError: sq?.lastError || null,
+          mealCount: (data.meals || []).length,
+          meals: data.meals ? data.meals.map((m: any) => ({
+            name: m.name,
+            squareItemId: m.squareItemId,
+            squareVariationId: m.squareVariationId,
+            restaurantId: m.restaurantId,
+          })) : [],
+        };
+      });
+
+      response.status(200).json({
+        count: orders.length,
+        orders,
+      });
+    } catch (error: any) {
+      logger.error("getRecentOrders error:", error);
+      response.status(500).json({
+        error: "Failed to get recent orders",
+        details: error.message,
+      });
+    }
+  }
+);
+
+/**
+ * Check order status in Firestore
+ * See what happened during order forwarding
+ */
+export const checkOrderStatus = onRequest(
+  {region: "us-central1"},
+  async (request, response) => {
+    response.set("Access-Control-Allow-Origin", "*");
+
+    try {
+      const orderId = request.query.orderId as string;
+      if (!orderId) {
+        response.status(400).json({error: "orderId query parameter required"});
+        return;
+      }
+
+      const db = getFirestore();
+      const orderDoc = await db.collection("orders").doc(orderId).get();
+
+      if (!orderDoc.exists) {
+        response.status(404).json({error: `Order ${orderId} not found`});
+        return;
+      }
+
+      const order = orderDoc.data()!;
+      const {
+        status,
+        restaurantId,
+        customerName,
+        squareOrders,
+        createdAt,
+        updatedAt,
+      } = order;
+
+      response.status(200).json({
+        orderId,
+        status,
+        restaurantId,
+        customerName,
+        createdAt: createdAt?.toDate?.() || createdAt,
+        updatedAt: updatedAt?.toDate?.() || updatedAt,
+        squareOrders: squareOrders || {noting: "No square orders yet"},
+      });
+    } catch (error: any) {
+      logger.error("checkOrderStatus error:", error);
+      response.status(500).json({
+        error: "Failed to check order",
+        details: error.message,
+      });
+    }
+  }
+);
+
+/**
+ * Test Square API order creation directly
+ * Helps diagnose why orders aren't appearing in Square dashboard
+ */
+export const testSquareOrderCreation = onRequest(
+  {region: "us-central1"},
+  async (request, response) => {
+    response.set("Access-Control-Allow-Origin", "*");
+
+    try {
+      const restaurantId = (request.query.restaurantId as string) || "fd1JQwNpIesg7HOEMeCv";
+      const db = getFirestore();
+
+      // Get restaurant Square credentials
+      const restaurantDoc = await db.collection("restaurant_partners").doc(restaurantId).get();
+      if (!restaurantDoc.exists) {
+        response.status(404).json({error: "Restaurant not found"});
+        return;
+      }
+
+      const restaurant = restaurantDoc.data()!;
+      const accessToken = restaurant.squareAccessToken;
+      const locationId = restaurant.squareLocationId || restaurant.squareMerchantId;
+
+      if (!accessToken) {
+        response.status(400).json({error: "No access token for restaurant"});
+        return;
+      }
+
+      // Test minimal Square order creation
+      const testOrder = {
+        idempotency_key: `test_${Date.now()}`,
+        order: {
+          location_id: locationId,
+          reference_id: `test_${Date.now()}`,
+          state: "OPEN",
+          line_items: [
+            {
+              name: "Test Item",
+              quantity: "1",
+              catalog_object_id: "3IYTE3IDQURVNOBMXLBXGPPQ", // Real variation ID from Victus
+              base_price_money: {
+                amount: 1499, // $14.99 in cents
+                currency: "USD",
+              },
+            },
+          ],
+        },
+      };
+
+      // Test BOTH environments
+      const prodUrl = "https://connect.squareup.com/v2/orders";
+      const sandboxUrl = "https://connect.squareupsandbox.com/v2/orders";
+
+      const prodTest = await fetch(prodUrl, {
+        method: "POST",
+        headers: {
+          "Square-Version": "2023-10-18",
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(testOrder),
+      });
+
+      const sandboxTest = await fetch(sandboxUrl, {
+        method: "POST",
+        headers: {
+          "Square-Version": "2023-10-18",
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(testOrder),
+      });
+
+      const prodData = prodTest.ok ? await prodTest.json() : await prodTest.text();
+      const sandboxData = sandboxTest.ok ? await sandboxTest.json() : await sandboxTest.text();
+
+      response.status(200).json({
+        restaurantId,
+        locationId,
+        testCredentials: {
+          hasAccessToken: !!accessToken,
+          accessTokenLength: (accessToken || "").length,
+        },
+        production: {
+          endpoint: prodUrl,
+          status: prodTest.status,
+          statusText: prodTest.statusText,
+          success: prodTest.ok,
+          data: prodTest.ok ? {
+            orderId: (prodData as any).order?.id,
+            state: (prodData as any).order?.state,
+          } : {
+            error: typeof prodData === "string" ? prodData.substring(0, 200) : prodData,
+          },
+        },
+        sandbox: {
+          endpoint: sandboxUrl,
+          status: sandboxTest.status,
+          statusText: sandboxTest.statusText,
+          success: sandboxTest.ok,
+          data: sandboxTest.ok ? {
+            orderId: (sandboxData as any).order?.id,
+            state: (sandboxData as any).order?.state,
+          } : {
+            error: typeof sandboxData === "string" ? sandboxData.substring(0, 200) : sandboxData,
+          },
+        },
+        recommendation: prodTest.ok ? "✅ Production API working - orders SHOULD appear in Square" :
+                       sandboxTest.ok ? "⚠️ Only sandbox API working - access token may be for sandbox" :
+                       "❌ Neither API working - check access token and location ID",
+      });
+    } catch (error: any) {
+      logger.error("testSquareOrderCreation error:", error);
+      response.status(500).json({
+        error: "Test failed",
+        details: error.message,
+      });
+    }
+  }
+);

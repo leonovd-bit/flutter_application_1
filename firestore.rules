@@ -260,6 +260,8 @@ service cloud.firestore {
     }
 
     match /restaurant_partners/{partnerId} {
+      // Cloud Functions (backend) can always read/write
+      allow read, write: if request.auth.uid == null && request.auth == null;
       // Restaurant partners can read/update their own data
       allow read, update: if isAuthenticated() && isOwner(resource.data.userId);
       // System and admins can create/read all
