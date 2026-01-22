@@ -55,17 +55,34 @@ void main() async {
   }
 
   // Initialize Firebase App Check
+  // Use debug provider for debug builds, PlayIntegrity for release
   try {
     await FirebaseAppCheck.instance.activate(
       androidProvider: kDebugMode 
-        ? AndroidProvider.debug 
-        : AndroidProvider.playIntegrity,
-      appleProvider: kDebugMode
-        ? AppleProvider.debug
-        : AppleProvider.appAttest,
-      webProvider: ReCaptchaV3Provider('recaptcha-v3-site-key'),
+          ? AndroidProvider.debug 
+          : AndroidProvider.playIntegrity,
+      appleProvider: AppleProvider.appAttest,
+      webProvider: ReCaptchaV3Provider(
+        const String.fromEnvironment('RECAPTCHA_V3_SITE_KEY', defaultValue: '6LeXESUsAAAAAHIJVzvwn6REDCin8xDeADt7lyYU'),
+      ),
     );
-    debugPrint('[AppCheck] Initialized successfully');
+    debugPrint('[AppCheck] Initialized successfully with ${kDebugMode ? "Debug" : "PlayIntegrity"} provider');
+    
+    // Get and print debug token for registration in Firebase Console (debug builds only)
+    if (kDebugMode && !kIsWeb) {
+      // Wait a moment for debug token to be generated
+      await Future.delayed(const Duration(seconds: 2));
+      try {
+        // Get debug token
+        await FirebaseAppCheck.instance.getToken();
+        debugPrint('[AppCheck] ⚠️ To get debug token, check logcat:');
+        debugPrint('[AppCheck]   Run: adb logcat | grep -i "FirebaseAppCheck"');
+        debugPrint('[AppCheck]   Or check Android Studio Logcat for "FirebaseAppCheck" tag');
+        debugPrint('[AppCheck]   Then register it in Firebase Console > App Check > Manage debug tokens');
+      } catch (e) {
+        debugPrint('[AppCheck] Token error: $e');
+      }
+    }
   } catch (e) {
     debugPrint('[AppCheck] Initialization error: $e');
   }

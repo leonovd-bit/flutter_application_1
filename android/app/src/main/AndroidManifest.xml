@@ -55,6 +55,11 @@
             android:name="google_analytics_automatic_screen_reporting_enabled"
             android:value="false" />
         
+        <!-- Disable App Check enforcement for debug builds -->
+        <meta-data
+            android:name="com.google.firebase.app_check.debug_provider_enabled"
+            android:value="true" />
+        
         <!-- Google Maps API Key -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"

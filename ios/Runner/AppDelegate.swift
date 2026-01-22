@@ -8,8 +8,8 @@ import GoogleMaps
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    // Initialize Google Maps with API key
-    GMSServices.provideAPIKey("AIzaSyBimaxeeZSfAl5Rp1bqP3x9G6dcQWJ8thE")
+    // Initialize Google Maps with Victus-specific API key
+    GMSServices.provideAPIKey("AIzaSyCo8B9rp5xliWRtybccAt-_8YcCuswBMrs")
     
     GeneratedPluginRegistrant.register(with: self)
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)

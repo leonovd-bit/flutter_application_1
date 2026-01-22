@@ -59,13 +59,13 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyD9cpvMjyWUXcXfiqNv0ZpavDBgxmLV9x4',
+    apiKey: 'AIzaSyCo8B9rp5xliWRtybccAt-_8YcCuswBMrs',
     appId: '1:433852717304:ios:7d8efe18144cb9f6c0c30d',
     messagingSenderId: '433852717304',
     projectId: 'freshpunk-48db1',
   storageBucket: 'freshpunk-48db1.appspot.com',
-    iosClientId: '433852717304-p815a2ucaro6nfatcuqio7qcgp8gu1jn.apps.googleusercontent.com',
-    iosBundleId: 'com.example.flutterApplication1',
+    iosClientId: '433852717304-44jd1544anfsqfvpsq9ie9kb5hs5n0v5.apps.googleusercontent.com',
+    iosBundleId: 'com.Victus.flutterApplication1',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(

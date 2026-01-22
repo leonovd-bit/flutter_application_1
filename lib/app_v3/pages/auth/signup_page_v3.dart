@@ -1,4 +1,5 @@
 import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -712,7 +713,7 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                 const SizedBox(height: 16),
                 
                 // Apple Sign Up Button (iOS only)
-                if (Platform.isIOS)
+                if (!kIsWeb && Platform.isIOS)
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
@@ -737,7 +738,7 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
                     ),
                   ),
                 
-                if (Platform.isIOS) const SizedBox(height: 16),
+                if (!kIsWeb && Platform.isIOS) const SizedBox(height: 16),
                 
                 const SizedBox(height: 8),
               ],

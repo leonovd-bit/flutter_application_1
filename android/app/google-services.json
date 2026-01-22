@@ -18,7 +18,7 @@
           "client_type": 1,
           "android_info": {
             "package_name": "com.example.flutter_application_1",
-            "certificate_hash": "51111053a42522c26396d58594c3097b582a585b"
+            "certificate_hash": "b1668c2286658081137da958727ba5b8d9aadfa8"
           }
         },
         {
@@ -26,7 +26,7 @@
           "client_type": 1,
           "android_info": {
             "package_name": "com.example.flutter_application_1",
-            "certificate_hash": "ea5d4fbdbb999692f37807e1367e6c73070d1c25"
+            "certificate_hash": "b1668c2286658081137da958727ba5b8d9aadfa8"
           }
         },
         {
@@ -34,7 +34,7 @@
           "client_type": 1,
           "android_info": {
             "package_name": "com.example.flutter_application_1",
-            "certificate_hash": "91199ee378745c9312a4221b19c852550cf726dd"
+            "certificate_hash": "b1668c2286658081137da958727ba5b8d9aadfa8"
           }
         },
         {

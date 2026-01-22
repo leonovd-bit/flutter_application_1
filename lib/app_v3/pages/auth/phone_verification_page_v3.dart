@@ -133,8 +133,6 @@ class _PhoneVerificationPageV3State extends State<PhoneVerificationPageV3> {
       // Update Firestore with phone verification
       await PhoneVerificationService.instance.updateUserProfilePhone();
       print('[PhoneVerification] Firestore updated');
-
-      _hasNavigated = true;
       
       if (mounted) {
         // Show success message

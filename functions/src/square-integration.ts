@@ -17,12 +17,8 @@ import * as crypto from "crypto";
 const SQUARE_APPLICATION_ID = defineSecret("SQUARE_APPLICATION_ID");
 const SQUARE_APPLICATION_SECRET = defineSecret("SQUARE_APPLICATION_SECRET");
 const SQUARE_ENV = defineSecret("SQUARE_ENV");
-// DoorDash API credentials via Firebase Secret Manager
-const DOORDASH_DEVELOPER_ID = defineSecret("DOORDASH_DEVELOPER_ID");
-const DOORDASH_KEY_ID = defineSecret("DOORDASH_KEY_ID");
-const DOORDASH_SIGNING_SECRET = defineSecret("DOORDASH_SIGNING_SECRET");
 
-function getSquareConfig() {
+export function getSquareConfig() {
   const rawEnv = SQUARE_ENV.value();
   const env = (rawEnv ? rawEnv.trim() : "sandbox").toLowerCase();
   const appId = SQUARE_APPLICATION_ID.value();
@@ -1366,14 +1362,11 @@ export const forwardOrderToSquare = onDocumentCreated(
     memory: "1GiB",
     timeoutSeconds: 300,
     region: "us-east4",
-    // Include secrets so getSquareConfig() and DoorDash integration can access them without warnings
+    // Include secrets so getSquareConfig() can access them without warnings
     secrets: [
       SQUARE_APPLICATION_ID,
       SQUARE_APPLICATION_SECRET,
       SQUARE_ENV,
-      DOORDASH_DEVELOPER_ID,
-      DOORDASH_KEY_ID,
-      DOORDASH_SIGNING_SECRET,
     ],
   },
   async (event: any) => {
@@ -1445,9 +1438,6 @@ export const forwardOrderOnStatusUpdate = onDocumentUpdated(
       SQUARE_APPLICATION_ID,
       SQUARE_APPLICATION_SECRET,
       SQUARE_ENV,
-      DOORDASH_DEVELOPER_ID,
-      DOORDASH_KEY_ID,
-      DOORDASH_SIGNING_SECRET,
     ],
   },
   async (event: any) => {
@@ -1564,7 +1554,7 @@ const DISPATCH_BATCH_SIZE = Number(process.env.FP_DISPATCH_BATCH_SIZE || 20);
 
 /**
  * Promote user-confirmed orders to confirmed status when dispatch window opens.
- * This defers Square/Doordash handoff until roughly an hour before delivery.
+ * This defers Square order creation until roughly an hour before delivery.
  */
 export const dispatchConfirmedOrders = onSchedule({
   schedule: "every 5 minutes",
@@ -1716,185 +1706,12 @@ async function cancelSquareOrder(
 }
 
 // ============================================================================
-// DOORDASH DELIVERY INTEGRATION
+// SAUSE DELIVERY INTEGRATION
 // ============================================================================
-
-/**
- * Create a DoorDash delivery request after order payment succeeds
- * @param {string} orderId - FreshPunk order ID
- * @param {string} restaurantId - Restaurant ID
- * @param {any[]} meals - Array of meal items
- * @param {any} orderData - Complete order data with delivery address
- * @param {string} squareOrderId - Square order ID (for reference)
- * @return {Promise<any>} Promise with delivery result
- */
-async function createDoorDashDelivery(
-  orderId: string,
-  restaurantId: string,
-  meals: any[],
-  orderData: any,
-  squareOrderId: string
-): Promise<{success: boolean; deliveryId?: string; trackingUrl?: string; status?: string; error?: string}> {
-  try {
-    // Get DoorDash credentials from Firebase Secrets
-    const doorDashDevId = DOORDASH_DEVELOPER_ID.value();
-    const doorDashKeyId = DOORDASH_KEY_ID.value();
-    const doorDashSecret = DOORDASH_SIGNING_SECRET.value();
-
-    if (!doorDashDevId || !doorDashKeyId || !doorDashSecret) {
-      logger.warn("DoorDash credentials not configured", {orderId, restaurantId});
-      return {
-        success: false,
-        error: "DoorDash credentials not configured",
-      };
-    }
-
-    // Extract delivery address from orderData
-    const deliveryAddress = orderData.deliveryAddress || orderData.address || {};
-    const pickupAddress = {
-      street: "Kitchen",
-      city: "San Francisco",
-      state: "CA",
-      zip: "94102",
-      country: "US",
-    };
-
-    // Calculate order total
-    const totalPrice = meals.reduce((sum: number, meal: any) => {
-      return sum + (Number(meal.price) * 100 || 0); // Convert to cents
-    }, 0);
-
-    const deliveryPayload = {
-      external_delivery_id: squareOrderId,
-      locale: "en-US",
-      order_fulfillment_method: "delivery",
-      origin_facility_id: "victus_kitchen_001",
-      pickup_address: pickupAddress,
-      pickup_business_name: "Victus Kitchen",
-      pickup_phone_number: "+1-415-555-0100",
-      pickup_instructions: "Ready for pickup at kitchen entrance",
-      pickup_time: new Date(Date.now() + 10 * 60000).toISOString(),
-      dropoff_address: {
-        street: deliveryAddress.streetAddress || "Unknown",
-        city: deliveryAddress.city || "San Francisco",
-        state: deliveryAddress.state || "CA",
-        zip: deliveryAddress.zipCode || "94102",
-        country: "US",
-      },
-      dropoff_business_name: orderData.customerName || "Customer",
-      dropoff_phone_number: orderData.customerPhone || "+1-555-0000",
-      dropoff_instructions: orderData.specialInstructions || "Leave at door",
-      dropoff_cash_on_delivery: 0,
-      order_value: totalPrice,
-      items: meals.map((meal: any) => ({
-        name: meal.name || "Meal",
-        description: meal.description || "",
-        quantity: 1,
-        price: Number(meal.price) * 100 || 0,
-      })),
-      pickup_window: {
-        start_time: new Date(Date.now() + 5 * 60000).toISOString(),
-        end_time: new Date(Date.now() + 20 * 60000).toISOString(),
-      },
-      dropoff_window: {
-        start_time: new Date(Date.now() + 30 * 60000).toISOString(),
-        end_time: new Date(Date.now() + 90 * 60000).toISOString(),
-      },
-      contactless_dropoff: true,
-      action_if_undeliverable: "return_to_pickup",
-      tip: 500, // $5.00 tip
-    };
-
-    // Generate JWT token for DoorDash authentication
-    const now = Math.floor(Date.now() / 1000);
-    const exp = now + 3600;
-
-    const header = {
-      "alg": "HS256",
-      "typ": "JWT",
-      "dd-ver": "DD-JWT-V1",
-    };
-
-    const payload = {
-      aud: "doordash",
-      iss: doorDashDevId,
-      kid: doorDashKeyId,
-      exp,
-      iat: now,
-    };
-
-    // JWT encoding
-    const base64 = (obj: any) =>
-      Buffer.from(JSON.stringify(obj)).toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
-
-    const headerB64 = base64(header);
-    const payloadB64 = base64(payload);
-    const signatureInput = `${headerB64}.${payloadB64}`;
-
-    // Sign with HMAC-SHA256
-    const signature = crypto
-      .createHmac("sha256", doorDashSecret)
-      .update(signatureInput)
-      .digest("base64")
-      .replace(/=/g, "")
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_");
-
-    const jwtToken = `${signatureInput}.${signature}`;
-
-    // Call DoorDash API to create delivery
-    const response = await fetch("https://openapi.doordash.com/drive/v2/deliveries", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${jwtToken}`,
-        "Content-Type": "application/json",
-        "User-Agent": "Victus/1.0",
-      },
-      body: JSON.stringify(deliveryPayload),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.error("DoorDash delivery creation failed", {
-        orderId,
-        restaurantId,
-        squareOrderId,
-        status: response.status,
-        error: errorText.slice(0, 500),
-      });
-      return {
-        success: false,
-        error: `DoorDash API error: ${response.status}`,
-      };
-    }
-
-    const deliveryData = await response.json() as any;
-    logger.info("DoorDash delivery created", {
-      orderId,
-      restaurantId,
-      squareOrderId,
-      deliveryId: deliveryData.delivery_id,
-      status: deliveryData.delivery_status,
-    });
-
-    return {
-      success: true,
-      deliveryId: deliveryData.delivery_id || "",
-      trackingUrl: deliveryData.tracking_url || "",
-      status: deliveryData.delivery_status || "created",
-    };
-  } catch (error: any) {
-    logger.error("DoorDash delivery creation threw", {
-      orderId,
-      restaurantId,
-      error: error.message,
-    });
-    return {
-      success: false,
-      error: error.message,
-    };
-  }
-}
+// Sause delivery is integrated with the kitchen's Square account.
+// When an order is created in Square with delivery details, the kitchen
+// can mark it as ready in their Square dashboard, which automatically
+// triggers Sause to dispatch a driver. No additional API integration needed.
 
 /**
  * Forward order to specific Square restaurant
@@ -2302,59 +2119,15 @@ async function forwardToSquareRestaurant(
                 paidAmount: paymentData.payment?.amount_money?.amount,
               });
 
-              // ==================== DOORDASH DELIVERY INTEGRATION ====================
-              // Create a delivery request with DoorDash after successful payment
-              try {
-                const deliveryResult = await createDoorDashDelivery(
-                  orderId,
-                  restaurantId,
-                  meals,
-                  orderData,
-                  squareOrderId
-                );
-                if (deliveryResult.success) {
-                  logger.info("DoorDash delivery created successfully", {
-                    orderId,
-                    restaurantId,
-                    squareOrderId,
-                    doorDashDeliveryId: deliveryResult.deliveryId,
-                    trackingUrl: deliveryResult.trackingUrl,
-                  });
-                  // Store delivery info in order document
-                  try {
-                    await db.collection("orders").doc(orderId).update({
-                      [`squareOrders.${restaurantId}.doorDashDeliveryId`]: deliveryResult.deliveryId,
-                      [`squareOrders.${restaurantId}.doorDashTrackingUrl`]: deliveryResult.trackingUrl,
-                      [`squareOrders.${restaurantId}.doorDashStatus`]: deliveryResult.status,
-                      updatedAt: FieldValue.serverTimestamp(),
-                    });
-                    // Initialize lightweight tracking document for client live map
-                    await db.collection("order_tracking").doc(orderId).set({
-                      orderId,
-                      doorDashDeliveryId: deliveryResult.deliveryId,
-                      status: deliveryResult.status,
-                      driverLat: null,
-                      driverLng: null,
-                      createdAt: FieldValue.serverTimestamp(),
-                      updatedAt: FieldValue.serverTimestamp(),
-                    }, {merge: true});
-                  } catch (_) {/* ignore update failure */}
-                } else {
-                  logger.warn("DoorDash delivery creation failed", {
-                    orderId,
-                    restaurantId,
-                    squareOrderId,
-                    error: deliveryResult.error,
-                  });
-                }
-              } catch (e: any) {
-                logger.warn("DoorDash delivery creation threw", {
-                  orderId,
-                  restaurantId,
-                  squareOrderId,
-                  error: e?.message,
-                });
-              }
+              // ==================== SAUSE DELIVERY INTEGRATION ====================
+              // Sause is integrated with the kitchen's Square account
+              // Kitchen marks order as ready in Square, Sause automatically dispatches driver
+              logger.info("Order created in Square for kitchen dispatch", {
+                orderId,
+                restaurantId,
+                squareOrderId,
+                note: "Kitchen will mark ready in Square, triggering Sause dispatch",
+              });
             } else {
               const text = await createPaymentResp.text().catch(() => "<no-body>");
               logger.error("Square CreatePayment (EXTERNAL) failed", {
@@ -3124,7 +2897,7 @@ function levenshteinDistance(str1: string, str2: string): number {
 
 /**
  * Handle Square Webhook events for order.created and order.updated
- * Automatically triggers DoorDash delivery for POS orders
+ * Automatically routes POS orders to the kitchen's Square account for dispatch via Sause
  */
 export const squareWebhookHandler = onRequest(
   {secrets: [SQUARE_APPLICATION_SECRET, SQUARE_APPLICATION_ID, SQUARE_ENV]},
@@ -3254,7 +3027,7 @@ export const squareWebhookHandler = onRequest(
           price: Number(item.gross_sales_money?.amount || 0) / 100, // Convert cents to dollars
         }));
 
-        // Build order data for DoorDash
+        // Build order data for Sause delivery (via kitchen's Square account)
         const orderData = {
           customerName: delivery?.delivery_details?.recipient?.display_name || "Customer",
           customerPhone: delivery?.delivery_details?.recipient?.phone_number || "+1-555-0000",
@@ -3274,58 +3047,30 @@ export const squareWebhookHandler = onRequest(
           meals: meals.length,
         });
 
-        // Create DoorDash delivery (reuse existing function)
-        const deliveryResult = await createDoorDashDelivery(
-          squareOrderId, // Use Square order ID as reference
-          locationId, // Use location ID as restaurant ID
-          meals,
-          orderData,
-          squareOrderId // Square order ID for reference
+        // Sause delivery handled by kitchen through their Square integration
+        // Kitchen marks order as ready in Square, Sause automatically dispatches
+        logger.info("Square POS order ready for kitchen dispatch via Sause", {
+          squareOrderId,
+          locationId,
+          note: "Kitchen will mark ready in Square, triggering Sause dispatch",
+        });
+
+        // Store order for tracking (without DoorDash integration)
+        await db.collection("square_pos_orders").doc(squareOrderId).set(
+          {
+            squareOrderId,
+            locationId,
+            totalAmount,
+            customerEmail,
+            meals,
+            orderData,
+            processedAt: FieldValue.serverTimestamp(),
+            status: "order_created",
+            deliveryProvider: "sause",
+            note: "Kitchen manages dispatch through their Square/Sause integration",
+          },
+          {merge: true}
         );
-
-        if (deliveryResult.success) {
-          logger.info("DoorDash delivery created from Square webhook", {
-            squareOrderId,
-            doorDashDeliveryId: deliveryResult.deliveryId,
-            trackingUrl: deliveryResult.trackingUrl,
-          });
-
-          // Store in Firestore for tracking
-          await db.collection("square_pos_orders").doc(squareOrderId).set(
-            {
-              squareOrderId,
-              locationId,
-              totalAmount,
-              doorDashDeliveryId: deliveryResult.deliveryId,
-              doorDashTrackingUrl: deliveryResult.trackingUrl,
-              doorDashStatus: deliveryResult.status,
-              customerEmail,
-              meals,
-              orderData,
-              processedAt: FieldValue.serverTimestamp(),
-              status: "delivery_created",
-            },
-            {merge: true}
-          );
-        } else {
-          logger.error("Failed to create DoorDash delivery from Square webhook", {
-            squareOrderId,
-            error: deliveryResult.error,
-          });
-
-          // Store failed attempt
-          await db.collection("square_pos_orders").doc(squareOrderId).set(
-            {
-              squareOrderId,
-              locationId,
-              totalAmount,
-              failedDeliveryAttempt: FieldValue.serverTimestamp(),
-              failureReason: deliveryResult.error,
-              status: "delivery_failed",
-            },
-            {merge: true}
-          );
-        }
       }
 
       // Always return 200 to acknowledge receipt
@@ -3339,220 +3084,9 @@ export const squareWebhookHandler = onRequest(
 );
 
 // ============================================================================
-// DOORDASH DELIVERY POLLING (Interim until webhooks implemented)
+// SAUSE DELIVERY MANAGEMENT
 // ============================================================================
-// Poll active DoorDash deliveries and update driver location + status for client tracking.
-export const pollDoorDashDeliveries = onSchedule({
-  // Run every 2 minutes; adjust as needed for rate limits.
-  schedule: "every 2 minutes",
-  timeZone: "Etc/UTC",
-  secrets: [DOORDASH_DEVELOPER_ID, DOORDASH_KEY_ID, DOORDASH_SIGNING_SECRET],
-}, async () => {
-  try {
-    const db = getFirestore();
-    const doorDashDevId = DOORDASH_DEVELOPER_ID.value();
-    const doorDashKeyId = DOORDASH_KEY_ID.value();
-    const doorDashSecret = DOORDASH_SIGNING_SECRET.value();
+// Sause delivery is handled entirely through the kitchen's Square integration
+// No polling or webhooks needed from our backend
+// Kitchen marks orders as ready in Square → Sause automatically dispatches driver
 
-    if (!doorDashDevId || !doorDashKeyId || !doorDashSecret) {
-      logger.warn("pollDoorDashDeliveries missing credentials; skipping run");
-      return;
-    }
-
-    // Active statuses (non-terminal). These will be updated until delivered/canceled.
-    const activeStatuses = ["created", "assigned", "picked_up", "en_route"];
-    const trackingSnap = await db.collection("order_tracking")
-      .where("status", "in", activeStatuses)
-      .limit(50) // safety cap
-      .get();
-
-    if (trackingSnap.empty) {
-      logger.debug("pollDoorDashDeliveries: no active deliveries");
-      return;
-    }
-
-    const now = Math.floor(Date.now() / 1000);
-    const exp = now + 3600;
-    const header = {"alg": "HS256", "typ": "JWT", "dd-ver": "DD-JWT-V1"};
-    const payload = {aud: "doordash", iss: doorDashDevId, kid: doorDashKeyId, exp, iat: now};
-    const base64 = (obj: any) => Buffer.from(JSON.stringify(obj)).toString("base64")
-      .replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
-    const headerB64 = base64(header);
-    const payloadB64 = base64(payload);
-    const signatureInput = `${headerB64}.${payloadB64}`;
-    const signature = crypto.createHmac("sha256", doorDashSecret)
-      .update(signatureInput)
-      .digest("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
-    const jwtToken = `${signatureInput}.${signature}`;
-
-    let updatedCount = 0;
-
-    for (const doc of trackingSnap.docs) {
-      const data = doc.data();
-      const deliveryId = data.doorDashDeliveryId;
-      if (!deliveryId) continue;
-      try {
-        const resp = await fetch(`https://openapi.doordash.com/drive/v2/deliveries/${deliveryId}`, {
-          method: "GET",
-          headers: {
-            "Authorization": `Bearer ${jwtToken}`,
-            "Content-Type": "application/json",
-            "User-Agent": "FreshPunk/1.0",
-          },
-        });
-        if (!resp.ok) {
-          logger.warn("DoorDash status fetch failed", {deliveryId, status: resp.status});
-          continue;
-        }
-        const statusData = await resp.json();
-        const dasher = statusData.dasher_info;
-        const location = dasher?.location;
-        const newStatus = statusData.delivery_status || data.status;
-        await doc.ref.set({
-          status: newStatus,
-          driverLat: location?.lat ?? null,
-            driverLng: location?.lng ?? null,
-          driverName: dasher?.name ?? null,
-          driverPhone: dasher?.phone_number ?? null,
-          updatedAt: FieldValue.serverTimestamp(),
-          completedAt: ["delivered", "canceled"].includes(newStatus) ? FieldValue.serverTimestamp() : data.completedAt ?? null,
-        }, {merge: true});
-        updatedCount++;
-      } catch (e: any) {
-        logger.error("pollDoorDashDeliveries error", {deliveryId, error: e?.message});
-      }
-    }
-
-    logger.info("pollDoorDashDeliveries run complete", {checked: trackingSnap.size, updated: updatedCount});
-  } catch (e: any) {
-    logger.error("pollDoorDashDeliveries fatal error", {error: e?.message});
-  }
-});
-
-// ============================================================================
-// DOORDASH WEBHOOK HANDLER
-// ============================================================================
-
-/**
- * Handle DoorDash webhook events for delivery status updates
- * Webhook URL: https://YOUR-REGION-YOUR-PROJECT.cloudfunctions.net/doorDashWebhookHandler
- */
-export const doorDashWebhookHandler = onRequest(
-  {
-    secrets: [DOORDASH_DEVELOPER_ID, DOORDASH_KEY_ID, DOORDASH_SIGNING_SECRET],
-    cors: false,
-  },
-  async (req, res) => {
-    try {
-      const db = getFirestore();
-
-      // Only accept POST requests
-      if (req.method !== "POST") {
-        res.status(405).send({error: "Method not allowed"});
-        return;
-      }
-
-      const webhookData = req.body;
-      const deliveryId = webhookData.external_delivery_id;
-      const eventName = webhookData.event_name;
-
-      logger.info("DoorDash webhook received", {
-        deliveryId,
-        eventName,
-        data: JSON.stringify(webhookData).slice(0, 500),
-      });
-
-      // Validate required fields
-      if (!deliveryId || !eventName) {
-        logger.warn("DoorDash webhook missing required fields", {deliveryId, eventName});
-        res.status(200).send({received: true}); // Still acknowledge
-        return;
-      }
-
-      // Map event names to status
-      const statusMap: {[key: string]: string} = {
-        "DASHER_CONFIRMED": "assigned",
-        "DASHER_CONFIRMED_PICKUP_ARRIVAL": "dasher_at_pickup",
-        "DASHER_PICKED_UP": "picked_up",
-        "DASHER_CONFIRMED_DROPOFF_ARRIVAL": "dasher_at_dropoff",
-        "DASHER_DROPPED_OFF": "delivered",
-        "DELIVERY_CANCELLED": "cancelled",
-        "DELIVERY_RETURNED": "returned",
-        "DELIVERY_RETURN_INITIALIZED": "return_initialized",
-      };
-      const status = statusMap[eventName] || eventName.toLowerCase();
-
-      // Update order tracking in Firestore
-      const trackingRef = db.collection("order_tracking").doc(deliveryId);
-      const trackingDoc = await trackingRef.get();
-
-      if (!trackingDoc.exists) {
-        logger.warn("DoorDash webhook: tracking document not found", {deliveryId});
-        // Create tracking document if it doesn't exist
-        await trackingRef.set({
-          deliveryId,
-          status,
-          lastUpdate: FieldValue.serverTimestamp(),
-          webhookEvents: [webhookData],
-          createdAt: FieldValue.serverTimestamp(),
-        });
-      } else {
-        // Update existing document
-        await trackingRef.update({
-          status,
-          lastUpdate: FieldValue.serverTimestamp(),
-          webhookEvents: FieldValue.arrayUnion(webhookData),
-        });
-      }
-
-      // Handle specific status events
-      switch (status) {
-      case "assigned":
-        logger.info("Dasher assigned to delivery", {
-          deliveryId,
-          dasher: webhookData.dasher_name,
-        });
-        // Optionally notify customer
-        break;
-
-      case "picked_up":
-        logger.info("Order picked up by dasher", {deliveryId});
-        // Optionally notify customer: "Your order is on the way!"
-        break;
-
-      case "delivered": {
-        logger.info("Order delivered successfully", {deliveryId});
-        // Mark order as completed, notify customer
-        const orderData = trackingDoc.data();
-        if (orderData?.orderId) {
-          await db.collection("orders").doc(orderData.orderId).update({
-            status: "delivered",
-            deliveredAt: FieldValue.serverTimestamp(),
-          });
-        }
-        break;
-      }
-
-      case "cancelled":
-      case "returned":
-        logger.warn("Delivery cancelled or returned", {
-          deliveryId,
-          status,
-          reason: webhookData.cancellation_reason,
-        });
-        // Handle cancellation: refund, notify customer, etc.
-        break;
-
-      default:
-        logger.info("DoorDash delivery status update", {deliveryId, status});
-      }
-
-      // Always return 200 to acknowledge receipt
-      res.status(200).send({received: true});
-    } catch (error: any) {
-      logger.error("DoorDash webhook handler error", {error: error.message});
-      // Still return 200 to prevent DoorDash from retrying indefinitely
-      res.status(200).send({error: error.message});
-    }
-  }
-);

@@ -17,6 +17,30 @@
 -keep class com.stripe.android.** { *; }
 -dontwarn com.stripe.android.**
 
+# Nimbus JOSE + JWT and encryption dependencies
+-keep class com.nimbusds.** { *; }
+-dontwarn com.nimbusds.**
+
+# Bouncy Castle cryptography
+-keep class org.bouncycastle.** { *; }
+-dontwarn org.bouncycastle.**
+
+# Tink cryptography
+-keep class com.google.crypto.tink.** { *; }
+-dontwarn com.google.crypto.tink.**
+
+# OkHttp dependencies
+-keep class com.squareup.okhttp.** { *; }
+-dontwarn com.squareup.okhttp.**
+
+# gRPC OkHttp
+-keep class io.grpc.okhttp.** { *; }
+-dontwarn io.grpc.okhttp.**
+
+# Guava reflection utilities
+-keep class com.google.common.reflect.** { *; }
+-dontwarn com.google.common.reflect.**
+
 # Remove debug information
 -assumenosideeffects class android.util.Log {
     public static boolean isLoggable(java.lang.String, int);

@@ -519,7 +519,7 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
                 ),
               ] else ...[
                 const Text(
-                  'This account is not using a password (e.g., signed in with Google/Apple).\n\nTo confirm deletion, please sign out and sign back in, then try again.',
+                  'This account uses Google or Apple Sign-In.\n\nClick "Verify with OAuth" to confirm your identity and proceed with deletion.',
                   style: TextStyle(fontSize: 14),
                 ),
               ],
@@ -584,21 +584,37 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
               ElevatedButton(
                 onPressed: () async {
                   try {
-                    await _auth.signOut();
-                  } finally {
-                    if (mounted) {
-                      Navigator.pop(dialogContext, false);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Signed out. Please sign back in to continue account deletion.')),
-                      );
+                    debugPrint('[Reauth OAuth] Starting OAuth reauthentication');
+                    final user = _auth.currentUser;
+                    if (user == null) {
+                      throw Exception('No user found');
                     }
+                    
+                    // Get the OAuth provider from user's provider data
+                    final oauthProvider = user.providerData.firstWhere(
+                      (p) => p.providerId == 'google.com' || p.providerId == 'apple.com',
+                      orElse: () => throw Exception('No OAuth provider found'),
+                    );
+                    
+                    debugPrint('[Reauth OAuth] Found provider: ${oauthProvider.providerId}');
+                    
+                    // Reauthenticate with the OAuth provider
+                    OAuthProvider authProvider = OAuthProvider(oauthProvider.providerId);
+                    
+                    await user.reauthenticateWithProvider(authProvider);
+                    
+                    debugPrint('[Reauth OAuth] Success! Closing dialog with true');
+                    if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+                  } catch (e) {
+                    debugPrint('[Reauth OAuth] Error: $e');
+                    setDialogState(() => errorMessage = 'OAuth authentication failed: $e');
                   }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.black,
                   foregroundColor: Colors.white,
                 ),
-                child: const Text('Sign out to re-authenticate'),
+                child: const Text('Verify with OAuth'),
               ),
           ],
         ),

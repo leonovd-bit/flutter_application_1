@@ -7,6 +7,11 @@ service cloud.firestore {
       return request.auth != null;
     }
     
+    // Allow debug App Check tokens (for development)
+    function isAppCheckValid() {
+      return request.appCheck.token.debug != null || request.appCheck.token.standard != null;
+    }
+    
     function isAdmin() {
       return request.auth != null && request.auth.token.admin == true;
     }

@@ -63,9 +63,15 @@ export {
   devForceSyncSquareMenu,
   sendWeeklyPrepSchedules,
   getRestaurantNotifications,
-  doorDashWebhookHandler, // DoorDash webhook for delivery status updates
-  // squareWebhookHandler, // REMOVED: Only needed if restaurants create orders independently
+  // Sause delivery handled through kitchen's Square integration
 } from "./square-integration";
+
+// Export Square Payments functions
+export {
+  processSquarePayment,
+  getRestaurantEarnings,
+  createRestaurantPayout,
+} from "./square-payments";
 
 // Export manual OAuth helper (backup for when Square consent UI won't load)
 export {
