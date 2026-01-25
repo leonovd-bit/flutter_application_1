@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/app_theme_v3.dart';
 import '../../services/connectivity_service_v3.dart';
 import '../../services/auth/progress_manager.dart';
+import '../../services/auth/auth_service.dart';
 import 'signup_page_v3.dart';
 import 'phone_collection_page_v3.dart';
 import '../home_page_v3.dart';
@@ -554,42 +555,16 @@ class _LoginPageV3State extends State<LoginPageV3> {
     setState(() => _isLoading = true);
     
     try {
-      debugPrint('[LoginPage] Initializing GoogleSignIn');
-      final googleSignIn = GoogleSignIn(
-        scopes: [
-          'email',
-          'profile',
-        ],
-      );
-      debugPrint('[LoginPage] Calling googleSignIn.signIn()');
-      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      // Use AuthService instead of creating local GoogleSignIn
+      final userCredential = await AuthService.instance.signInWithGoogle();
       
-      debugPrint('[LoginPage] GoogleSignIn result: ${googleUser?.email ?? "null"}');
-      
-      // User cancelled the sign-in
-      if (googleUser == null) {
+      if (userCredential == null) {
         debugPrint('[LoginPage] User cancelled sign-in');
         if (mounted) {
           setState(() => _isLoading = false);
         }
         return;
       }
-
-      debugPrint('[LoginPage] Getting authentication details');
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-
-      debugPrint('[LoginPage] Creating Firebase credential');
-      final credential = GoogleAuthProvider.credential(
-        idToken: googleAuth.idToken,
-      );
-
-      debugPrint('[LoginPage] Signing in with Firebase');
-      final userCredential = await FirebaseAuth.instance.signInWithCredential(credential).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw Exception('Firebase authentication timeout. Please check your internet connection.');
-        },
-      );
 
       debugPrint('[LoginPage] Firebase sign-in successful: ${userCredential.user?.uid}');
       

@@ -23,6 +23,17 @@
   <!-- Google Sign-In -->
   <meta name="google-signin-client_id" content="433852717304-3fq7hnlkl8okoc83tgorn69brmosejij.apps.googleusercontent.com">
   
+  <!-- Configure Google Sign-In for FedCM with One Tap disabled -->
+  <script>
+    // Opt-in to FedCM and disable deprecated One Tap UI
+    // This is done early before google_sign_in_web initializes
+    window.__GOOGLE_SIGN_IN__ = {
+      use_fedcm: true,
+      // Disable One Tap UI to avoid deprecation warnings
+      auto_select: false
+    };
+  </script>
+  
   <!-- Open Graph / Social Previews -->
   <meta property="og:type" content="website">
   <meta property="og:title" content="FreshPunk – Meal Plans & Deliveries">
@@ -54,6 +65,31 @@
   
   <!-- Stripe.js for payment processing -->
   <script src="https://js.stripe.com/v3/"></script>
+  <script>
+    // Configure Google Identity Services for FedCM compliance
+    // Suppress non-critical GSI logger warnings about FedCM migration
+    window.__gsi_debug_logs = false;
+    
+    // Disable One Tap UI prompts that trigger deprecation warnings
+    if (window.google && window.google.accounts) {
+      try {
+        // Configure to use FedCM when available
+        window.google.accounts.id.initialize({
+          client_id: '433852717304-3fq7hnlkl8okoc83tgorn69brmosejij.apps.googleusercontent.com',
+          use_fedcm_for_prompt: true,
+          auto_select: false  // Disable automatic One Tap prompt
+        });
+      } catch(e) {
+        // GSI may not be loaded yet, which is fine
+      }
+    }
+    
+    // Suppress logger warnings
+    if (window.__GSI_LOGGER__) {
+      window.__GSI_LOGGER__.warn = function() {};
+      window.__GSI_LOGGER__.info = function() {};
+    }
+  </script>
   <script>
     // Global error instrumentation to capture early startup issues (e.g., null DOM property assignments).
     (function() {

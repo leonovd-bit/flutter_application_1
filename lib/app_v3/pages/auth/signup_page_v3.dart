@@ -6,6 +6,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../../theme/app_theme_v3.dart';
 import '../../services/auth/progress_manager.dart';
+import '../../services/auth/auth_service.dart';
 import '../../services/auth/auth_wrapper.dart' show ExplicitSetupApproval; // approve explicit setup
 import '../../services/auth/phone_verification_service.dart';
 import 'phone_verification_page_v3.dart';
@@ -865,47 +866,27 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
     setState(() => _isLoading = true);
 
     try {
-      debugPrint('[SignupPage] Starting Google sign-in process...');
+      // Use AuthService instead of creating local GoogleSignIn
+      final userCredential = await AuthService.instance.signInWithGoogle();
       
-      final googleSignIn = GoogleSignIn(
-        scopes: [
-          'email',
-          'profile',
-        ],
-      );
-      debugPrint('[SignupPage] GoogleSignIn initialized with scopes');
-      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-      debugPrint('[SignupPage] Google user result: ${googleUser?.email ?? "null"}');
-
-      // User cancelled the sign-in
-      if (googleUser == null) {
-        debugPrint('Google sign-in cancelled by user');
+      if (userCredential == null) {
+        debugPrint('[SignupPage] User cancelled sign-in');
         if (mounted) {
           setState(() => _isLoading = false);
         }
         return;
       }
 
-      debugPrint('Getting Google authentication...');
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      debugPrint('ID token: ${googleAuth.idToken != null ? "Present" : "Missing"}');
-      
-      final credential = GoogleAuthProvider.credential(
-        idToken: googleAuth.idToken,
-      );
-
-      debugPrint('Signing in with Firebase...');
-      final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
-      debugPrint('Firebase sign-in successful: ${userCredential.user?.uid}'); // Debug
+      debugPrint('[SignupPage] Firebase sign-in successful: ${userCredential.user?.uid}');
 
       // Check if this is a new user or existing user
       final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
-      debugPrint('Is new user: $isNewUser'); // Debug
+      debugPrint('[SignupPage] Is new user: $isNewUser');
 
       if (mounted) {
         if (isNewUser) {
           // New user - collect phone number first
-          debugPrint('New user detected - collecting phone'); // Debug
+          debugPrint('[SignupPage] New user detected - collecting phone');
           await ProgressManager.saveCurrentStep(OnboardingStep.phoneVerification);
           Navigator.pushReplacement(
             context,
@@ -913,7 +894,7 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
           );
         } else {
           // Existing user who came to signup page - redirect to home
-          debugPrint('Existing user detected - going to home'); // Debug
+          debugPrint('[SignupPage] Existing user detected - going to home');
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => const HomePageV3()),
@@ -944,32 +925,13 @@ class _SignUpPageV3State extends State<SignUpPageV3> {
         );
       }
     } catch (e) {
-      debugPrint('[SignupPage] Non-Firebase error in Google sign-in: $e');
-      debugPrint('[SignupPage] Error type: ${e.runtimeType}');
-      debugPrint('[SignupPage] Full error: $e');
-      
-      // Check for user cancellation first - be completely silent
-      final errorString = e.toString().toLowerCase();
-      if (errorString.contains('sign_in_canceled') || 
-          errorString.contains('popup_closed') ||
-          errorString.contains('user_cancelled') ||
-          errorString.contains('cancel') ||
-          e.runtimeType.toString().contains('PlatformException')) {
-        debugPrint('[SignupPage] Google sign-in cancelled by user');
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
-        return; // Silent return for cancellation
-      }
-      
-      // Show detailed error for debugging
+      debugPrint('[SignupPage] Unexpected error in Google sign-in: $e');
       if (mounted) {
-        String errorMessage = 'Google sign-in error: $e';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(errorMessage),
+            content: Text('Error during Google sign-in: $e'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
+            duration: const Duration(seconds: 4),
           ),
         );
       }

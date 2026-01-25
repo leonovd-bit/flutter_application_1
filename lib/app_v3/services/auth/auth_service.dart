@@ -166,14 +166,15 @@ class AuthService {
       // Obtain auth details
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
 
-      // Verify we have tokens
-      if (googleAuth.accessToken == null || googleAuth.idToken == null) {
-        throw Exception('Failed to obtain Google authentication tokens');
+      // Verify we have at least an idToken (accessToken may not be available on web with FedCM)
+      if (googleAuth.idToken == null) {
+        throw Exception('Failed to obtain Google ID token');
       }
 
       debugPrint('[AuthService] Google tokens obtained');
 
       // Create Firebase credential
+      // On web with FedCM, we only get idToken; on native/old flow we get both
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
