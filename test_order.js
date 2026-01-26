@@ -18,10 +18,10 @@ async function createTestOrder() {
       customerEmail: "test@example.com",
       customerPhone: "555-0099",
       deliveryAddress: {
-        streetAddress: "1500 Sand Hill Rd",
-        city: "Palo Alto",
-        state: "CA",
-        zipCode: "94304",
+        streetAddress: "123 Broadway",
+        city: "New York",
+        state: "NY",
+        zipCode: "10001",
       },
       specialInstructions: "Test with production SQUARE_ENV",
       meals: [

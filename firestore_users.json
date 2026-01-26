@@ -1,0 +1,18 @@
+{"users": [
+{
+  "localId": "p1ztizHn6sevxFo9kTRagzFX7Jy1",
+  "displayName": "David Leonovets",
+  "photoUrl": "https://lh3.googleusercontent.com/a/ACg8ocJh9r6voyDA6pHbJ4PvrMxCVJHSUFg2jdmOJP8yuKFiipn4_A=s96-c",
+  "lastSignedInAt": "1769371479924",
+  "createdAt": "1769371465951",
+  "phoneNumber": "+13157558996",
+  "providerUserInfo": [
+    {
+      "providerId": "google.com",
+      "rawId": "107303411583921248006",
+      "email": "dleonovets@gmail.com",
+      "displayName": "David Leonovets",
+      "photoUrl": "https://lh3.googleusercontent.com/a/ACg8ocJh9r6voyDA6pHbJ4PvrMxCVJHSUFg2jdmOJP8yuKFiipn4_A=s96-c"
+    }
+  ]
+}]}

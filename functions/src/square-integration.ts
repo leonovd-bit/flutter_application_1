@@ -1973,8 +1973,6 @@ async function forwardToSquareRestaurant(
         fulfillments: orderType === "prep_forecast" ? [] : [
           {
             type: "DELIVERY",
-            // PREPARED state shows ready orders in the Orders section for pickup/delivery
-            state: "PREPARED",
             delivery_details: {
               // Scheduled delivery triggers kitchen prep workflow in POS
               schedule_type: "SCHEDULED",
