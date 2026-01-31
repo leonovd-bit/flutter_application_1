@@ -24,6 +24,7 @@ initializeApp();
 
 // Export order generation and confirmation functions
 export {generateOrderFromMealSelection, sendOrderConfirmation, confirmNextOrder} from "./order-functions";
+export {billWeeklySubscriptions} from "./subscription-billing";
 
 // Export admin order management
 export {editOrder, manuallyForwardOrder} from "./admin-order-management";
@@ -36,12 +37,7 @@ export {
 } from "./fulfillment-state-management";
 
 // Export Square delivery testing
-export {testSquareDeliveryConfig} from "./test-square-delivery";
-export {verifySquareAddresses} from "./verify-square-address";
-export {checkRestaurantSquareSetup} from "./check-restaurant-setup";
-export {searchRestaurants} from "./search-restaurants";
-export {listAllRestaurants} from "./list-restaurants";
-export {dumpAllRestaurants} from "./dump-restaurants";
+// (Removed from production exports)
 
 // (Removed) meal population function import
 // import {runPopulateMeals} from "./populate-meals";
@@ -51,16 +47,19 @@ export {
   initiateSquareOAuthHttp,
   completeSquareOAuthHttp,
   squareOAuthTestPage,
-  diagnoseSquareOAuth,
-  devListRecentSquareOrders,
-  devFindSquareOrderByReference,
-  devGetSquareOrderDetails,
+  initiateSquareReauthHttp,
+  completeSquareReauthHttp,
+  squareReauthTestPage,
+  // diagnoseSquareOAuth,
+  // devListRecentSquareOrders,
+  // devFindSquareOrderByReference,
+  // devGetSquareOrderDetails,
   squareWhoAmI,
   syncSquareMenu,
   forwardOrderToSquare,
   forwardOrderOnStatusUpdate,
   dispatchConfirmedOrders,
-  devForceSyncSquareMenu,
+  // devForceSyncSquareMenu,
   sendWeeklyPrepSchedules,
   getRestaurantNotifications,
   // Sause delivery handled through kitchen's Square integration
@@ -71,17 +70,14 @@ export {
   processSquarePayment,
   getRestaurantEarnings,
   createRestaurantPayout,
+  getSquarePaymentConfig,
+  getRestaurantPaymentConfig,
+  storeSquareCardForSubscription,
+  chargeSquareForSubscription,
 } from "./square-payments";
 
 // Export manual OAuth helper (backup for when Square consent UI won't load)
-export {
-  manualOAuthEntry,
-} from "./manual-oauth-helper";
-
-// Export manual OAuth save (emergency fix)
-export {
-  manualOAuthSave,
-} from "./manual-oauth-save";
+// (Removed from production exports)
 
 // Export OAuth token refresh
 export {
@@ -94,44 +90,9 @@ export {
 } from "./get-oauth-credentials";
 
 // Export OAuth credential copy
-export {
-  copyOAuthCredentials,
-} from "./copy-oauth-credentials";
+// (Removed from production exports)
 
-// Export debug tools
-export {
-  debugRestaurantPartners,
-} from "./debug-restaurant-partners";
-
-// Export manual restaurant creation
-export {
-  manualCreateRestaurant,
-} from "./manual-create-restaurant";
-
-// Export database diagnostics
-export {
-  diagnoseDatabase,
-} from "./diagnose-database";
-
-// Export Firestore write test
-export {
-  testFirestoreWrite,
-} from "./test-firestore-write";
-
-// Export menu diagnostics
-export {
-  checkMenuSyncStatus,
-} from "./menu-diagnostics";
-
-// Export diagnostic tools
-export {
-  diagnosticMeals,
-} from "./diagnostic-meals";
-
-// Export Square catalog checker
-export {
-  checkSquareCatalog,
-} from "./check-square-catalog";
+// Debug/admin/test utilities removed from production exports
 
 // Export restaurant notification functions
 export {
@@ -2014,6 +1975,10 @@ export const createTestOrder = onRequest(
     }
   }
 );
+
+/**
+ * Create a past order for a specific user (no Square forwarding)
+ */
 
 /**
  * Check restaurant's Square environment (production vs sandbox)

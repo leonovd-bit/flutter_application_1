@@ -52,6 +52,11 @@ service cloud.firestore {
         allow read, write, delete: if isOwner(userId);
         allow read: if isAdmin();
       }
+
+      match /meal_selections/{docId} {
+        allow read, write, delete: if isOwner(userId);
+        allow read: if isAdmin();
+      }
       
       match /delivery_schedules/{scheduleId} {
         allow read, write, delete: if isOwner(userId);

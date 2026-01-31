@@ -55,34 +55,11 @@ class AccountDeletionService {
   static Future<void> _cancelUserSubscriptions(String userId) async {
     try {
       debugPrint('[AccountDeletion] Canceling subscriptions for user: $userId');
-      
-      // Get all active subscriptions
-      final subscriptionsSnapshot = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('subscriptions')
-          .where('status', isEqualTo: 'active')
-          .get();
-
-      // Cancel each subscription via Stripe
-      for (final doc in subscriptionsSnapshot.docs) {
-        final data = doc.data();
-        final stripeSubscriptionId = data['stripeSubscriptionId'] as String?;
-        
-        if (stripeSubscriptionId != null && stripeSubscriptionId != 'local') {
-          try {
-            // Call Cloud Function to cancel subscription
-            final callable = _callable('cancelSubscription');
-            await callable.call({
-              'subscriptionId': stripeSubscriptionId,
-            });
-            debugPrint('[AccountDeletion] Canceled subscription: $stripeSubscriptionId');
-          } catch (e) {
-            debugPrint('[AccountDeletion] Failed to cancel subscription $stripeSubscriptionId: $e');
-            // Continue with other subscriptions even if one fails
-          }
-        }
-      }
+      await _firestore.collection('users').doc(userId).set({
+        'subscriptionStatus': 'canceled',
+        'cancelEffectiveDate': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('[AccountDeletion] Error canceling subscriptions: $e');
       // Don't throw here - continue with data deletion even if subscription cancellation fails
@@ -102,6 +79,7 @@ class AccountDeletionService {
         'meal_plans', 
         'delivery_schedules',
         'subscriptions',
+        'invoices',
         'health_data',
         'orders',
         'reviews',
@@ -215,15 +193,9 @@ class AccountDeletionService {
   /// Check if user has any active subscriptions
   static Future<bool> hasActiveSubscriptions(String userId) async {
     try {
-      final snapshot = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('subscriptions')
-          .where('status', isEqualTo: 'active')
-          .limit(1)
-          .get();
-      
-      return snapshot.docs.isNotEmpty;
+      final doc = await _firestore.collection('users').doc(userId).get();
+      if (!doc.exists) return false;
+      return doc.data()?['subscriptionStatus'] == 'active';
     } catch (e) {
       debugPrint('[AccountDeletion] Error checking subscriptions: $e');
       return false;
@@ -233,14 +205,19 @@ class AccountDeletionService {
   /// Get user's subscription details for confirmation dialog
   static Future<List<Map<String, dynamic>>> getUserSubscriptions(String userId) async {
     try {
-      final snapshot = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('subscriptions')
-          .where('status', isEqualTo: 'active')
-          .get();
-      
-      return snapshot.docs.map((doc) => doc.data()).toList();
+      final doc = await _firestore.collection('users').doc(userId).get();
+      if (!doc.exists) return [];
+      final data = doc.data() ?? {};
+      final status = data['subscriptionStatus'] as String?;
+      if (status != 'active') return [];
+
+      return [
+        {
+          'planName': data['currentPlanName'] ?? data['selectedPlan'] ?? 'Active Plan',
+          'status': status,
+          'nextBillingDate': data['nextBillingDate'],
+        }
+      ];
     } catch (e) {
       debugPrint('[AccountDeletion] Error getting subscriptions: $e');
       return [];

@@ -10,9 +10,10 @@ import {defineSecret} from "firebase-functions/params";
 
 const SQUARE_APPLICATION_ID = defineSecret("SQUARE_APPLICATION_ID");
 const SQUARE_APPLICATION_SECRET = defineSecret("SQUARE_APPLICATION_SECRET");
+const SQUARE_ENV = defineSecret("SQUARE_ENV");
 
 function getSquareConfig() {
-  const env = (process.env.SQUARE_ENV || "production").toLowerCase();
+  const env = (SQUARE_ENV.value() || "production").toLowerCase();
   const baseUrl = env === "sandbox" ?
     "https://connect.squareupsandbox.com" :
     "https://connect.squareup.com";
@@ -22,7 +23,7 @@ function getSquareConfig() {
 export const refreshOAuthToken = onRequest(
   {
     region: "us-central1",
-    secrets: [SQUARE_APPLICATION_ID, SQUARE_APPLICATION_SECRET],
+    secrets: [SQUARE_APPLICATION_ID, SQUARE_APPLICATION_SECRET, SQUARE_ENV],
     timeoutSeconds: 60,
   },
   async (req, res) => {

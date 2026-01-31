@@ -17,6 +17,10 @@
 -keep class com.stripe.android.** { *; }
 -dontwarn com.stripe.android.**
 
+# Square In-App Payments
+-keep class com.squareup.sdk.inapppayments.** { *; }
+-dontwarn com.squareup.sdk.inapppayments.**
+
 # Nimbus JOSE + JWT and encryption dependencies
 -keep class com.nimbusds.** { *; }
 -dontwarn com.nimbusds.**

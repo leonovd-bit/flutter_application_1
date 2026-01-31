@@ -1,6 +1,7 @@
-import {onRequest} from "firebase-functions/v2/https";
+import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import {logger} from "firebase-functions";
+import {defineSecret} from "firebase-functions/params";
 import {getSquareConfig} from "./square-integration";
 
 /**
@@ -15,6 +16,294 @@ import {getSquareConfig} from "./square-integration";
  */
 
 const db = getFirestore();
+
+const SQUARE_APPLICATION_ID = defineSecret("SQUARE_APPLICATION_ID");
+const SQUARE_APPLICATION_SECRET = defineSecret("SQUARE_APPLICATION_SECRET");
+const SQUARE_ENV = defineSecret("SQUARE_ENV");
+
+/**
+ * Expose Square Web Payments config to authenticated clients
+ */
+export const getSquarePaymentConfig = onCall({
+  secrets: [SQUARE_APPLICATION_ID, SQUARE_ENV],
+}, async (request) => {
+  if (!request.auth) {
+    throw new Error("Authentication required");
+  }
+
+  const {applicationId, env} = getSquareConfig();
+  return {applicationId, env};
+});
+
+/**
+ * Return Square location info for a restaurant
+ */
+export const getRestaurantPaymentConfig = onCall(async (request) => {
+  if (!request.auth) {
+    throw new Error("Authentication required");
+  }
+
+  const {restaurantId} = request.data || {};
+  if (!restaurantId) {
+    throw new Error("restaurantId is required");
+  }
+
+  const restaurantDoc = await db.collection("restaurant_partners").doc(restaurantId).get();
+  if (!restaurantDoc.exists) {
+    throw new Error("Restaurant not found");
+  }
+
+  const restaurant = restaurantDoc.data()!;
+  return {
+    restaurantId,
+    restaurantName: restaurant.restaurantName || "",
+    squareLocationId: restaurant.squareLocationId || restaurant.squareMerchantId || null,
+    squareMerchantId: restaurant.squareMerchantId || null,
+  };
+});
+
+/**
+ * Store a card on file for subscription billing
+ */
+export const storeSquareCardForSubscription = onCall(
+  {
+    region: "us-central1",
+    timeoutSeconds: 30,
+    secrets: [SQUARE_APPLICATION_ID, SQUARE_APPLICATION_SECRET, SQUARE_ENV],
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+
+    const {
+      restaurantId,
+      sourceId,
+      customerEmail,
+      customerName,
+    } = request.data || {};
+
+    if (!restaurantId || !sourceId) {
+      throw new HttpsError("invalid-argument", "Missing required fields: restaurantId, sourceId");
+    }
+
+    const restaurantDoc = await db.collection("restaurant_partners").doc(restaurantId).get();
+    if (!restaurantDoc.exists) {
+      throw new HttpsError("not-found", "Restaurant not found");
+    }
+
+    const restaurant = restaurantDoc.data()!;
+    const accessToken = restaurant.squareAccessToken;
+    const locationId = restaurant.squareLocationId || restaurant.squareMerchantId;
+
+    if (!accessToken || !locationId) {
+      throw new HttpsError("failed-precondition", "Restaurant Square credentials incomplete");
+    }
+
+    const {baseUrl} = getSquareConfig();
+
+    // Create customer in restaurant Square account
+    const customerResp = await fetch(`${baseUrl}/v2/customers`, {
+      method: "POST",
+      headers: {
+        "Square-Version": "2023-10-18",
+        "Authorization": `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        given_name: customerName || undefined,
+        email_address: customerEmail || undefined,
+        reference_id: request.auth.uid,
+      }),
+    });
+
+    const customerData = await customerResp.json();
+    if (!customerResp.ok) {
+      logger.error("Square customer create failed", {
+        restaurantId,
+        status: customerResp.status,
+        error: customerData.errors,
+      });
+      const errorMessage = (customerData.errors || [])
+        .map((err: any) => err.detail || err.message || err.code)
+        .filter(Boolean)
+        .join("; ");
+      throw new HttpsError("internal", `Failed to create Square customer${errorMessage ? `: ${errorMessage}` : ""}`);
+    }
+
+    const squareCustomerId = customerData.customer?.id as string | undefined;
+    if (!squareCustomerId) {
+      throw new HttpsError("internal", "Square customer ID missing");
+    }
+
+    // Create card on file
+    const cardResp = await fetch(`${baseUrl}/v2/cards`, {
+      method: "POST",
+      headers: {
+        "Square-Version": "2023-10-18",
+        "Authorization": `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        idempotency_key: `fp_card_${Date.now()}`,
+        source_id: sourceId,
+        card: {
+          customer_id: squareCustomerId,
+        },
+      }),
+    });
+
+    const cardData = await cardResp.json();
+    if (!cardResp.ok) {
+      logger.error("Square card create failed", {
+        restaurantId,
+        status: cardResp.status,
+        error: cardData.errors,
+      });
+      const errorMessage = (cardData.errors || [])
+        .map((err: any) => err.detail || err.message || err.code)
+        .filter(Boolean)
+        .join("; ");
+      throw new HttpsError("internal", `Failed to save Square card${errorMessage ? `: ${errorMessage}` : ""}`);
+    }
+
+    const squareCardId = cardData.card?.id as string | undefined;
+    if (!squareCardId) {
+      throw new HttpsError("internal", "Square card ID missing");
+    }
+
+    await db.collection("users").doc(request.auth.uid)
+      .collection("square_payment_profiles")
+      .doc(restaurantId)
+      .set({
+        restaurantId,
+        squareCustomerId,
+        squareCardId,
+        brand: cardData.card?.card_brand || null,
+        last4: cardData.card?.last_4 || null,
+        locationId,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+
+    return {
+      success: true,
+      squareCustomerId,
+      squareCardId,
+      locationId,
+    };
+  }
+);
+
+/**
+ * Charge customer via Square for subscription remainder (meals + delivery minus platform fee)
+ * Uses restaurant OAuth token and sends funds directly to the kitchen.
+ */
+export const chargeSquareForSubscription = onCall(
+  {
+    region: "us-central1",
+    timeoutSeconds: 30,
+    secrets: [SQUARE_APPLICATION_ID, SQUARE_APPLICATION_SECRET, SQUARE_ENV],
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+
+    const {
+      restaurantId,
+      amountCents,
+      sourceId,
+      cardId,
+      idempotencyKey,
+      customerId,
+      customerName,
+      customerEmail,
+    } = request.data || {};
+
+    if (!restaurantId || !amountCents || (!sourceId && !cardId)) {
+      throw new HttpsError("invalid-argument", "Missing required fields: restaurantId, amountCents, sourceId/cardId");
+    }
+
+    const restaurantDoc = await db.collection("restaurant_partners").doc(restaurantId).get();
+    if (!restaurantDoc.exists) {
+      throw new HttpsError("not-found", "Restaurant not found");
+    }
+
+    const restaurant = restaurantDoc.data()!;
+    const accessToken = restaurant.squareAccessToken;
+    const locationId = restaurant.squareLocationId || restaurant.squareMerchantId;
+
+    if (!accessToken || !locationId) {
+      throw new HttpsError("failed-precondition", "Restaurant Square credentials incomplete");
+    }
+
+    const {baseUrl} = getSquareConfig();
+
+    const paymentPayload = {
+      idempotency_key: idempotencyKey || `fp_sub_${Date.now()}`,
+      amount_money: {
+        amount: amountCents,
+        currency: "USD",
+      },
+      source_id: cardId || sourceId,
+      location_id: locationId,
+      customer_id: customerId,
+      note: "FreshPunk subscription (meals + delivery)",
+    } as any;
+
+    const paymentResponse = await fetch(`${baseUrl}/v2/payments`, {
+      method: "POST",
+      headers: {
+        "Square-Version": "2023-10-18",
+        "Authorization": `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(paymentPayload),
+    });
+
+    const paymentData = await paymentResponse.json();
+
+    if (!paymentResponse.ok) {
+      logger.error("Square subscription charge failed", {
+        restaurantId,
+        status: paymentResponse.status,
+        error: paymentData.errors,
+      });
+      const errorMessage = (paymentData.errors || [])
+        .map((err: any) => err.detail || err.message || err.code)
+        .filter(Boolean)
+        .join("; ");
+      throw new HttpsError("internal", `Square payment processing failed${errorMessage ? `: ${errorMessage}` : ""}`);
+    }
+
+    const squarePaymentId = paymentData.payment?.id;
+    const paymentStatus = paymentData.payment?.status;
+
+    const paymentRecord = {
+      restaurantId,
+      userId: request.auth.uid,
+      customerId: customerId || null,
+      customerName: customerName || null,
+      customerEmail: customerEmail || null,
+      amountCents,
+      squarePaymentId,
+      paymentStatus,
+      paymentMethod: "square",
+      paymentType: "subscription_remainder",
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+
+    await db.collection("payments").add(paymentRecord);
+
+    return {
+      success: true,
+      squarePaymentId,
+      paymentStatus,
+      amountCents,
+    };
+  }
+);
 
 /**
  * Process payment through Square using restaurant's OAuth token

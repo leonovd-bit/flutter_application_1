@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/meal_model_v3.dart';
 import '../../services/auth/firestore_service_v3.dart';
@@ -8,7 +9,6 @@ import '../../theme/app_theme_v3.dart';
 import '../payment/payment_methods_page_v3.dart';
 import '../../services/orders/order_functions_service.dart';
 import '../../config/stripe_prices.dart';
-import 'pause_resume_subscription_page_v1.dart';
 import '../delivery/delivery_schedule_page_v5.dart';
 import '../meals/meal_schedule_page_v3_fixed.dart';
  
@@ -268,16 +268,6 @@ class _ManageSubscriptionPageV3State extends State<ManageSubscriptionPageV3> {
 	}
 
 	Future<void> _cancelSubscription() async {
-		final subId = (_activeSub?['stripeSubscriptionId'] 
-			?? _activeSub?['stripe_subscription_id'] 
-			?? _activeSub?['id'])
-			?.toString();
-		if (subId == null || subId.isEmpty) {
-			ScaffoldMessenger.of(context).showSnackBar(
-				const SnackBar(content: Text('No Stripe subscription linked to cancel.')),
-			);
-			return;
-		}
 		final confirm = await showDialog<bool>(
 			context: context,
 			builder: (_) => AlertDialog(
@@ -292,36 +282,33 @@ class _ManageSubscriptionPageV3State extends State<ManageSubscriptionPageV3> {
 		if (confirm != true) return;
 		setState(() { _cancelling = true; });
 		try {
-			final ok = await OrderFunctionsService.instance.cancelSubscription(subId);
-			if (ok) {
-				if (!mounted) return;
-				ScaffoldMessenger.of(context).showSnackBar(
-					const SnackBar(content: Text('Subscription cancellation requested.')),
-				);
-				Navigator.pop(context);
-			} else {
-				if (!mounted) return;
-				ScaffoldMessenger.of(context).showSnackBar(
-					const SnackBar(content: Text('Failed to cancel subscription.')),
-				);
+			final user = FirebaseAuth.instance.currentUser;
+			if (user == null) {
+				throw Exception('User not authenticated');
 			}
+
+			final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+			final nextBilling = userDoc.data()?['nextBillingDate'];
+			final cancelEffectiveDate = nextBilling is Timestamp
+				? nextBilling.toDate()
+				: DateTime.now();
+
+			await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+				'subscriptionStatus': 'canceled',
+				'cancelEffectiveDate': Timestamp.fromDate(cancelEffectiveDate),
+				'updatedAt': FieldValue.serverTimestamp(),
+			}, SetOptions(merge: true));
+
+			if (!mounted) return;
+			ScaffoldMessenger.of(context).showSnackBar(
+				const SnackBar(content: Text('Subscription will cancel at period end.')),
+			);
+			Navigator.pop(context);
 		} catch (e) {
 			if (!mounted) return;
-			final errorMsg = e.toString().toLowerCase();
-			if (errorMsg.contains('unable to establish connection') || 
-					errorMsg.contains('channel') ||
-					errorMsg.contains('pigeon')) {
-				ScaffoldMessenger.of(context).showSnackBar(
-					const SnackBar(
-						content: Text('⚠️ This feature requires Cloud Functions connection. Not available in offline/debug mode.'),
-						duration: Duration(seconds: 4),
-					),
-				);
-			} else {
-				ScaffoldMessenger.of(context).showSnackBar(
-					SnackBar(content: Text('Error: $e')),
-				);
-			}
+			ScaffoldMessenger.of(context).showSnackBar(
+				SnackBar(content: Text('Error: $e')),
+			);
 		} finally {
 			if (mounted) setState(() { _cancelling = false; });
 		}
@@ -394,11 +381,9 @@ class _ManageSubscriptionPageV3State extends State<ManageSubscriptionPageV3> {
 																											padding: EdgeInsets.zero,
 																											constraints: const BoxConstraints(),
 																											onPressed: () async {
-																												await Navigator.push(
-																													context,
-																													MaterialPageRoute(builder: (_) => const PauseResumeSubscriptionPageV1()),
+																												ScaffoldMessenger.of(context).showSnackBar(
+																													const SnackBar(content: Text('Pause/Resume coming soon')),
 																												);
-																												if (mounted) _loadCurrent();
 																											},
 																										),
 																									],
@@ -558,11 +543,9 @@ class _ManageSubscriptionPageV3State extends State<ManageSubscriptionPageV3> {
 												title: const Text('Pause or resume'),
 												subtitle: const Text('Temporarily stop billing and deliveries'),
 												onTap: () async {
-													await Navigator.push(
-														context,
-														MaterialPageRoute(builder: (_) => const PauseResumeSubscriptionPageV1()),
+													ScaffoldMessenger.of(context).showSnackBar(
+														const SnackBar(content: Text('Pause/Resume coming soon')),
 													);
-													if (mounted) _loadCurrent();
 												},
 											),
 											const Divider(height: 1),

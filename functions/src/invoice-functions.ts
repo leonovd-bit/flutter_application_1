@@ -57,60 +57,78 @@ export const createSubscriptionInvoice = onCall(
         throw new Error("Failed to create invoice");
       }
 
-      // Add line item: Meals
-      await stripe.invoiceItems.create({
-        customer: customerId,
-        invoice: invoice.id,
-        amount: Math.round(subscriptionPricing.mealSubtotal * 100),
-        currency: "usd",
-        description: `Meals (${subscriptionPricing.mealCount} meals)`,
-        metadata: {
-          type: "meals",
-          mealCount: subscriptionPricing.mealCount,
-        },
-      });
-
-      // Add line item: Delivery Fees
-      await stripe.invoiceItems.create({
-        customer: customerId,
-        invoice: invoice.id,
-        amount: Math.round(subscriptionPricing.deliveryFees * 100),
-        currency: "usd",
-        description: `Delivery ($${(9.75).toFixed(2)} × ${subscriptionPricing.mealCount})`,
-        metadata: {
-          type: "delivery",
-          deliveryCount: subscriptionPricing.mealCount,
-          perMealFee: 9.75,
-        },
-      });
-
-      // Add line item: FreshPunk Service Fee
-      await stripe.invoiceItems.create({
-        customer: customerId,
-        invoice: invoice.id,
-        amount: Math.round(subscriptionPricing.freshpunkFee * 100),
-        currency: "usd",
-        description: "FreshPunk Service Fee (10%)",
-        metadata: {
-          type: "freshpunk_fee",
-          percent: 10,
-        },
-      });
-
-      // Add line item: Stripe Transaction Fee (for transparency)
-      if (subscriptionPricing.stripeFee > 0) {
+      if (subscriptionPricing.stripeOnly === true) {
+        const baseTotal = (subscriptionPricing.totalAmount || 0) - (subscriptionPricing.stripeFee || 0);
         await stripe.invoiceItems.create({
           customer: customerId,
           invoice: invoice.id,
-          amount: Math.round(subscriptionPricing.stripeFee * 100),
+          amount: Math.round(baseTotal * 100),
           currency: "usd",
-          description: "Payment Processing Fee (2.9% + $0.30)",
+          description: "Meals + Delivery",
           metadata: {
-            type: "stripe_fee",
-            percent: 2.9,
-            fixed: 0.30,
+            type: "meal_total",
           },
         });
+
+        if (subscriptionPricing.stripeFee > 0) {
+          await stripe.invoiceItems.create({
+            customer: customerId,
+            invoice: invoice.id,
+            amount: Math.round(subscriptionPricing.stripeFee * 100),
+            currency: "usd",
+            description: "Payment Processing Fee",
+            metadata: {
+              type: "stripe_fee",
+              percent: 2.9,
+              fixed: 0.30,
+            },
+          });
+        }
+      } else {
+        // Add line item: FreshPunk Service Fee (10% of meal subtotal)
+        await stripe.invoiceItems.create({
+          customer: customerId,
+          invoice: invoice.id,
+          amount: Math.round(subscriptionPricing.freshpunkFee * 100),
+          currency: "usd",
+          description: "FreshPunk Service Fee (10% of meals)",
+          metadata: {
+            type: "freshpunk_fee",
+            percent: 10,
+          },
+        });
+
+        // Add line item: Stripe Processing Fee
+        if (subscriptionPricing.stripeFee > 0) {
+          await stripe.invoiceItems.create({
+            customer: customerId,
+            invoice: invoice.id,
+            amount: Math.round(subscriptionPricing.stripeFee * 100),
+            currency: "usd",
+            description: "Payment Processing Fee",
+            metadata: {
+              type: "stripe_fee",
+              percent: 2.9,
+              fixed: 0.30,
+            },
+          });
+        }
+
+        // Add line item: Stripe Transaction Fee (for transparency)
+        if (subscriptionPricing.stripeFee > 0) {
+          await stripe.invoiceItems.create({
+            customer: customerId,
+            invoice: invoice.id,
+            amount: Math.round(subscriptionPricing.stripeFee * 100),
+            currency: "usd",
+            description: "Payment Processing Fee (2.9% + $0.30)",
+            metadata: {
+              type: "stripe_fee",
+              percent: 2.9,
+              fixed: 0.30,
+            },
+          });
+        }
       }
 
       // Finalize the invoice (triggers payment)
@@ -127,13 +145,15 @@ export const createSubscriptionInvoice = onCall(
         stripeInvoiceId: finalizedInvoice.id,
         customerId,
         status: "finalized",
-        amountCents: subscriptionPricing.totalAmountCents,
-        amountDollars: subscriptionPricing.totalAmount,
+        amountCents: Math.round((subscriptionPricing.stripeChargeTotal ?? subscriptionPricing.totalAmount) * 100),
+        amountDollars: subscriptionPricing.stripeChargeTotal ?? subscriptionPricing.totalAmount,
         breakdown: {
           mealSubtotal: subscriptionPricing.mealSubtotal,
           deliveryFees: subscriptionPricing.deliveryFees,
           freshpunkFee: subscriptionPricing.freshpunkFee,
           stripeFee: subscriptionPricing.stripeFee,
+          stripeChargeTotal: subscriptionPricing.stripeChargeTotal,
+          squareChargeTotal: subscriptionPricing.squareChargeTotal,
         },
         mealCount: subscriptionPricing.mealCount,
         billingCycle: new Date().toISOString().split("T")[0],

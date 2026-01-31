@@ -20,9 +20,7 @@ import 'app_v3/debug/debug_state.dart';
 import 'app_v3/services/notifications/fcm_service_v3.dart';
 import 'app_v3/services/environment_service.dart';
 import 'app_v3/services/payment/stripe_service.dart';
-import 'app_v3/services/auth/doordash_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:freshpunk/services/billing_service.dart';
 
 // Background message handler (must be top-level)
 @pragma('vm:entry-point')
@@ -57,16 +55,21 @@ void main() async {
   // Initialize Firebase App Check
   // Use debug provider for debug builds, PlayIntegrity for release
   try {
-    await FirebaseAppCheck.instance.activate(
-      androidProvider: kDebugMode 
-          ? AndroidProvider.debug 
-          : AndroidProvider.playIntegrity,
-      appleProvider: AppleProvider.appAttest,
-      webProvider: ReCaptchaV3Provider(
-        const String.fromEnvironment('RECAPTCHA_V3_SITE_KEY', defaultValue: '6LeXESUsAAAAAHIJVzvwn6REDCin8xDeADt7lyYU'),
-      ),
-    );
-    debugPrint('[AppCheck] Initialized successfully with ${kDebugMode ? "Debug" : "PlayIntegrity"} provider');
+    final webSiteKey = const String.fromEnvironment('RECAPTCHA_V3_SITE_KEY');
+    final shouldEnableWebAppCheck = !kIsWeb || webSiteKey.trim().isNotEmpty;
+
+    if (!shouldEnableWebAppCheck) {
+      debugPrint('[AppCheck] Skipping web App Check (no RECAPTCHA site key provided)');
+    } else {
+      await FirebaseAppCheck.instance.activate(
+        androidProvider: kDebugMode
+            ? AndroidProvider.debug
+            : AndroidProvider.playIntegrity,
+        appleProvider: AppleProvider.appAttest,
+        webProvider: kIsWeb ? ReCaptchaV3Provider(webSiteKey) : null,
+      );
+      debugPrint('[AppCheck] Initialized successfully with ${kDebugMode ? "Debug" : "PlayIntegrity"} provider');
+    }
     
     // Get and print debug token for registration in Firebase Console (debug builds only)
     if (kDebugMode && !kIsWeb) {
@@ -119,31 +122,7 @@ void main() async {
     debugPrint('[FCM] Initialization failed: $e');
   }
 
-  // Initialize Stripe publishable key (mobile/desktop only)
-  if (!kIsWeb) {
-    try {
-      await BillingService.initialize();
-    } catch (e) {
-      debugPrint('[Billing] Initialization failed: $e');
-    }
-  }
 
-  // Test DoorDash API connection only if credentials are configured
-  if (EnvironmentService.isDoorDashConfigured) {
-    debugPrint('[App] Testing DoorDash credentials...');
-    try {
-      final doorDashConnected = await DoorDashService.instance.testConnection();
-      debugPrint('[App] DoorDash connection result: ${doorDashConnected ? '✅ CONNECTED' : '❌ FAILED'}');
-      // Optional: run a one-off delivery creation test in debug builds
-      if (kDebugMode) {
-        await testDoorDashDeliveryCreation();
-      }
-    } catch (e) {
-      debugPrint('[DoorDash] Test failed: $e');
-    }
-  } else {
-    debugPrint('[App] Skipping DoorDash tests: credentials not configured (set DOORDASH_* via --dart-define or .env)');
-  }
 
   runApp(const MyApp());
 }
@@ -250,11 +229,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         final name = settings.name ?? '';
         debugPrint('[Route] Generating route for: $name');
         
-        // Block legacy routes
-        if (name.contains('V1') || name.contains('_v1')) {
-          debugPrint('[RouteBlock] Attempted navigation to legacy route: $name');
-          return MaterialPageRoute(builder: (_) => const SplashPageV3());
-        }
         return null; // fall back to normal
       },
       navigatorObservers: [

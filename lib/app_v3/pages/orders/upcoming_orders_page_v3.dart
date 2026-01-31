@@ -12,6 +12,7 @@ import '../../services/auth/firestore_service_v3.dart';
 import '../../services/notifications/notification_service_v3.dart';
 import '../meals/interactive_menu_page_v3.dart';
 import '../../services/orders/order_generation_service.dart';
+import '../../widgets/swipeable_page.dart';
 
 class UpcomingOrdersPageV3 extends StatefulWidget {
   const UpcomingOrdersPageV3({super.key});

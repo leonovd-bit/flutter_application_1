@@ -635,15 +635,22 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
       final mapped = orders.take(12).map((order) {
         final meals = (order['meals'] as List<dynamic>? ?? []);
         String name = order['mealName']?.toString() ?? 'Meal';
+        String imageUrl = '';
         if (meals.isNotEmpty) {
           final first = meals.first;
-          if (first is Map<String, dynamic> && first['name'] != null) {
-            name = first['name'].toString();
+          if (first is Map<String, dynamic>) {
+            if (first['name'] != null) {
+              name = first['name'].toString();
+            }
+            if (first['imageUrl'] != null) {
+              imageUrl = first['imageUrl'].toString();
+            }
           }
         }
         return {
           'id': order['id'] ?? '',
           'name': name,
+          'imageUrl': imageUrl,
         };
       }).toList();
 
@@ -801,48 +808,68 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
         return a.isDefault ? -1 : 1;
       });
       
+      // Deduplicate addresses by street address (case-insensitive)
+      final seen = <String>{};
+      final deduplicatedAddresses = <AddressModelV3>[];
+      for (final addr in loadedAddresses) {
+        final key = addr.streetAddress.trim().toLowerCase();
+        if (!seen.contains(key)) {
+          seen.add(key);
+          deduplicatedAddresses.add(addr);
+        } else {
+          debugPrint('[HomePage] Filtered duplicate address: ${addr.streetAddress}');
+        }
+      }
+      
       // Fallback: if none found, try single-string delivery address saved elsewhere
       if (loadedAddresses.isEmpty) {
         final uid = FirebaseAuth.instance.currentUser?.uid;
         final single = uid == null ? null : prefs.getString('user_delivery_address_$uid');
         if (single != null && single.trim().isNotEmpty) {
-          final addr = AddressModelV3(
-            id: 'addr_${DateTime.now().millisecondsSinceEpoch}',
-            userId: uid ?? '',
-            label: 'Delivery Address',
-            streetAddress: single.trim(),
-            apartment: '',
-            city: '',
-            state: '',
-            zipCode: '',
-            isDefault: true,
+          // Check if this address already exists to avoid duplicates
+          final alreadyExists = loadedAddresses.any((addr) => 
+            addr.streetAddress.trim().toLowerCase() == single.trim().toLowerCase()
           );
-          loadedAddresses.add(addr);
-          // Persist into user_addresses list so it appears next time
-          final updated = List<String>.from(addressList)..add(json.encode({
-            'id': addr.id,
-            'userId': addr.userId,
-            'label': addr.label,
-            'streetAddress': addr.streetAddress,
-            'apartment': addr.apartment,
-            'city': addr.city,
-            'state': addr.state,
-            'zipCode': addr.zipCode,
-            'isDefault': addr.isDefault,
-            'createdAt': DateTime.now().toIso8601String(),
-          }));
-          await prefs.setStringList('user_addresses', updated);
+          
+          if (!alreadyExists) {
+            final addr = AddressModelV3(
+              id: 'addr_${DateTime.now().millisecondsSinceEpoch}',
+              userId: uid ?? '',
+              label: 'Delivery Address',
+              streetAddress: single.trim(),
+              apartment: '',
+              city: '',
+              state: '',
+              zipCode: '',
+              isDefault: true,
+            );
+            loadedAddresses.add(addr);
+            // Persist into user_addresses list so it appears next time
+            final updated = List<String>.from(addressList)..add(json.encode({
+              'id': addr.id,
+              'userId': addr.userId,
+              'label': addr.label,
+              'streetAddress': addr.streetAddress,
+              'apartment': addr.apartment,
+              'city': addr.city,
+              'state': addr.state,
+              'zipCode': addr.zipCode,
+              'isDefault': addr.isDefault,
+              'createdAt': DateTime.now().toIso8601String(),
+            }));
+            await prefs.setStringList('user_addresses', updated);
+          }
         }
       }
 
       if (!mounted) return;
       setState(() {
-        _userAddresses = loadedAddresses;
-        _addressesError = loadedAddresses.isEmpty ? 'No addresses saved' : null;
+        _userAddresses = deduplicatedAddresses;
+        _addressesError = deduplicatedAddresses.isEmpty ? 'No addresses saved' : null;
         _isLoadingAddresses = false;
       });
       
-      debugPrint('[HomePage] Loaded ${loadedAddresses.length} addresses from SharedPreferences');
+      debugPrint('[HomePage] Loaded ${deduplicatedAddresses.length} addresses from SharedPreferences (${loadedAddresses.length - deduplicatedAddresses.length} duplicates removed)');
     } catch (e) {
       // On failure, attempt to use cached addresses
       final cached = await _loadCachedAddresses();
@@ -2364,6 +2391,7 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
               final double needed = count * cardWidth + (count - 1) * cardSpacing;
 
               Widget buildCard(Map<String, dynamic> order) {
+                debugPrint('[HomePage] Order card imageUrl: ${order['imageUrl']}');
                 return Container(
                   width: cardWidth,
                   decoration: BoxDecoration(
@@ -2380,14 +2408,29 @@ class _HomePageV3State extends State<HomePageV3> with WidgetsBindingObserver {
                           width: 50,
                           height: 50,
                           decoration: BoxDecoration(
-                            color: AppThemeV3.accent.withValues(alpha: 0.1),
+                            color: Colors.grey[200],
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Icon(
-                            Icons.fastfood,
-                            color: AppThemeV3.accent,
-                            size: 24,
-                          ),
+                          child: order['imageUrl'] != null && (order['imageUrl'] as String).isNotEmpty
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.network(
+                                    order['imageUrl'],
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Icon(
+                                        Icons.fastfood,
+                                        color: AppThemeV3.accent,
+                                        size: 24,
+                                      );
+                                    },
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.fastfood,
+                                  color: AppThemeV3.accent,
+                                  size: 24,
+                                ),
                         ),
                         const SizedBox(height: 8),
                         Text(

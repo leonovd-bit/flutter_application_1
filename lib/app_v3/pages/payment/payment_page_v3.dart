@@ -8,10 +8,13 @@ import '../../services/auth/firestore_service_v3.dart';
 import '../../services/meals/scheduler_service_v3.dart';
 import '../../services/orders/order_generation_service.dart';
 import '../../services/payment/stripe_service.dart';
+import '../../services/payment/square_web_payments.dart';
 import '../../services/billing/pricing_service.dart';
 import '../../services/billing/invoicing_service.dart';
-import '../../../services/billing_service.dart';
+import '../../config/feature_flags.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/mock_user_model.dart';
 import 'package:flutter/foundation.dart';
 import '../../widgets/swipeable_page.dart';
@@ -38,6 +41,12 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
   MockUser? _mockUser;
   bool _isProcessing = false;
   String _selectedPaymentMethod = 'card';
+  bool _squareInitializing = false;
+  bool _squareReady = false;
+  String? _squareError;
+  String? _squareRestaurantId;
+  bool _squareInitScheduled = false;
+  final bool _squarePaymentsEnabled = FeatureFlags.enableSquarePayments;
 
   @override
   void initState() {
@@ -47,6 +56,24 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
   @override
   Widget build(BuildContext context) {
   final pricing = _calculatePricing();
+
+  if (_squarePaymentsEnabled && pricing != null && !_squareReady && !_squareInitializing && !_squareInitScheduled) {
+    final restaurantId = _getSingleRestaurantId(_getSelectedMeals(), throwOnMultiple: false);
+    if (restaurantId != null) {
+      _squareInitScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) {
+          _squareInitScheduled = false;
+          return;
+        }
+        try {
+          await _ensureSquareReady(restaurantId);
+        } finally {
+          _squareInitScheduled = false;
+        }
+      });
+    }
+  }
 
   return SwipeablePage(
     child: Scaffold(
@@ -375,6 +402,124 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
             const SizedBox(height: 32),
             
             // Start Subscription Button
+            if (kIsWeb && _squarePaymentsEnabled) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppThemeV3.surfaceElevated,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Card for Meals + Delivery (Square)',
+                      style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'This card is charged by the kitchen via Square for meals and delivery.',
+                      style: AppThemeV3.textTheme.bodySmall?.copyWith(
+                        color: AppThemeV3.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppThemeV3.border),
+                      ),
+                      child: SizedBox(
+                        height: 56,
+                        child: SquareWebPayments.instance.buildCardView(),
+                      ),
+                    ),
+                    if (_squareError != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _squareError!,
+                        style: AppThemeV3.textTheme.bodySmall?.copyWith(
+                          color: Colors.red,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+            ],
+            if (!kIsWeb && _squarePaymentsEnabled) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppThemeV3.surfaceElevated,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Card for Meals + Delivery (Square)',
+                      style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'You will enter a card for Square on the next step.',
+                      style: AppThemeV3.textTheme.bodySmall?.copyWith(
+                        color: AppThemeV3.textSecondary,
+                      ),
+                    ),
+                    if (_squareError != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _squareError!,
+                        style: AppThemeV3.textTheme.bodySmall?.copyWith(
+                          color: Colors.red,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+            ],
+
+            if (!_squarePaymentsEnabled) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppThemeV3.surfaceElevated,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Square payments temporarily disabled',
+                      style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'You will be charged via Stripe only for now.',
+                      style: AppThemeV3.textTheme.bodySmall?.copyWith(
+                        color: AppThemeV3.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+            ],
+
+            // Start Subscription Button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -418,7 +563,7 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  'Secured by Stripe',
+                  'Secured by Stripe & Square',
                   style: AppThemeV3.textTheme.bodySmall?.copyWith(
                     color: AppThemeV3.textSecondary,
                   ),
@@ -431,7 +576,6 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
       ),
     );
   }
-
   Future<void> _startSubscription() async {
     setState(() => _isProcessing = true);
 
@@ -440,57 +584,113 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
       debugPrint('[Payment] Calculating upfront pricing...');
       final selectedMealsList = _getSelectedMeals();
       final mealCount = _countMeals();
-      
+
       if (selectedMealsList.isEmpty) {
         throw Exception('No meals selected');
       }
-      
+
       final pricing = PricingService.calculateSubscriptionPrice(
         selectedMeals: selectedMealsList,
         mealCount: mealCount,
+        stripeOnly: !_squarePaymentsEnabled,
       );
-      
+
       debugPrint('[Payment] Pricing calculated: \$${pricing.totalAmount.toStringAsFixed(2)}');
       debugPrint('[Payment] ${pricing.toMap()}');
-      
-      // 2. Add payment method via Stripe
+
+      final restaurantId = _getSingleRestaurantId(selectedMealsList);
+      if (restaurantId == null) {
+        throw Exception('Missing restaurant for selected meals');
+      }
+
+      setState(() {
+        _squareError = null;
+      });
+
+      if (_squarePaymentsEnabled) {
+        // 2. Tokenize Square card and store card on file
+        final squareSourceId = await _tokenizeSquareCard(restaurantId);
+        final squareAmountCents = (pricing.squareChargeTotal * 100).round();
+
+        final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
+        final storeCardCallable = functions.httpsCallable('storeSquareCardForSubscription');
+        final storeCardResult = await storeCardCallable.call({
+          'restaurantId': restaurantId,
+          'sourceId': squareSourceId,
+          'customerEmail': FirebaseAuth.instance.currentUser?.email ?? '',
+          'customerName': FirebaseAuth.instance.currentUser?.displayName ?? '',
+        });
+        final storeCardData = storeCardResult.data as Map<dynamic, dynamic>;
+        final squareCardId = storeCardData['squareCardId'] as String?;
+        if (squareCardId == null || squareCardId.isEmpty) {
+          throw Exception('Failed to store Square card for recurring billing');
+        }
+
+        // 3. Charge meals + delivery via Square using stored card
+        final squareCallable = functions.httpsCallable('chargeSquareForSubscription');
+        final squareResult = await squareCallable.call({
+          'restaurantId': restaurantId,
+          'amountCents': squareAmountCents,
+          'cardId': squareCardId,
+          'idempotencyKey': 'fp_sub_${DateTime.now().millisecondsSinceEpoch}',
+          'customerEmail': FirebaseAuth.instance.currentUser?.email ?? '',
+          'customerName': FirebaseAuth.instance.currentUser?.displayName ?? '',
+        });
+
+        final squareData = squareResult.data as Map<dynamic, dynamic>;
+        if (squareData['success'] != true) {
+          throw Exception('Square payment failed');
+        }
+      }
+
+      // 4. Add payment method via Stripe
       debugPrint('[Payment] Presenting Stripe payment sheet...');
       final StripeService stripe = StripeService.instance;
       final paymentAdded = await stripe.addPaymentMethod(context);
-      
+
       if (!paymentAdded) {
-        debugPrint('[Payment] User cancelled or payment method addition failed');
-        if (mounted) {
-          setState(() => _isProcessing = false);
-        }
+        setState(() => _isProcessing = false);
         return;
       }
-      
-      debugPrint('[Payment] Payment method successfully added');
-      
-      // 3. Get or create Stripe customer and create invoice
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('✓ Setting up billing...'),
-            backgroundColor: AppThemeV3.success,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-      
+
       final userId = _mockUser?.uid ?? FirebaseAuth.instance.currentUser?.uid;
       if (userId == null) {
         throw Exception('User not authenticated');
       }
+
+      // Create Stripe customer using StripeService
+      debugPrint('[Payment] Payment processing initiated for user: $userId');
+      final user = FirebaseAuth.instance.currentUser;
+      final email = user?.email ?? '';
+      final name = user?.displayName;
       
-      // Get or create Stripe customer using BillingService
-      final billingService = BillingService();
-      final customerId = await billingService.ensureCustomer();
-      if (customerId.isEmpty || customerId.startsWith('cus_temp')) {
-        throw Exception('Failed to get valid Stripe customer ID: $customerId');
+      String? customerId;
+      try {
+        // Call createCustomer Cloud Function to ensure customer exists
+        final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
+        final callable = functions.httpsCallable('createCustomer');
+        final result = await callable.call({
+          'email': email,
+          if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
+        });
+        final data = result.data as Map?;
+        final customer = (data?['customer'] as Map?) ?? {};
+        customerId = customer['id'] as String?;
+        if (customerId == null) {
+          throw Exception('Failed to create Stripe customer - no customer ID returned');
+        }
+        debugPrint('[Payment] Stripe customer created: $customerId');
+        
+        // Save Stripe customer ID to user profile
+        await FirebaseFirestore.instance.collection('users').doc(userId).set({
+          'stripeCustomerId': customerId,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        debugPrint('[Payment] Stripe customer ID saved to user profile');
+      } catch (e) {
+        debugPrint('[Payment] Error creating Stripe customer: $e');
+        throw Exception('Failed to create Stripe customer: $e');
       }
-      debugPrint('[Payment] Using Stripe customer: $customerId');
       
       // 4. Create invoice for upfront billing
       if (mounted) {
@@ -515,6 +715,71 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
       );
       
       debugPrint('[Payment] Invoice created: $invoiceId, Amount: \$${pricing.totalAmount.toStringAsFixed(2)}');
+
+      // Persist meal selections and subscription status for recurring billing
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('meal_selections')
+          .doc('current')
+          .set({
+        'mealSelections': formattedMealSelections,
+        'mealCount': pricing.mealCount,
+        'restaurantId': restaurantId,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      final nextBillingDate = DateTime.now().add(const Duration(days: 7));
+      await FirebaseFirestore.instance.collection('users').doc(userId).set({
+        'subscriptionStatus': 'active',
+        'subscriptionStartedAt': FieldValue.serverTimestamp(),
+        'nextBillingDate': Timestamp.fromDate(nextBillingDate),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      
+      // PERSIST DELIVERY SCHEDULE TO FIREBASE
+      try {
+        // Convert weekly schedule to DeliveryScheduleModelV3 list
+        final List<DeliveryScheduleModelV3> schedules = [];
+        final now = DateTime.now();
+        final weekStart = now.subtract(Duration(days: now.weekday - DateTime.monday));
+        
+        widget.weeklySchedule.forEach((day, mealMap) {
+          mealMap.forEach((mealType, cfg) {
+            final enabled = (cfg['enabled'] ?? true) == true;
+            if (!enabled) return;
+            
+            final timeVal = cfg['time'];
+            int hour = 12, minute = 0;
+            if (timeVal is String) {
+              final parts = timeVal.split(':');
+              if (parts.length == 2) {
+                hour = int.tryParse(parts[0]) ?? 12;
+                minute = int.tryParse(parts[1]) ?? 0;
+              }
+            }
+            
+            final id = '${day.toLowerCase()}_${mealType.toString().toLowerCase()}';
+            schedules.add(DeliveryScheduleModelV3(
+              id: id,
+              userId: userId,
+              dayOfWeek: day.toLowerCase(),
+              mealType: mealType.toString().toLowerCase(),
+              deliveryTime: TimeOfDay(hour: hour, minute: minute),
+              addressId: 'default',
+              isActive: true,
+              weekStartDate: weekStart,
+            ));
+          });
+        });
+        
+        // Save to Firebase
+        await FirestoreServiceV3.replaceActiveDeliverySchedules(userId, schedules);
+        debugPrint('[Payment] ✓ Delivery schedules persisted to Firebase (${schedules.length} schedules)');
+      } catch (e) {
+        debugPrint('[Payment] Warning: Failed to persist delivery schedules: $e');
+        // Don't fail the whole flow if this fails
+      }
       
       // 5. Generate orders from meal selections
       try {
@@ -530,11 +795,9 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
           debugPrint('[Payment] Successfully generated ${result['ordersGenerated'] ?? 0} orders');
         } else {
           debugPrint('[Payment] Order generation failed: ${result['error'] ?? 'Unknown error'}');
-          await _generateOrdersLegacy(userId);
         }
       } catch (e) {
         debugPrint('[Payment] Failed to generate orders: $e');
-        await _generateOrdersLegacy(userId);
       }
       
       // 5. Mark setup as completed
@@ -606,6 +869,91 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
     return count;
   }
 
+  String? _getSingleRestaurantId(List<MealModelV3> meals, {bool throwOnMultiple = true}) {
+    final ids = meals
+        .map((meal) => meal.restaurantId)
+        .whereType<String>()
+        .toSet();
+
+    if (ids.isEmpty) {
+      return null;
+    }
+
+    if (ids.length > 1) {
+      if (throwOnMultiple) {
+        throw Exception('Multiple kitchens are not supported for a single checkout yet');
+      }
+      return null;
+    }
+
+    return ids.first;
+  }
+
+  Future<void> _ensureSquareReady(String restaurantId) async {
+    if (_squareReady && _squareRestaurantId == restaurantId) {
+      return;
+    }
+
+    if (_squareInitializing) {
+      return;
+    }
+
+    setState(() {
+      _squareInitializing = true;
+      _squareError = null;
+    });
+
+    try {
+      final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
+      final configCallable = functions.httpsCallable('getSquarePaymentConfig');
+      final restaurantCallable = functions.httpsCallable('getRestaurantPaymentConfig');
+
+      final configResult = await configCallable.call();
+      final configData = configResult.data as Map<dynamic, dynamic>;
+      final applicationId = configData['applicationId'] as String?;
+      final env = configData['env'] as String? ?? 'production';
+
+      if (applicationId == null || applicationId.trim().isEmpty) {
+        throw Exception('Square application ID is not configured');
+      }
+
+      final restaurantResult = await restaurantCallable.call({'restaurantId': restaurantId});
+      final restaurantData = restaurantResult.data as Map<dynamic, dynamic>;
+      final locationId = restaurantData['squareLocationId'] as String?;
+
+      if (locationId == null || locationId.trim().isEmpty) {
+        throw Exception('Restaurant is missing Square location ID');
+      }
+
+      await SquareWebPayments.instance.initialize(
+        applicationId: applicationId,
+        locationId: locationId,
+        env: env,
+      );
+
+      setState(() {
+        _squareReady = true;
+        _squareRestaurantId = restaurantId;
+      });
+    } catch (e) {
+      setState(() {
+        _squareError = e.toString();
+      });
+      rethrow;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _squareInitializing = false;
+        });
+      }
+    }
+  }
+
+  Future<String> _tokenizeSquareCard(String restaurantId) async {
+    await _ensureSquareReady(restaurantId);
+    return SquareWebPayments.instance.tokenize();
+  }
+
   /// Format meal selections for Cloud Function
   List<Map<String, dynamic>> _formatMealSelections() {
     final formattedMealSelections = <Map<String, dynamic>>[];
@@ -622,6 +970,9 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
             'protein': meal.protein,
             'imageUrl': meal.imagePath,
             'price': meal.price,
+            if (meal.restaurantId != null) 'restaurantId': meal.restaurantId,
+            if (meal.squareItemId != null) 'squareItemId': meal.squareItemId,
+            if (meal.squareVariationId != null) 'squareVariationId': meal.squareVariationId,
           });
         }
       });
@@ -653,6 +1004,7 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
     return PricingService.calculateSubscriptionPrice(
       selectedMeals: selectedMeals,
       mealCount: mealCount,
+      stripeOnly: !_squarePaymentsEnabled,
     );
   }
 
@@ -673,6 +1025,51 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
       );
     }
 
+    if (!_squarePaymentsEnabled) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _pricingRow('Meals Subtotal', pricing.mealSubtotal),
+          const SizedBox(height: 8),
+          _pricingRow('Delivery (\$9.75 × ${pricing.mealCount})', pricing.deliveryFees),
+          const SizedBox(height: 8),
+          _pricingRow('Stripe Processing Fee', pricing.stripeFee, isSmall: true),
+          const SizedBox(height: 8),
+          _pricingRow('Stripe Charge (full amount)', pricing.stripeChargeTotal),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(color: AppThemeV3.border),
+                bottom: BorderSide(color: AppThemeV3.border),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Total Due Today',
+                  style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppThemeV3.accent,
+                  ),
+                ),
+                Text(
+                  '\$${pricing.totalAmount.toStringAsFixed(2)}',
+                  style: AppThemeV3.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppThemeV3.accent,
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -680,9 +1077,13 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
         const SizedBox(height: 8),
         _pricingRow('Delivery (\$9.75 × ${pricing.mealCount})', pricing.deliveryFees),
         const SizedBox(height: 8),
-        _pricingRow('FreshPunk Service Fee (10%)', pricing.freshpunkFee),
+        _pricingRow('FreshPunk Service Fee (10% of meals)', pricing.freshpunkFee),
         const SizedBox(height: 8),
-        _pricingRow('Payment Processing Fee', pricing.stripeFee, isSmall: true),
+        _pricingRow('Stripe Processing Fee', pricing.stripeFee, isSmall: true),
+        const SizedBox(height: 8),
+        _pricingRow('Stripe Charge (platform fee)', pricing.stripeChargeTotal),
+        const SizedBox(height: 8),
+        _pricingRow('Square Charge (meals + delivery)', pricing.squareChargeTotal),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -742,55 +1143,5 @@ class _PaymentPageV3State extends State<PaymentPageV3> {
   }
 
   /// Legacy fallback method for order generation if server-side fails
-  Future<void> _generateOrdersLegacy(String uid) async {
-    try {
-      debugPrint('[Payment] Using legacy order generation fallback');
-      
-      // Convert weekly schedule map -> list of DeliveryScheduleModelV3
-      final List<DeliveryScheduleModelV3> schedules = [];
-      final now = DateTime.now();
-      final weekStart = now.subtract(Duration(days: now.weekday - DateTime.monday));
-      
-      widget.weeklySchedule.forEach((day, mealMap) {
-        mealMap.forEach((mealType, cfg) {
-          final enabled = (cfg['enabled'] ?? true) == true;
-          if (!enabled) return;
-          
-          final timeVal = cfg['time'];
-          int hour = 12, minute = 0;
-          if (timeVal is String) {
-            final parts = timeVal.split(':');
-            if (parts.length == 2) {
-              hour = int.tryParse(parts[0]) ?? 12;
-              minute = int.tryParse(parts[1]) ?? 0;
-            }
-          }
-          
-          final id = '${day.toLowerCase()}_${mealType.toString().toLowerCase()}';
-          schedules.add(DeliveryScheduleModelV3(
-            id: id,
-            userId: uid,
-            dayOfWeek: day.toLowerCase(),
-            mealType: mealType.toString().toLowerCase(),
-            deliveryTime: TimeOfDay(hour: hour, minute: minute),
-            addressId: 'default',
-            isActive: true,
-            weekStartDate: weekStart,
-          ));
-        });
-      });
-      
-      await FirestoreServiceV3.replaceActiveDeliverySchedules(uid, schedules);
-      
-      // Generate upcoming orders to reflect the new schedules
-      final created = await SchedulerServiceV3.generateUpcomingOrders(
-        userId: uid, 
-        daysAhead: 7
-      );
-      
-      debugPrint('[Payment] Legacy: Generated $created upcoming orders for user=$uid');
-    } catch (e) {
-      debugPrint('[Payment] Legacy order generation also failed: $e');
-    }
-  }
+
 }

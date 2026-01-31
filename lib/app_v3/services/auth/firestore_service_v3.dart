@@ -332,8 +332,9 @@ class FirestoreServiceV3 {
   static Future<List<dynamic>> getActiveDeliverySchedules(String userId) async {
     try {
       final snapshot = await _firestore
+          .collection(_usersCollection)
+          .doc(userId)
           .collection(_deliverySchedulesCollection)
-          .where('userId', isEqualTo: userId)
           .where('isActive', isEqualTo: true)
           .get();
       
@@ -348,17 +349,23 @@ class FirestoreServiceV3 {
     try {
       // Delete existing schedules
       final existingSnapshot = await _firestore
+          .collection(_usersCollection)
+          .doc(userId)
           .collection(_deliverySchedulesCollection)
-          .where('userId', isEqualTo: userId)
           .get();
       
       for (final doc in existingSnapshot.docs) {
         await doc.reference.delete();
       }
       
-      // Add new schedules
+      // Add new schedules as subcollection
       for (final schedule in schedules) {
-        await _firestore.collection(_deliverySchedulesCollection).add(schedule.toJson());
+        await _firestore
+            .collection(_usersCollection)
+            .doc(userId)
+            .collection(_deliverySchedulesCollection)
+            .doc(schedule.id)
+            .set(schedule.toJson());
       }
     } catch (e) {
       debugPrint('Error replacing active delivery schedules: $e');

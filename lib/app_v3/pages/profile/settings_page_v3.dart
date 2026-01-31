@@ -10,8 +10,8 @@ import '../delivery/address_page_v3.dart';
 import 'profile_page_v3.dart';
 import '../payment/payment_methods_page_v3.dart';
 import '../subscription/manage_subscription_page_v3.dart';
-import '../delivery/delivery_schedule_overview_page_v2.dart';
-import '../meals/meal_schedule_overview_page_v2.dart';
+import '../delivery/delivery_schedule_page_v5.dart';
+import '../meals/meal_schedule_page_v3_fixed.dart';
 import '../info/about_page_v3.dart';
 import '../info/terms_of_service_page_v3.dart';
 import '../info/privacy_policy_page_v3.dart';
@@ -1180,14 +1180,20 @@ class _SettingsPageV3State extends State<SettingsPageV3> {
   void _navigateToDeliveryScheduleOverview() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const DeliveryScheduleOverviewPageV2()),
+      MaterialPageRoute(
+        builder: (context) => const DeliverySchedulePageV5(
+          isSignupFlow: false, // From settings, not signup
+        ),
+      ),
     );
   }
 
   void _navigateToMealScheduleOverview() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const MealScheduleOverviewPageV2()),
+      MaterialPageRoute(
+        builder: (context) => const MealSchedulePageV3(),
+      ),
     );
   }
 

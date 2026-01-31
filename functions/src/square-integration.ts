@@ -18,6 +18,16 @@ const SQUARE_APPLICATION_ID = defineSecret("SQUARE_APPLICATION_ID");
 const SQUARE_APPLICATION_SECRET = defineSecret("SQUARE_APPLICATION_SECRET");
 const SQUARE_ENV = defineSecret("SQUARE_ENV");
 
+const SQUARE_OAUTH_SCOPES = [
+  "MERCHANT_PROFILE_READ",
+  "PAYMENTS_WRITE",
+  "ITEMS_READ",
+  "ORDERS_READ",
+  "ORDERS_WRITE",
+  "CUSTOMERS_READ",
+  "CUSTOMERS_WRITE",
+];
+
 export function getSquareConfig() {
   const rawEnv = SQUARE_ENV.value();
   const env = (rawEnv ? rawEnv.trim() : "sandbox").toLowerCase();
@@ -102,24 +112,7 @@ export const initiateSquareOAuthHttp = onRequest(
     // Generate Square OAuth URL (properly encoded)
     const state = applicationRef.id; // Use application ID as state parameter
 
-    // Request the minimal scopes we actually use:
-    // - MERCHANT_PROFILE_READ: read merchant details
-    // - PAYMENTS_WRITE: record external payments (mark orders as paid)
-    // - ITEMS_READ: sync catalog items to FreshPunk
-    // - ORDERS_READ: query/search orders and fulfillment status
-    // - ORDERS_WRITE: create/update orders and fulfillment requests
-    //
-    // INTENTIONALLY EXCLUDED:
-    // - REFUNDS_READ/REFUNDS_WRITE: Not requesting refund access
-    // - CUSTOMERS_READ/CUSTOMERS_WRITE: Not managing Square customers
-    // - INVENTORY_READ/INVENTORY_WRITE: Not managing inventory beyond catalog
-    const scopes = [
-      "MERCHANT_PROFILE_READ",
-      "PAYMENTS_WRITE",
-      "ITEMS_READ",
-      "ORDERS_READ",
-      "ORDERS_WRITE",
-    ];
+    const scopes = SQUARE_OAUTH_SCOPES;
 
     // Build URL with explicit encoding
     const scopeStr = scopes.join(" ");
@@ -272,6 +265,244 @@ export const squareOAuthTestPage = onRequest(
 );
 
 /**
+ * Initiate Square OAuth flow for reauthorizing an existing restaurant.
+ * Updates the existing restaurant record instead of creating a new one.
+ */
+export const initiateSquareReauthHttp = onRequest(
+  {
+    region: "us-central1",
+    secrets: [SQUARE_APPLICATION_ID, SQUARE_ENV, SQUARE_APPLICATION_SECRET],
+  },
+  async (req, res) => {
+    try {
+      const db = getFirestore();
+      const {applicationId, baseUrl, env} = getSquareConfig();
+
+      res.set("Access-Control-Allow-Origin", "*");
+      res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+      res.set("Access-Control-Allow-Headers", "Content-Type");
+
+      if (req.method === "OPTIONS") {
+        res.status(204).send("");
+        return;
+      }
+
+      if (req.method !== "POST") {
+        res.status(405).json({success: false, message: "Method not allowed"});
+        return;
+      }
+
+      const {restaurantId} = req.body || {};
+      if (!restaurantId) {
+        res.status(400).json({success: false, message: "restaurantId is required"});
+        return;
+      }
+
+      const restaurantDoc = await db.collection("restaurant_partners").doc(restaurantId).get();
+      if (!restaurantDoc.exists) {
+        res.status(404).json({success: false, message: "Restaurant not found"});
+        return;
+      }
+
+      const cleanAppId = (applicationId || "").replace(/[\r\n]+/g, "").trim();
+      if (!cleanAppId) {
+        logger.error("Missing SQUARE_APPLICATION_ID secret; cannot start OAuth reauth");
+        res.status(500).json({success: false, message: "Server is missing Square application ID"});
+        return;
+      }
+
+      const state = `reauth:${restaurantId}`;
+      const scopeStr = SQUARE_OAUTH_SCOPES.join(" ");
+      const redirectUri = "https://us-east4-freshpunk-48db1.cloudfunctions.net/completeSquareOAuthHttp";
+
+      const oauthUrl = `${baseUrl}/oauth2/authorize` +
+        `?client_id=${encodeURIComponent(cleanAppId)}` +
+        "&response_type=code" +
+        `&scope=${encodeURIComponent(scopeStr)}` +
+        `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+        `&state=${encodeURIComponent(state)}`;
+
+      logger.info("Square OAuth reauth initiated", {
+        restaurantId,
+        baseUrl,
+        env,
+        redirectUri,
+      });
+
+      res.status(200).json({
+        success: true,
+        oauthUrl,
+        message: "Complete OAuth flow to reauthorize Square connection",
+      });
+    } catch (error: any) {
+      logger.error("Square OAuth reauth initiation failed", error);
+      res.status(500).json({success: false, message: `OAuth setup failed: ${error.message}`});
+    }
+  }
+);
+
+/**
+ * OAuth callback for reauthorizing existing restaurant.
+ */
+export const completeSquareReauthHttp = onRequest(
+  {
+    region: "us-east4",
+    secrets: [SQUARE_APPLICATION_ID, SQUARE_ENV, SQUARE_APPLICATION_SECRET],
+  },
+  async (req, res) => {
+    try {
+      const db = getFirestore();
+      const {applicationId, applicationSecret, baseUrl} = getSquareConfig();
+
+      const code = req.query.code as string | undefined;
+      const state = req.query.state as string | undefined;
+
+      if (!code || !state || !state.startsWith("reauth:")) {
+        res.status(400).send("Invalid reauth request");
+        return;
+      }
+
+      const restaurantId = state.replace("reauth:", "");
+      const restaurantDoc = await db.collection("restaurant_partners").doc(restaurantId).get();
+      if (!restaurantDoc.exists) {
+        res.status(404).send("Restaurant not found");
+        return;
+      }
+
+      const cleanAppId = (applicationId || "").replace(/[\r\n]+/g, "").trim();
+      const cleanAppSecret = (applicationSecret || "").replace(/[\r\n]+/g, "").trim();
+      if (!cleanAppId || !cleanAppSecret) {
+        res.status(500).send("Missing Square credentials");
+        return;
+      }
+
+      const redirectUri = "https://us-east4-freshpunk-48db1.cloudfunctions.net/completeSquareReauthHttp";
+
+      const tokenResponse = await fetch(`${baseUrl}/oauth2/token`, {
+        method: "POST",
+        headers: {
+          "Square-Version": "2023-10-18",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          client_id: cleanAppId,
+          client_secret: cleanAppSecret,
+          code,
+          grant_type: "authorization_code",
+          redirect_uri: redirectUri,
+        }),
+      });
+
+      if (!tokenResponse.ok) {
+        const errorData = await tokenResponse.text();
+        logger.error("Square reauth token exchange failed", {error: errorData});
+        res.status(500).send("Failed to obtain Square access token");
+        return;
+      }
+
+      const tokenData = await tokenResponse.json();
+      const {access_token, merchant_id, expires_at, refresh_token} = tokenData as any;
+
+      let squareLocationId: string | null = null;
+      try {
+        const locationsResp = await fetch(`${baseUrl}/v2/locations`, {
+          headers: {
+            "Square-Version": "2023-10-18",
+            "Authorization": `Bearer ${access_token}`,
+          },
+        });
+        if (locationsResp.ok) {
+          const locData = await locationsResp.json();
+          const active = (locData.locations || []).find((l: any) => l.status === "ACTIVE") ||
+            (locData.locations || [])[0];
+          squareLocationId = active?.id || null;
+        }
+      } catch (e) {
+        logger.warn("Square locations fetch failed during reauth", e as any);
+      }
+
+      await db.collection("restaurant_partners").doc(restaurantId).set({
+        squareMerchantId: merchant_id || null,
+        squareAccessToken: access_token,
+        squareRefreshToken: refresh_token || null,
+        squareTokenExpiresAt: expires_at ? new Date(expires_at) : null,
+        squareLocationId: squareLocationId,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+
+      res.status(200).send("Square reauthorization successful. You can close this window.");
+    } catch (error: any) {
+      logger.error("Square reauth failed", {error: error.message});
+      res.status(500).send("Square reauthorization failed");
+    }
+  }
+);
+
+/**
+ * Simple test page for reauthorizing an existing restaurant.
+ */
+export const squareReauthTestPage = onRequest(
+  {
+    region: "us-east4",
+  },
+  async (req, res) => {
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+    res.set("Content-Type", "text/html; charset=utf-8");
+
+    const restaurantId = String(req.query.restaurantId || "");
+    res.send(`<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Square Reauthorize</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; max-width: 720px; margin: 40px auto; padding: 0 16px; }
+      label { display: block; margin: 12px 0 6px; }
+      input { width: 100%; padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px; }
+      button { margin-top: 16px; padding: 10px 16px; border: 0; background: #2563eb; color: white; border-radius: 6px; cursor: pointer; }
+      .status { margin-top: 16px; font-size: 14px; color: #374151; }
+    </style>
+  </head>
+  <body>
+    <h1>Square Reauthorization</h1>
+    <p>Use this to reauthorize an existing restaurant with the updated customer permissions.</p>
+    <label for="restaurantId">Restaurant ID</label>
+    <input id="restaurantId" value="${restaurantId}" placeholder="restaurant id" />
+    <button id="connect">Reauthorize Square →</button>
+    <div class="status" id="status"></div>
+    <script>
+      const endpoint = 'https://us-central1-freshpunk-48db1.cloudfunctions.net/initiateSquareReauthHttp';
+      document.getElementById('connect').addEventListener('click', async () => {
+        const status = document.getElementById('status');
+        const restaurantId = document.getElementById('restaurantId').value.trim();
+        if (!restaurantId) {
+          status.textContent = 'Restaurant ID is required.';
+          return;
+        }
+        status.textContent = 'Requesting OAuth link...';
+        try {
+          const resp = await fetch(endpoint, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({restaurantId}),
+          });
+          const data = await resp.json();
+          if (!resp.ok || !data.oauthUrl) {
+            throw new Error(data.message || 'Failed to get OAuth URL');
+          }
+          window.location.href = data.oauthUrl;
+        } catch (err) {
+          status.textContent = err.message || String(err);
+        }
+      });
+    </script>
+  </body>
+</html>`);
+  }
+);
+
+/**
  * Complete Square OAuth flow and setup restaurant integration (HTTP version)
  */
 export const completeSquareOAuthHttp = onRequest(
@@ -349,6 +580,76 @@ export const completeSquareOAuthHttp = onRequest(
       return;
     }
 
+    // Reauth flow: state prefixed with reauth: and updates existing restaurant
+    const stateStr = String(state);
+    if (stateStr.startsWith("reauth:")) {
+      const restaurantId = stateStr.replace("reauth:", "");
+      const restaurantDoc = await db.collection("restaurant_partners").doc(restaurantId).get();
+      if (!restaurantDoc.exists) {
+        res.status(404).send("Restaurant not found");
+        return;
+      }
+
+      const cleanAppId = (applicationId || "").replace(/[\r\n]+/g, "").trim();
+      const cleanAppSecret = (applicationSecret || "").replace(/[\r\n]+/g, "").trim();
+      const redirectUri = "https://us-east4-freshpunk-48db1.cloudfunctions.net/completeSquareOAuthHttp";
+
+      const tokenResponse = await fetch(`${baseUrl}/oauth2/token`, {
+        method: "POST",
+        headers: {
+          "Square-Version": "2023-10-18",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          client_id: cleanAppId,
+          client_secret: cleanAppSecret,
+          code,
+          grant_type: "authorization_code",
+          redirect_uri: redirectUri,
+        }),
+      });
+
+      if (!tokenResponse.ok) {
+        const errorData = await tokenResponse.text();
+        logger.error("Square reauth token exchange failed", {error: errorData});
+        res.status(500).send("Failed to obtain Square access token");
+        return;
+      }
+
+      const tokenData = await tokenResponse.json();
+      const {access_token, merchant_id, expires_at, refresh_token} = tokenData;
+
+      let squareLocationId: string | null = null;
+      try {
+        const locationsResp = await fetch(`${baseUrl}/v2/locations`, {
+          headers: {
+            "Square-Version": "2023-10-18",
+            "Authorization": `Bearer ${access_token}`,
+          },
+        });
+        if (locationsResp.ok) {
+          const locData = await locationsResp.json();
+          const active = (locData.locations || []).find((l: any) => l.status === "ACTIVE") ||
+            (locData.locations || [])[0];
+          squareLocationId = active?.id || null;
+        }
+      } catch (e) {
+        logger.warn("Square locations fetch failed during reauth", e as any);
+      }
+
+      await db.collection("restaurant_partners").doc(restaurantId).set({
+        squareMerchantId: merchant_id || null,
+        squareAccessToken: access_token,
+        squareRefreshToken: refresh_token || null,
+        squareTokenExpiresAt: expires_at ? new Date(expires_at) : null,
+        squareLocationId: squareLocationId,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+
+      res.status(200).send("Square reauthorization successful. You can close this window.");
+      return;
+    }
+
     // Get restaurant application
     const applicationDoc = await db.collection("restaurant_applications").doc(state as string).get();
     if (!applicationDoc.exists) {
@@ -398,7 +699,7 @@ export const completeSquareOAuthHttp = onRequest(
     }
 
     const tokenData = await tokenResponse.json();
-    const {access_token, merchant_id, expires_at} = tokenData;
+    const {access_token, merchant_id, expires_at, refresh_token} = tokenData;
 
     // Get merchant information
     const merchantResponse = await fetch(`${baseUrl}/v2/merchants/${merchant_id}`, {
@@ -437,6 +738,7 @@ export const completeSquareOAuthHttp = onRequest(
       // Square integration
       squareMerchantId: merchant_id,
       squareAccessToken: access_token, // In production, encrypt this!
+      squareRefreshToken: refresh_token || null,
       squareTokenExpiresAt: expires_at ? new Date(expires_at) : null,
   squareLocationId: squareLocationId,
 
@@ -490,6 +792,7 @@ export const completeSquareOAuthHttp = onRequest(
         await legacyRestaurantRef.update({
           squareMerchantId: merchant_id,
           squareAccessToken: access_token,
+          squareRefreshToken: refresh_token || null,
           squareTokenExpiresAt: expires_at ? new Date(expires_at) : null,
           squareLocationId: squareLocationId,
           squareBusinessName: merchant.business_name,
@@ -1973,6 +2276,7 @@ async function forwardToSquareRestaurant(
         fulfillments: orderType === "prep_forecast" ? [] : [
           {
             type: "DELIVERY",
+            state: "PROPOSED",
             delivery_details: {
               // Scheduled delivery triggers kitchen prep workflow in POS
               schedule_type: "SCHEDULED",

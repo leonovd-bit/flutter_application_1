@@ -3,7 +3,7 @@ import '../../models/meal_model_v3.dart';
 
 /// Service to calculate subscription pricing upfront
 /// 
-/// PRICING MODEL (Option B - Menu Pricing with Meal Plan Constraint):
+/// PRICING MODEL (Option A - Split Stripe + Square):
 /// 
 /// User Flow:
 /// 1. Selects a meal plan (Standard=1 meal/day, Pro=2 meals/day, Premium=3 meals/day)
@@ -21,10 +21,10 @@ import '../../models/meal_model_v3.dart';
 /// Example Pro Pricing (2 meals/day × 7 days = 14 meals):
 /// - Meals: $12 + $11 + $10 + $13 + ... (sum of 14 individual meal prices)
 /// - Delivery: $9.75 × 14 meals = $136.50
-/// - Subtotal: meals + delivery
-/// - FreshPunk Fee: 10% of subtotal
-/// - Stripe Fee: 2.9% + $0.30 of (subtotal + FreshPunk)
-/// - Total: What customer is charged upfront
+/// - FreshPunk Fee: 10% of meal subtotal (Stripe invoice)
+/// - Stripe Fee: 2.9% + $0.30 of FreshPunk fee
+/// - Square Charge: (meal subtotal - FreshPunk fee) + delivery
+/// - Total: Stripe charge + Square charge
 /// 
 /// Key Points:
 /// - Meal plan mealsPerDay is a hard constraint (user MUST select exactly that many per day)
@@ -55,6 +55,7 @@ class PricingService {
   static SubscriptionPrice calculateSubscriptionPrice({
     required List<MealModelV3> selectedMeals,
     required int mealCount,
+    bool stripeOnly = false,
   }) {
     // 1. Sum meal costs from individual meal prices
     // NOTE: Not using the meal plan's pricePerMeal ($13), using actual meal prices
@@ -66,31 +67,48 @@ class PricingService {
     // 2. Calculate delivery fees (9.75 per meal)
     final deliveryFees = mealCount * deliveryFeePerMeal;
 
-    // 3. Calculate subtotal before FreshPunk fee
-    final subtotalBeforeFreshpunk = mealSubtotal + deliveryFees;
+    // 3. Stripe-only mode (temporary): charge full total via Stripe
+    if (stripeOnly) {
+      final baseTotal = mealSubtotal + deliveryFees;
+      final stripeFee = calculateStripeFee(baseTotal);
+      final stripeChargeTotal = baseTotal + stripeFee;
 
-    // 4. Calculate FreshPunk's 10% share
-    final freshpunkFee = (subtotalBeforeFreshpunk * freshpunkSharePercent) / 100.0;
+      return SubscriptionPrice(
+        mealSubtotal: mealSubtotal,
+        deliveryFees: deliveryFees,
+        freshpunkFee: 0.0,
+        stripeFee: stripeFee,
+        stripeChargeTotal: stripeChargeTotal,
+        squareChargeTotal: 0.0,
+        totalAmount: stripeChargeTotal,
+        mealCount: mealCount,
+        stripeOnly: true,
+      );
+    }
 
-    // 5. Subtotal before Stripe fees
-    final subtotalBeforeStripeFee = subtotalBeforeFreshpunk + freshpunkFee;
+    // 3. FreshPunk fee is 10% of MEAL subtotal only (not delivery)
+    final freshpunkFee = (mealSubtotal * freshpunkSharePercent) / 100.0;
 
-    // 6. Calculate Stripe transaction fees
-    // Stripe charges: 2.9% + $0.30 per transaction
-    final stripeFee = (subtotalBeforeStripeFee * stripePercentFee / 100.0) + stripeFixedFee;
+    // 4. Stripe charges only the FreshPunk fee
+    final stripeFee = (freshpunkFee * stripePercentFee / 100.0) + stripeFixedFee;
+    final stripeChargeTotal = freshpunkFee + stripeFee;
 
-    // 7. Final total (what customer is charged)
-    final totalAmount = subtotalBeforeStripeFee + stripeFee;
+    // 5. Square charges the remainder + delivery
+    final squareChargeTotal = (mealSubtotal - freshpunkFee) + deliveryFees;
+
+    // 6. Total customer cost across Stripe + Square
+    final totalAmount = stripeChargeTotal + squareChargeTotal;
 
     return SubscriptionPrice(
       mealSubtotal: mealSubtotal,
       deliveryFees: deliveryFees,
-      subtotalBeforeFreshpunk: subtotalBeforeFreshpunk,
       freshpunkFee: freshpunkFee,
-      subtotalBeforeStripeFee: subtotalBeforeStripeFee,
       stripeFee: stripeFee,
+      stripeChargeTotal: stripeChargeTotal,
+      squareChargeTotal: squareChargeTotal,
       totalAmount: totalAmount,
       mealCount: mealCount,
+      stripeOnly: false,
     );
   }
 
@@ -104,9 +122,10 @@ class PricingService {
     return '''
 Meals: \$${price.mealSubtotal.toStringAsFixed(2)}
 Delivery ($deliveryFeePerMeal × ${price.mealCount}): \$${price.deliveryFees.toStringAsFixed(2)}
-Subtotal: \$${price.subtotalBeforeFreshpunk.toStringAsFixed(2)}
-FreshPunk Fee (${freshpunkSharePercent.toStringAsFixed(1)}%): \$${price.freshpunkFee.toStringAsFixed(2)}
+FreshPunk Fee (${freshpunkSharePercent.toStringAsFixed(1)}% of meals): \$${price.freshpunkFee.toStringAsFixed(2)}
 Stripe Fee: \$${price.stripeFee.toStringAsFixed(2)}
+Stripe Charge: \$${price.stripeChargeTotal.toStringAsFixed(2)}
+Square Charge: \$${price.squareChargeTotal.toStringAsFixed(2)}
 ─────────────────
 Total: \$${price.totalAmount.toStringAsFixed(2)}
 ''';
@@ -121,17 +140,17 @@ class SubscriptionPrice {
   /// Delivery fees (9.75 per meal)
   final double deliveryFees;
 
-  /// Meals + Delivery
-  final double subtotalBeforeFreshpunk;
-
-  /// FreshPunk's 10% cut
+  /// FreshPunk's 10% cut (of meals only)
   final double freshpunkFee;
 
-  /// Meals + Delivery + FreshPunk fee
-  final double subtotalBeforeStripeFee;
-
-  /// Stripe transaction fees (2.9% + $0.30)
+  /// Stripe transaction fees (2.9% + $0.30) on FreshPunk fee
   final double stripeFee;
+
+  /// Total charged in Stripe (FreshPunk fee + Stripe fee)
+  final double stripeChargeTotal;
+
+  /// Total charged in Square (meals minus fee + delivery)
+  final double squareChargeTotal;
 
   /// Final amount customer is charged
   final double totalAmount;
@@ -139,15 +158,19 @@ class SubscriptionPrice {
   /// Number of meals in the order
   final int mealCount;
 
+  /// Stripe-only mode (Square disabled)
+  final bool stripeOnly;
+
   const SubscriptionPrice({
     required this.mealSubtotal,
     required this.deliveryFees,
-    required this.subtotalBeforeFreshpunk,
     required this.freshpunkFee,
-    required this.subtotalBeforeStripeFee,
     required this.stripeFee,
+    required this.stripeChargeTotal,
+    required this.squareChargeTotal,
     required this.totalAmount,
     required this.mealCount,
+    required this.stripeOnly,
   });
 
   /// Convert to cents for Stripe API (Stripe uses cents)
@@ -158,13 +181,14 @@ class SubscriptionPrice {
     return {
       'mealSubtotal': mealSubtotal,
       'deliveryFees': deliveryFees,
-      'subtotalBeforeFreshpunk': subtotalBeforeFreshpunk,
       'freshpunkFee': freshpunkFee,
-      'subtotalBeforeStripeFee': subtotalBeforeStripeFee,
       'stripeFee': stripeFee,
+      'stripeChargeTotal': stripeChargeTotal,
+      'squareChargeTotal': squareChargeTotal,
       'totalAmount': totalAmount,
       'totalAmountCents': totalAmountCents,
       'mealCount': mealCount,
+      'stripeOnly': stripeOnly,
       'calculatedAt': DateTime.now().toIso8601String(),
     };
   }
@@ -174,12 +198,13 @@ class SubscriptionPrice {
     return SubscriptionPrice(
       mealSubtotal: (map['mealSubtotal'] as num?)?.toDouble() ?? 0.0,
       deliveryFees: (map['deliveryFees'] as num?)?.toDouble() ?? 0.0,
-      subtotalBeforeFreshpunk: (map['subtotalBeforeFreshpunk'] as num?)?.toDouble() ?? 0.0,
       freshpunkFee: (map['freshpunkFee'] as num?)?.toDouble() ?? 0.0,
-      subtotalBeforeStripeFee: (map['subtotalBeforeStripeFee'] as num?)?.toDouble() ?? 0.0,
       stripeFee: (map['stripeFee'] as num?)?.toDouble() ?? 0.0,
+      stripeChargeTotal: (map['stripeChargeTotal'] as num?)?.toDouble() ?? 0.0,
+      squareChargeTotal: (map['squareChargeTotal'] as num?)?.toDouble() ?? 0.0,
       totalAmount: (map['totalAmount'] as num?)?.toDouble() ?? 0.0,
       mealCount: (map['mealCount'] as num?)?.toInt() ?? 0,
+      stripeOnly: (map['stripeOnly'] as bool?) ?? false,
     );
   }
 }

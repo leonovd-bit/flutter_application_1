@@ -163,12 +163,40 @@ class AuthService {
 
       debugPrint('[AuthService] Google user authenticated: ${googleUser.email}');
 
-      // Obtain auth details
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      // Obtain auth details (retry if needed for FedCM on web)
+      GoogleSignInAuthentication googleAuth;
+      try {
+        googleAuth = await googleUser.authentication;
+      } catch (e) {
+        debugPrint('[AuthService] First authentication attempt failed: $e, retrying...');
+        // Retry once more - sometimes FedCM needs a second attempt
+        await Future.delayed(const Duration(milliseconds: 500));
+        googleAuth = await googleUser.authentication;
+      }
 
-      // Verify we have at least an idToken (accessToken may not be available on web with FedCM)
-      if (googleAuth.idToken == null) {
-        throw Exception('Failed to obtain Google ID token');
+      // On web with FedCM, we might only get idToken (no accessToken)
+      // If neither token is available, try signing in directly with Firebase
+      if (googleAuth.idToken == null && googleAuth.accessToken == null) {
+        debugPrint('[AuthService] No Google tokens obtained, attempting Firebase signIn...');
+        // Try signing in directly with Firebase (uses FedCM behind the scenes)
+        try {
+          final googleProvider = GoogleAuthProvider();
+          final userCredential = await _auth.signInWithPopup(googleProvider);
+          debugPrint('[AuthService] Firebase signInWithPopup successful: ${userCredential.user?.uid}');
+          
+          if (userCredential.user != null) {
+            await _updateUserProfile(userCredential.user!);
+          }
+          await ProgressManager.saveCurrentStep(OnboardingStep.signup);
+          return userCredential;
+        } catch (e) {
+          throw Exception('Failed to obtain Google ID token: $e');
+        }
+      }
+
+      // Verify we have at least an idToken
+      if (googleAuth.idToken == null && googleAuth.accessToken == null) {
+        throw Exception('Failed to obtain Google credentials (idToken and accessToken both null)');
       }
 
       debugPrint('[AuthService] Google tokens obtained');
